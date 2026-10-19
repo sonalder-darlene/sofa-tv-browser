@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The update offer, download and install (standard build) -->
+    <string name="update_checking">Checking for updates…</string>
+    <string name="update_none">Sofa %1$s is the latest version.</string>
+    <string name="update_check_failed">Couldn\'t check for updates: %1$s</string>
+    <string name="update_available">Sofa %1$s is available</string>
+    <string name="update_details">Downloads %1$s from Sofa\'s GitHub releases. Android asks you to confirm, then Sofa closes to update.</string>
+    <string name="update_install">Update</string>
+    <string name="update_later">Not now</string>
+    <string name="update_skip">Skip this version</string>
+    <string name="update_downloading">Downloading Sofa %1$s</string>
+    <string name="update_failed">Update failed: %1$s</string>
+    <string name="update_corrupt">the download is incomplete or damaged</string>
+    <string name="update_not_newer">the download isn\'t newer than this version</string>
+    <string name="update_not_signed">the download isn\'t signed with Sofa\'s release key</string>
+</resources>

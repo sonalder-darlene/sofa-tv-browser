@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22252E"/><stop offset="1" stop-color="#14161C"/></linearGradient></defs>
+  <rect width="640" height="360" fill="url(#g)"/>
+  <rect x="52" y="108" width="144" height="144" rx="36" fill="#FF8A3D"/>
+  <g transform="translate(76,132) scale(0.1)"><path fill="#FFFFFF" d="M160,800Q110,800 75,765Q40,730 40,680L40,480Q40,447 63.5,423.5Q87,400 120,400Q153,400 176.5,423.5Q200,447 200,480L200,640L760,640L760,480Q760,447 783.5,423.5Q807,400 840,400Q873,400 896.5,423.5Q920,447 920,480L920,680Q920,730 885,765Q850,800 800,800L160,800ZM280,560L280,480Q280,427 245.5,387Q211,347 160,332L160,280Q160,230 195,195Q230,160 280,160L680,160Q730,160 765,195Q800,230 800,280L800,332Q747,343 713.5,384.5Q680,426 680,480L680,560L280,560Z"/></g>
+  <text x="228" y="198" font-family="Inter Variable, Inter" font-weight="700" font-size="92" fill="#FFFFFF">Sofa</text>
+  <text x="232" y="246" font-family="Inter Variable, Inter" font-weight="500" font-size="34" fill="#A7ACB8" letter-spacing="1">Private TV Browser</text>
+</svg>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Updates: standard build only, and only for copies that no app store updates -->
+    <string name="updates_title">Check for updates?</string>
+    <string name="updates_text">Copies of Sofa from GitHub don\'t get updates from an app store. Sofa can look for a new version on its GitHub page when it starts, at most once a day, and offer to install it.\n\nThis connects to github.com, which sees your IP address. Updates come straight from the developer\'s GitHub releases, without the review that an app store such as F-Droid adds, and Android asks you to confirm each one.\n\nYou can change this any time in Settings, which also has a button to check by hand.</string>
+    <string name="updates_no">Don\'t check</string>
+    <string name="updates_yes">Check for updates</string>
+
+    <string name="section_updates">Updates</string>
+    <string name="check_updates">Check for updates when Sofa starts</string>
+    <string name="check_updates_sub">At most once a day. Connects to github.com; nothing installs without your confirmation.</string>
+    <string name="check_updates_now">Check for updates now</string>
+    <string name="about_updates">If you turn on update checks, Sofa also connects to github.com.</string>
+</resources>

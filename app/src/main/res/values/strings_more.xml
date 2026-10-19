@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- First start -->
+    <string name="setup_title">Choose your search engine</string>
+    <string name="setup_subtitle">Sofa doesn\'t pick one for you. You can change it any time in Settings.</string>
+    <string name="setup_paid">%1$s only works with a paid account or key. You\'ll be asked to sign in on its site the first time you search.</string>
+    <string name="setup_use">Use %1$s</string>
+    <string name="setup_other">Choose another</string>
+    <string name="subscription">Subscription</string>
+
+    <string name="engine_duckduckgo">USA · mostly Bing results, plus its own crawler</string>
+    <string name="engine_qwant">France · own index plus Bing results</string>
+    <string name="engine_kagi">USA · own index plus other sources</string>
+    <string name="engine_murena">France · Qwant results, from Murena</string>
+    <string name="engine_startpage">Netherlands · Google and Bing results, proxied</string>
+    <string name="engine_ecosia">Germany · Bing, Google and EUSP results</string>
+    <string name="engine_brave">USA · own independent index</string>
+    <string name="engine_mojeek">UK · own independent index</string>
+    <string name="engine_uruky">Portugal · meta-search of European indexes</string>
+    <string name="engine_metager">Germany · non-profit meta-search</string>
+    <string name="engine_swisscows">Switzerland · family-safe; own index + Bing</string>
+    <string name="engine_google">USA · own index</string>
+
+    <!-- Appearance -->
+    <string name="section_appearance">Appearance</string>
+    <string name="theme">Theme</string>
+    <string-array name="themes">
+        <item>Dark</item>
+        <item>Light</item>
+        <item>Same as the TV</item>
+    </string-array>
+
+    <!-- Downloads -->
+    <string name="downloads">Downloads</string>
+    <string name="downloads_active">Downloading…</string>
+    <string name="clear_finished">Clear finished</string>
+    <string name="downloads_location">Saved to %s</string>
+    <string name="downloads_empty">Nothing downloaded yet</string>
+    <string name="download_done">Downloaded %s</string>
+    <string name="download_missing">File no longer exists</string>
+    <string name="download_no_app">No app on this device can open this file</string>
+    <string name="download_progress">%1$s of %2$s</string>
+    <string name="download_queued">Waiting</string>
+    <string name="download_starting">Connecting…</string>
+    <string name="download_retrying">Connection lost, retrying…</string>
+    <string name="download_left">%s left</string>
+    <string name="download_paused">Paused</string>
+    <string name="download_failed_status">Failed: %s</string>
+    <string name="pause">Pause</string>
+    <string name="resume">Resume</string>
+    <string name="retry">Retry</string>
+    <string name="cancel_download">Cancel</string>
+    <string name="delete_file">Delete file</string>
+    <string name="remove_from_list">Remove from list (keep file)</string>
+    <string name="delete_file_confirm">Delete %s from this device?</string>
+    <plurals name="downloading_files">
+        <item quantity="one">Downloading %d file</item>
+        <item quantity="other">Downloading %d files</item>
+    </plurals>
+
+    <!-- About -->
+    <string name="about_license">Sofa is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License, version 3. It comes with no warranty.</string>
+    <string name="license">Licence</string>
+    <string name="third_party">Third-party</string>
+</resources>

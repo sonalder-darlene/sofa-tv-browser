@@ -1,0 +1,35 @@
+Sofa is a lightweight web browser made for the TV remote, with a mouse pointer, a menu on the Back key and a home screen of your own sites. It has no ads, analytics, accounts or servers of its own.
+
+Remote-control browsing
+• The D-pad moves a mouse pointer that speeds up while held and stops dead on release. A quick tap nudges it a few pixels.
+• OK clicks, holding OK while moving drags, and hover works, so hover menus open.
+• Pushing the pointer against a screen edge scrolls the page, or whatever is under the pointer.
+• Scroll mode, and a D-pad mode for sites built for keyboard navigation.
+• The Back key opens a menu: address, navigation, bookmarks, history, ad blocking per site, "Browse as" (desktop, mobile, iPad, Smart TV or your own user agent), zoom and settings.
+
+Home screen
+• Your own quick-access tiles, which you can add, edit and reorder.
+• Most visited sites, worked out on the TV from your history, and your recent bookmarks.
+
+Video
+• Fullscreen video gets a control bar, even for videos embedded from other sites: back and forward 10 seconds, play/pause, a scrub bar and playback speed.
+
+Search
+• At first start you choose the search engine yourself: Brave Search, DuckDuckGo, Ecosia, Google, Kagi, MetaGer, Mojeek, Murena Find, Qwant, Startpage, Swisscows or Uruky, or later any address you like.
+• Suggestions come from your bookmarks and history. Your engine's own suggestions are only used if you turn them on.
+• Voice search runs in Sofa's own search screen, and can be turned off.
+
+Downloads
+• Up to three at once, with pause and resume, automatic retries, and downloads that carry on in the background.
+
+Privacy
+• Ads and trackers are blocked on the TV itself, using the StevenBlack hosts list. Third-party cookies are blocked.
+• Few browsers send Do Not Track, and desktop Chrome is the most common browser, so Sofa never sends Do Not Track and shows a desktop Chrome user agent by default. Both help it blend in.
+• Private browsing runs in a separate WebView profile where the TV's WebView supports it.
+• Pages never get the camera, microphone, location or your files.
+• No crash reporting, remote configuration or cloud backup.
+
+Updates
+Copies installed from GitHub can check GitHub for new versions, but only if you say yes at first start. Copies installed from an app store never see this option.
+
+Sofa uses the TV's system WebView. It needs Android 7.0 or newer and is made for Android TV and Google TV.

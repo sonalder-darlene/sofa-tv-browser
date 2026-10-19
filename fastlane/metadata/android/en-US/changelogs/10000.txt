@@ -1,0 +1,1 @@
+First public release: a D-pad mouse pointer, a Back-key menu, quick-access tiles, fullscreen video controls, on-device ad and tracker blocking, private browsing, search with twelve engines to choose from and voice search, a download manager with pause and resume, Dark and Light themes, and opt-in update checks for copies installed from GitHub.
