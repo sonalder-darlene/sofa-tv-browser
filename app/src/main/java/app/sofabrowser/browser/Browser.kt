@@ -4,10 +4,12 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.hardware.display.DisplayManager
 import android.net.Uri
 import android.net.http.SslError
 import android.os.Message
 import android.os.SystemClock
+import android.view.Display
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
@@ -44,6 +46,11 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
         fun onEnterFullscreen(view: View, callback: WebChromeClient.CustomViewCallback)
         fun onExitFullscreen()
         fun onVideoState(state: VideoState)
+        /** Whether a video plays anywhere on the page (any frame, fullscreen or not). */
+        fun onPlaying(playing: Boolean)
+        fun onVideoInfo(info: VideoInfo)
+        fun onVideoCandidate(candidate: WatchTarget.Candidate)
+        fun onVideoSource(source: VideoSource)
         fun onSslError(handler: SslErrorHandler, error: SslError)
         fun onProtectedMediaRequest(origin: String, grant: (Boolean) -> Unit)
         fun onDownload(url: String, userAgent: String?, contentDisposition: String?, mimeType: String?, length: Long)
@@ -70,6 +77,10 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
 
     val adBlocker = AdBlocker.get(context)
     private val guard = NavigationGuard()
+    private val frames = PlaybackFrames()
+
+    /** Video streams the current page fetched, for "Play in…". */
+    val streams = StreamSniffer()
 
     /** Creates (or re-creates) the WebView. Returns the new view; the caller attaches it to its layout. */
     @SuppressLint("SetJavaScriptEnabled", "RequiresFeature", "ClickableViewAccessibility") // MULTI_PROFILE: see profilesSupported
@@ -93,7 +104,12 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
         applyGpc(view)
         // Fresh random names per view for everything injected into pages (see PageKey).
         val key = PageKey()
-        VideoRelay.install(view, key) { state -> view.post { host.onVideoState(state) } }
+        VideoRelay.install(view, key, panelScale(),
+            onState = { state -> view.post { host.onVideoState(state) } },
+            onPlaying = { frame, on -> view.post { frames.report(frame, on); host.onPlaying(frames.anyPlaying) } },
+            onInfo = { info -> view.post { host.onVideoInfo(info) } },
+            onCandidate = { c -> view.post { host.onVideoCandidate(c) } },
+            onSource = { s -> view.post { host.onVideoSource(s) } })
         // Every press that reaches the page (the pointer's taps, a real mouse, OK in keys-to-page mode) may open one
         // window. Both listeners only watch.
         view.setOnTouchListener { _, e -> if (e.actionMasked == MotionEvent.ACTION_DOWN) guard.onInput(); false }
@@ -116,6 +132,8 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
             it.destroy()
         }
         web = null
+        frames.clear()
+        host.onPlaying(false)
         if (isolated) deletePrivateProfile()
         privateMode = false
         isolated = false
@@ -140,6 +158,8 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
             pageHost = AdBlocker.hostOf(url)
             guard.pageStarted()
+            frames.clear()
+            host.onPlaying(false)
             host.onPageStarted(url)
         }
 
@@ -151,11 +171,15 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
         }
 
         override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+            val url = request.url.toString()
             if (request.isForMainFrame) {
                 // A new document's subresources are requested before onPageStarted reaches the UI thread, so the
-                // page host and count switch over here, on the network thread, ahead of them.
+                // page host, count and streams switch over here, on the network thread, ahead of them.
                 pageHost = request.url.host
                 adBlocker.resetPageCount()
+                streams.clear()
+            } else {
+                streams.request(url, listed(url))
             }
             return if (prefs.adBlock) adBlocker.intercept(request, pageHost) else null
         }
@@ -251,6 +275,14 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
             }
             return true
         }
+    }
+
+    /** Panel pixels per app pixel: the TV's display mode (4K on a 4K panel) against the window Android gives apps. */
+    private fun panelScale(): Double {
+        val dm = context.resources.displayMetrics
+        val mode = context.getSystemService(DisplayManager::class.java)?.getDisplay(Display.DEFAULT_DISPLAY)?.mode
+            ?: return 1.0
+        return PanelScale.of(mode.physicalWidth, mode.physicalHeight, dm.widthPixels, dm.heightPixels)
     }
 
     /** Loads a window's first address in [view], unless the pop-up rules block it. */

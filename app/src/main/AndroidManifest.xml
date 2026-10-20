@@ -26,9 +26,17 @@
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
+        <!-- "Open videos in": lists the apps that open web video links. One generic query; no player is named. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" android:mimeType="video/*" />
+        </intent>
     </queries>
 
+    <!-- Picture-in-picture starts from the video bar or from Home (onUserLeaveHint), as on Android TV; lint's
+         auto-enter advice is for phones' gesture navigation, hence PictureInPictureIssue is ignored. -->
     <application
+        tools:ignore="PictureInPictureIssue"
         android:allowBackup="false"
         android:banner="@drawable/banner"
         android:enableOnBackInvokedCallback="false"
@@ -50,6 +58,7 @@
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode|density"
             android:exported="true"
             android:launchMode="singleTask"
+            android:supportsPictureInPicture="true"
             android:windowSoftInputMode="adjustNothing">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -91,6 +100,10 @@
             android:name=".ui.SetupActivity"
             android:exported="false" />
 
+        <!-- Told by Android's chooser which player was picked for "Play in…". -->
+        <receiver
+            android:name=".browser.PlayerChosen"
+            android:exported="false" />
         <service
             android:name=".downloads.DownloadService"
             android:exported="false"

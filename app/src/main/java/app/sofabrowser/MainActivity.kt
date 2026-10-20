@@ -4,8 +4,10 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
+import android.app.PictureInPictureParams
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.net.Uri
 import android.net.http.SslError
@@ -13,10 +15,12 @@ import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.text.InputType
+import android.util.Rational
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.webkit.SslErrorHandler
 import android.webkit.MimeTypeMap
 import android.webkit.URLUtil
@@ -30,11 +34,16 @@ import androidx.webkit.WebViewFeature
 import app.sofabrowser.adblock.Allowlist
 import app.sofabrowser.browser.Browser
 import app.sofabrowser.browser.CursorLayout
+import app.sofabrowser.browser.ExternalPlayer
 import app.sofabrowser.browser.FullscreenLayer
 import app.sofabrowser.browser.PageDownloads
+import app.sofabrowser.browser.PlayerRequest
 import app.sofabrowser.browser.ProtectedMedia
 import app.sofabrowser.browser.UrlInput
 import app.sofabrowser.browser.VideoBar
+import app.sofabrowser.browser.VideoInfo
+import app.sofabrowser.browser.VideoSource
+import app.sofabrowser.browser.WatchTarget
 import app.sofabrowser.browser.VideoRelay
 import app.sofabrowser.browser.VideoState
 import app.sofabrowser.browser.WebViewAge
@@ -181,6 +190,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
 
     private fun showBrowser() {
         home.visibility = View.GONE
+        applyKeepAwake()
         browserLayer.visibility = View.VISIBLE
         cursor.speedLevel = prefs.cursorSpeed
         web?.onResume()
@@ -195,6 +205,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         web?.onPause()
         home.refresh(prefs.privateMode, prefs.adBlock)
         home.visibility = View.VISIBLE
+        applyKeepAwake()
         browserLayer.visibility = View.INVISIBLE
         if (home.findFocus() == null) home.searchPill.requestFocus()
         Updater.showPending(this)
@@ -243,6 +254,12 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     }
 
     private fun mediaKey(event: KeyEvent): Boolean {
+        // Play with nothing playing yet means "watch this page's video" (fullscreen has its own player already).
+        if (fullscreen.visibility != View.VISIBLE && !videoPlaying && event.repeatCount == 0 &&
+            (event.keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE || event.keyCode == KeyEvent.KEYCODE_MEDIA_PLAY)) {
+            if (event.action == KeyEvent.ACTION_DOWN) watch()
+            return true
+        }
         val cmd = when (event.keyCode) {
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_HEADSETHOOK -> "toggle" to null
             KeyEvent.KEYCODE_MEDIA_PLAY -> "play" to null
@@ -259,6 +276,11 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     private fun fullscreenKey(event: KeyEvent): Boolean {
         val bar = fullscreen.bar
         val down = event.action == KeyEvent.ACTION_DOWN
+        when (event.keyCode) {
+            // The remote's volume keys always reach the system (often the TV itself, over HDMI-CEC).
+            KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE -> return false
+            KeyEvent.KEYCODE_CAPTIONS -> { if (down) { command("subs"); bar.show() }; return true }
+        }
         if (fullscreen.pointer.cursorEnabled) {
             if (event.keyCode == KeyEvent.KEYCODE_BACK) {
                 if (down) { fullscreen.pointer.cursorEnabled = false; command("watch"); bar.show() }
@@ -352,6 +374,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             BrowserMenu.Action.BACK -> if (w.canGoBack()) browser.goBack()
             BrowserMenu.Action.FORWARD -> if (w.canGoForward()) browser.goForward()
             BrowserMenu.Action.RELOAD -> { if (loading) w.stopLoading() else browser.reload(); menu?.dismiss() }
+            BrowserMenu.Action.WATCH -> watch()
             BrowserMenu.Action.FIND -> { menu?.dismiss(); findBar.open(voice = prefs.voiceSearch && voiceInput.available) }
             BrowserMenu.Action.BOOKMARK -> if (Browser.isWebUrl(url)) {
                 if (db.isBookmarked(url)) db.removeBookmark(url) else db.addBookmark(w.title.orEmpty(), url)
@@ -555,6 +578,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     override fun onEnterFullscreen(view: View, callback: WebChromeClient.CustomViewCallback) {
         menu?.dismiss()
         fullscreenCallback = callback
+        resumeOffered = false
+        fullscreen.bar.pipShown = pipSupported
         fullscreen.attach(view)
         browserLayer.visibility = View.INVISIBLE
         fullscreen.postDelayed({ VideoRelay.send(web, "watch") }, 300)
@@ -585,7 +610,196 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         fullscreen.pointer.speedLevel = prefs.cursorSpeed
     }
 
-    override fun onVideoState(state: VideoState) = fullscreen.bar.update(state)
+    override fun onVideoState(state: VideoState) {
+        fullscreen.bar.update(state)
+        rememberPosition(state)
+    }
+
+    // Resume: where long films were left, on this device only (ResumeStore has the rules).
+
+    // Fresh each time: Settings may have cleared it meanwhile.
+    private val resume get() = resumeStore(this)
+    private var resumeSavedAt = 0L
+    private var resumeOffered = false
+
+    private fun rememberPosition(s: VideoState) {
+        val url = web?.url ?: return
+        if (s.duration <= 0) return
+        val now = System.currentTimeMillis()
+        if (!resumeOffered) {
+            resumeOffered = true
+            if (!browser.privateMode) resume.offer(url, now)?.takeIf { it > s.position + 30 }?.let(fullscreen.bar::offerResume)
+        }
+        if (s.paused || now - resumeSavedAt > 5000) {
+            resumeSavedAt = now
+            resume.save(url, s.position, s.duration, browser.privateMode, now)
+        }
+    }
+
+    override fun toggleVideoInfo() {
+        val info = fullscreen.info
+        info.visibility = if (info.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+        info.removeCallbacks(refreshInfo)
+        if (info.visibility == View.VISIBLE) { info.text = getString(R.string.video_info_waiting); refreshInfo.run() }
+    }
+
+    private val refreshInfo: Runnable = Runnable {
+        if (fullscreen.info.visibility != View.VISIBLE) return@Runnable
+        command("info")
+        fullscreen.info.postDelayed(refreshInfo, 1000)
+    }
+
+    override fun onVideoInfo(info: VideoInfo) {
+        if (fullscreen.info.visibility != View.VISIBLE) return
+        fun names(list: List<VideoInfo.Codec>) = list.joinToString(", ") { it.name }
+        val hardware = info.codecs.filter { it.supported && it.efficient }
+        val software = info.codecs.filter { it.supported && !it.efficient }
+        val dm = resources.displayMetrics
+        // The panel's own mode can be 4K while apps are drawn at 1080p; the 4K investigation needs both.
+        @Suppress("DEPRECATION") val mode = windowManager.defaultDisplay.mode
+        fullscreen.info.text = listOfNotNull(
+            getString(R.string.video_info_size, info.width, info.height),
+            if (info.total >= 0) getString(R.string.video_info_frames, info.total, info.dropped) else null,
+            if (info.codecs.isEmpty()) null
+            else getString(R.string.video_info_hardware, names(hardware).ifEmpty { getString(R.string.video_info_none) }),
+            if (software.isEmpty()) null else getString(R.string.video_info_software, names(software)),
+            getString(R.string.video_info_note),
+            "",
+            getString(R.string.video_info_display, dm.widthPixels, dm.heightPixels,
+                mode?.physicalWidth ?: dm.widthPixels, mode?.physicalHeight ?: dm.heightPixels),
+            getString(R.string.video_info_page, info.screenWidth, info.screenHeight, info.pixelRatio.toString(),
+                info.innerWidth, info.cssWidth),
+        ).joinToString("\n")
+    }
+
+    // Watch: locate the main video, scroll it into view if needed, tap it for real, then ask for fullscreen.
+
+    private val candidates = ArrayList<WatchTarget.Candidate>()
+    private var watching = false
+    private var revealedOnce = false
+
+    private fun watch() {
+        if (web == null || watching) return
+        menu?.dismiss()
+        watching = true
+        revealedOnce = false
+        locate()
+    }
+
+    private fun locate() {
+        candidates.clear()
+        command("locate")
+        cursor.postDelayed(::watchChosen, 400)
+    }
+
+    override fun onVideoCandidate(candidate: WatchTarget.Candidate) {
+        if (watching) candidates.add(candidate)
+    }
+
+    private fun watchChosen() {
+        val best = WatchTarget.choose(candidates)
+        if (best == null) { watching = false; toast(R.string.no_video); return }
+        if (!best.tappable(cursor.width, cursor.height)) {
+            if (revealedOnce) { watching = false; toast(R.string.no_video); return }
+            revealedOnce = true
+            VideoRelay.send(web, "reveal", frame = best.frame)
+            cursor.postDelayed(::locate, 700)
+            return
+        }
+        watching = false
+        cursor.tapAt(best.tapX.toFloat(), best.tapY.toFloat())
+        cursor.postDelayed({ VideoRelay.send(web, "go", frame = best.frame) }, 150)
+    }
+
+    // Play in…: ask every frame for its main video, hand the largest to the chosen player, pause it here.
+
+    private val sources = ArrayList<VideoSource>()
+    private var collectingSources = false
+
+    private var choosePlayer = false
+
+    /** [choose]: show Android's chooser even when a player was remembered (a long press on the button). */
+    override fun playIn(choose: Boolean) {
+        if (web == null || collectingSources) return
+        choosePlayer = choose
+        sources.clear()
+        collectingSources = true
+        command("source")
+        cursor.postDelayed(::playInChosen, 300)
+    }
+
+    override fun onVideoSource(source: VideoSource) {
+        if (collectingSources) sources.add(source)
+    }
+
+    private fun playInChosen() {
+        collectingSources = false
+        val video = sources.maxByOrNull { it.area }
+        val sniffed = browser.streams.best()
+        val stream = video?.src?.takeIf(Browser::isWebUrl) ?: sniffed
+        // As downloads do: the page's user agent and address, and the cookies for the stream. Only on this press.
+        val headers = web?.let { w ->
+            mapOf("User-Agent" to w.settings.userAgentString.orEmpty(), "Referer" to w.url.orEmpty(),
+                "Cookie" to stream?.let { WebViews.cookieManager(w).getCookie(it) }.orEmpty())
+        }.orEmpty()
+        val request = PlayerRequest.build(video?.src, web?.title, video?.position ?: 0.0, video?.protected == true, headers, sniffed)
+        val launch = when (request) {
+            PlayerRequest.Refusal.NO_VIDEO -> { toast(R.string.no_video); return }
+            PlayerRequest.Refusal.IN_PAGE -> { toast(R.string.handover_in_page); return }
+            PlayerRequest.Refusal.PROTECTED -> { toast(R.string.handover_drm); return }
+            is PlayerRequest.Launch -> request
+        }
+        // The player picked last time, unless the user asked to choose again or it was uninstalled since.
+        val remembered = prefs.videoPlayer.takeUnless { choosePlayer || it.isEmpty() }
+        val player = remembered?.let { ExternalPlayer.installed(this, it) ?: run {
+            prefs.videoPlayer = ""
+            toast(R.string.player_gone)
+            null
+        } }
+        if (ExternalPlayer.open(this, launch, player, getString(R.string.play_in))) command("pause")
+        else toast(R.string.no_player)
+    }
+
+    // Picture-in-picture: the fullscreen video shrinks into a corner, from the bar or on Home while it plays.
+
+    private val pipSupported get() =
+        Build.VERSION.SDK_INT >= 26 && packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+
+    private val inPip get() = isInPictureInPictureMode
+
+    override fun pictureInPicture() {
+        if (!pipSupported || fullscreen.visibility != View.VISIBLE || Build.VERSION.SDK_INT < 26) return
+        fullscreen.bar.hideNow()
+        fullscreen.info.visibility = View.GONE
+        runCatching { enterPictureInPictureMode(PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build()) }
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (videoPlaying && fullscreen.visibility == View.VISIBLE) pictureInPicture()
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        if (isInPictureInPictureMode) { fullscreen.bar.hideNow(); menu?.dismiss() }
+    }
+
+    private var videoPlaying = false
+    private var started = false
+
+    override fun onPlaying(playing: Boolean) {
+        videoPlaying = playing
+        applyKeepAwake()
+    }
+
+    /**
+     * Keeps the TV awake while a video plays in the page. WebView flags its own view for that, but Sofa hides the
+     * page's layer during fullscreen, which cancels the flag (checked on WebView 113), so the window holds it.
+     */
+    private fun applyKeepAwake() {
+        if (videoPlaying && started && !homeShown) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
 
     override fun onSslError(handler: SslErrorHandler, error: SslError) {
         val host = Browser.hostOf(error.url) ?: error.url
@@ -705,11 +919,17 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
 
     override fun onStart() {
         super.onStart()
+        started = true
+        applyKeepAwake()
         DownloadEngine.addListener(downloadsListener)
         downloadsListener()
     }
 
     override fun onStop() {
+        // Stopped while in picture-in-picture means its window was closed: no sound may go on playing.
+        if (inPip) { VideoRelay.send(web, "pause"); web?.onPause() }
+        started = false
+        applyKeepAwake()
         DownloadEngine.removeListener(downloadsListener)
         super.onStop()
     }
@@ -726,7 +946,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
 
     override fun onPause() {
         super.onPause()
-        web?.onPause()
+        // In picture-in-picture the activity is paused but its video keeps playing.
+        if (!inPip) web?.onPause()
         web?.let { WebViews.cookieManager(it).flush() }
     }
 
@@ -773,7 +994,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             browser.destroy()
             if (prefs.clearOnExit || wasPrivate) {
                 WebViews.clearBrowsingData(this, null)
-                if (prefs.clearOnExit) db.clearHistory()
+                if (prefs.clearOnExit) { db.clearHistory(); resume.clear() }
             }
             prefs.privateMode = false
         }

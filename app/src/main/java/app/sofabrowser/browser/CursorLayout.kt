@@ -293,6 +293,13 @@ class CursorLayout(context: Context) : FrameLayout(context) {
         pendingScrollY = 0f
     }
 
+    /** A real tap at ([x], [y]) in this view, for actions that need a user gesture in the page (such as "Watch"). */
+    fun tapAt(x: Float, y: Float) {
+        val down = SystemClock.uptimeMillis()
+        sendTouch(MotionEvent.ACTION_DOWN, down, x, y)
+        sendTouch(MotionEvent.ACTION_UP, down, x, y)
+    }
+
     private fun touch(action: Int, at: PointF = pos) {
         val now = SystemClock.uptimeMillis()
         if (action == MotionEvent.ACTION_DOWN) { touchDownTime = now; touchDown = true }

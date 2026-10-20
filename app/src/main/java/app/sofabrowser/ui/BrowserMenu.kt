@@ -21,7 +21,7 @@ import app.sofabrowser.R
  */
 class BrowserMenu(context: Context, private val actions: Actions) : Dialog(context, android.R.style.Theme_Translucent_NoTitleBar) {
 
-    enum class Action { HOME, ALLOW_ONCE, BACK, FORWARD, RELOAD, FIND, BOOKMARK, PIN, HISTORY, BOOKMARKS, DOWNLOADS, ADBLOCK, USER_AGENT, SCROLL, POINTER, ZOOM_OUT, ZOOM_IN, SETTINGS }
+    enum class Action { HOME, WATCH, BACK, FORWARD, RELOAD, FIND, BOOKMARK, PIN, HISTORY, BOOKMARKS, DOWNLOADS, ADBLOCK, ALLOW_ONCE, USER_AGENT, SCROLL, POINTER, ZOOM_OUT, ZOOM_IN, SETTINGS }
 
     interface Actions {
         fun onAddress()
@@ -104,8 +104,8 @@ class BrowserMenu(context: Context, private val actions: Actions) : Dialog(conte
             })
         }
         add(Action.HOME, R.drawable.ic_home, R.string.home)
-        // Second, not first: the leftmost button's label would be cut off by the screen edge.
-        add(Action.ALLOW_ONCE, R.drawable.ic_open_in_new, R.string.allow_once)
+        // Watch is the action a TV is most often used for: next to Home.
+        add(Action.WATCH, R.drawable.ic_play_circle, R.string.watch)
         add(Action.BACK, R.drawable.ic_arrow_back, R.string.back)
         add(Action.FORWARD, R.drawable.ic_arrow_forward, R.string.forward)
         add(Action.RELOAD, R.drawable.ic_refresh, R.string.reload)
@@ -116,6 +116,8 @@ class BrowserMenu(context: Context, private val actions: Actions) : Dialog(conte
         add(Action.BOOKMARKS, R.drawable.ic_bookmarks, R.string.bookmarks)
         add(Action.DOWNLOADS, R.drawable.ic_download, R.string.downloads)
         add(Action.ADBLOCK, R.drawable.ic_shield, R.string.adblock_site)
+        // Shown only after a block, next to the shield it belongs with; the menu then opens with it focused.
+        add(Action.ALLOW_ONCE, R.drawable.ic_open_in_new, R.string.allow_once)
         add(Action.USER_AGENT, R.drawable.ic_desktop_windows, R.string.user_agent)
         add(Action.SCROLL, R.drawable.ic_swap_vert, R.string.scroll_mode)
         add(Action.POINTER, R.drawable.ic_mouse, R.string.pointer)

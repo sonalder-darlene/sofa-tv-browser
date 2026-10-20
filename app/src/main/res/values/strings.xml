@@ -80,6 +80,13 @@
     <string name="adblock_site_disabled">Ad blocking turned off for this site</string>
     <string name="adblock_site_enabled">Ad blocking turned on for this site</string>
     <string name="adblock_globally_off">Ad blocking is turned off in Settings</string>
+    <string name="watch">Watch</string>
+    <string name="play_in">Play in…</string>
+    <string name="handover_in_page">This video can\'t be sent to another player. Sofa will play it itself.</string>
+    <string name="handover_drm">This video is protected, so only Sofa\'s player can show it.</string>
+    <string name="player_gone">That player isn\'t installed any more. Choose another one.</string>
+    <string name="no_player">No other video player is installed.</string>
+    <string name="no_video">No video found on this page.</string>
     <string name="find_in_page">Find in page</string>
     <string name="find_hint">Find in page</string>
     <string name="find_previous">Previous match</string>
@@ -138,6 +145,19 @@
     <string name="play_pause">Play or pause</string>
     <string name="exit_fullscreen">Exit fullscreen</string>
     <string name="live">LIVE</string>
+    <string name="video_info">Video info</string>
+    <string name="picture_in_picture">Picture in picture</string>
+    <string name="continue_from">Continue from %s?</string>
+    <string name="subtitles">Subtitles</string>
+    <string name="video_info_waiting">Reading video info…</string>
+    <string name="video_info_size">Video: %1$d × %2$d</string>
+    <string name="video_info_frames">Frames shown: %1$d, dropped: %2$d</string>
+    <string name="video_info_hardware">Hardware decoding available for: %s</string>
+    <string name="video_info_software">Software only: %s</string>
+    <string name="video_info_none">none of H.264, VP9, AV1, HEVC</string>
+    <string name="video_info_note">An indication from the TV, not proof of what this video uses.</string>
+    <string name="video_info_display">Display: window %1$d × %2$d, panel %3$d × %4$d</string>
+    <string name="video_info_page">Page: screen %1$d × %2$d, pixel ratio %3$s, viewport %4$d, video width %5$d (CSS px)</string>
 
     <!-- Settings -->
     <string name="section_browsing">Browsing</string>
@@ -194,13 +214,14 @@
     <string name="remember_history">Remember history</string>
     <string name="remember_history_sub">Kept on this device for 90 days</string>
     <string name="clear_on_exit">Clear browsing data on exit</string>
-    <string name="clear_on_exit_sub">Cookies, site storage, cache and history</string>
+    <string name="clear_on_exit_sub">Cookies, site storage, cache, history and where you stopped videos</string>
     <string name="clear_now">Clear browsing data now</string>
-    <string name="clear_now_confirm">Delete cookies, site storage, cache, history, saved site icons and your protected-content answers? Bookmarks and Quick access are kept.</string>
+    <string name="clear_now_confirm">Delete cookies, site storage, cache, history, saved site icons, where you stopped videos and your protected-content answers? Bookmarks and Quick access are kept.</string>
     <string name="clear">Clear</string>
     <string name="cleared">Browsing data cleared</string>
     <string name="about">About Sofa</string>
     <string name="about_engine">Web engine: Chrome %s</string>
+    <string name="about_video">Video is decoded by the web engine, with the TV\'s hardware where the format allows. On 4K TVs the engine shows it through Sofa\'s HD window, and the TV upscales it.</string>
     <string name="old_webview_title">Your TV\'s web engine is out of date</string>
     <string name="old_webview_message">Sofa shows pages with the web engine that comes with your TV (Android System WebView). This one is quite old. Sofa can\'t update it, but your TV can: check its app store, or the TV maker\'s updates. Older versions may be missing security fixes, and some sites may not work properly. You can keep browsing in the meantime.</string>
     <string name="keep_browsing">Keep browsing</string>

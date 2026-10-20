@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.net.Uri
 import app.sofabrowser.browser.ProtectedMedia
+import app.sofabrowser.browser.ResumeStore
 
 data class SearchEngine(
     val id: String,
@@ -19,6 +20,22 @@ data class SearchEngine(
 ) {
     fun searchUrl(query: String) = template.replace("%s", Uri.encode(query))
 }
+
+/**
+ * A string map kept in its own preferences file: put, putAll, remove and clear write through. Read it fresh for
+ * each use, since another screen may change the file; its key, value and entry views are not written back.
+ */
+class PrefsMap(private val p: SharedPreferences,
+               private val map: MutableMap<String, String> = HashMap(p.all.mapValues { it.value.toString() })) :
+    MutableMap<String, String> by map {
+    override fun put(key: String, value: String): String? = map.put(key, value).also { p.edit().putString(key, value).apply() }
+    override fun putAll(from: Map<out String, String>) = from.forEach { (k, v) -> put(k, v) }
+    override fun remove(key: String): String? = map.remove(key).also { p.edit().remove(key).apply() }
+    override fun clear() { map.clear(); p.edit().clear().apply() }
+}
+
+/** Where long films were left (see ResumeStore), read fresh from its file. */
+fun resumeStore(context: Context) = ResumeStore(PrefsMap(context.getSharedPreferences("resume", Context.MODE_PRIVATE)))
 
 /** User settings. Every default favours privacy; nothing here is ever sent anywhere. */
 class Prefs(context: Context) {
@@ -50,6 +67,8 @@ class Prefs(context: Context) {
     var backGoesBack by boolean("back_goes_back", false)
     var javascript by boolean("javascript", true)
     var autoplay by boolean("autoplay", true)
+    /** The player picked in Android's chooser for "Play in…" (a flattened component name), or "" before the first. */
+    var videoPlayer by string("video_player", "")
     var textZoom by int("text_zoom", 100)
     var cursorSpeed by int("cursor_speed", 2) // 1 slow .. 3 fast
     var rememberHistory by boolean("remember_history", true)
