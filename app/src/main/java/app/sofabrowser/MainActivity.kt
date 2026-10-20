@@ -31,6 +31,7 @@ import app.sofabrowser.browser.Browser
 import app.sofabrowser.browser.CursorLayout
 import app.sofabrowser.browser.FullscreenLayer
 import app.sofabrowser.browser.PageDownloads
+import app.sofabrowser.browser.ProtectedMedia
 import app.sofabrowser.browser.UrlInput
 import app.sofabrowser.browser.VideoBar
 import app.sofabrowser.browser.VideoRelay
@@ -570,12 +571,17 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     }
 
     override fun onProtectedMediaRequest(origin: String, grant: (Boolean) -> Unit) {
-        if (prefs.drmAllowed(origin)) { grant(true); return }
+        when (ProtectedMedia.decide(prefs.drmMode, prefs.drmAnswer(origin))) {
+            ProtectedMedia.Decision.GRANT -> { grant(true); return }
+            ProtectedMedia.Decision.DENY -> { grant(false); return }
+            ProtectedMedia.Decision.ASK -> {}
+        }
+        // Dismissing with Back blocks this time only; the buttons are remembered for the site.
         var answered = false
         dialog().setTitle(R.string.drm_title)
             .setMessage(getString(R.string.drm_message, Browser.hostOf(origin) ?: origin))
-            .setPositiveButton(R.string.allow) { _, _ -> answered = true; prefs.setDrmAllowed(origin, true); grant(true) }
-            .setNegativeButton(R.string.block) { _, _ -> answered = true; grant(false) }
+            .setPositiveButton(R.string.allow) { _, _ -> answered = true; prefs.setDrmAnswer(origin, true); grant(true) }
+            .setNegativeButton(R.string.block) { _, _ -> answered = true; prefs.setDrmAnswer(origin, false); grant(false) }
             .setOnDismissListener { if (!answered) grant(false) }
             .show()
     }

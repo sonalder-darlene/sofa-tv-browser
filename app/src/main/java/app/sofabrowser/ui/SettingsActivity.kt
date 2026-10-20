@@ -25,6 +25,7 @@ import app.sofabrowser.BuildConfig
 import app.sofabrowser.Prefs
 import app.sofabrowser.R
 import app.sofabrowser.adblock.AdBlocker
+import app.sofabrowser.browser.ProtectedMedia
 import app.sofabrowser.browser.WebViews
 import app.sofabrowser.data.Db
 import app.sofabrowser.data.Favicons
@@ -97,6 +98,7 @@ class SettingsActivity : Activity() {
         switch(R.string.third_party_cookies, R.string.third_party_cookies_sub, prefs::blockThirdPartyCookies)
         switch(R.string.gpc, R.string.gpc_sub, prefs::sendGpc)
         switch(R.string.safe_browsing, R.string.safe_browsing_sub, prefs::safeBrowsing)
+        row(getString(R.string.drm_setting), getString(R.string.drm_setting_sub), valueText(drmLabel())) { pickDrm() }
         switch(R.string.remember_history, R.string.remember_history_sub, prefs::rememberHistory)
         switch(R.string.clear_on_exit, R.string.clear_on_exit_sub, prefs::clearOnExit)
         nav(R.string.clear_now, null) { clearNow() }
@@ -149,8 +151,10 @@ class SettingsActivity : Activity() {
         return row
     }
 
+    private fun valueText(value: String) = Ui.text(this, 28, Ui.p.textMid).apply { text = value; setPadding(24.px, 0, 0, 0) }
+
     private fun nav(title: Int, value: String?, onClick: () -> Unit) {
-        val end = if (value != null) Ui.text(this, 28, Ui.p.textMid).apply { text = value; setPadding(24.px, 0, 0, 0) }
+        val end = if (value != null) valueText(value)
         else ImageView(this).apply { setImageResource(R.drawable.ic_chevron_right); setColorFilter(Ui.p.textMid); layoutParams = LinearLayout.LayoutParams(40.px, 40.px) }
         row(getString(title), null, end, onClick)
     }
@@ -233,6 +237,30 @@ class SettingsActivity : Activity() {
             }.show()
     }
 
+    private fun drmLabel() = resources.getStringArray(R.array.drm_modes)[DRM_MODES.indexOf(prefs.drmMode).coerceAtLeast(0)]
+
+    private fun pickDrm() {
+        // Each choice with its explanation underneath in small type, as in the search engine list.
+        val labels = resources.getStringArray(R.array.drm_modes)
+        val notes = resources.getStringArray(R.array.drm_mode_notes)
+        val items = labels.indices.map { i ->
+            SpannableString(labels[i] + "\n" + notes[i]).apply {
+                val from = labels[i].length + 1
+                setSpan(RelativeSizeSpan(0.7f), from, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                setSpan(ForegroundColorSpan(Ui.p.textWeak), from, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        }
+        dialog().setTitle(R.string.drm_setting)
+            .setSingleChoiceItems(items.toTypedArray(), DRM_MODES.indexOf(prefs.drmMode)) { d, which ->
+                d.dismiss()
+                if (DRM_MODES[which] != prefs.drmMode) {
+                    prefs.drmMode = DRM_MODES[which]
+                    Toast.makeText(this, R.string.drm_saved, Toast.LENGTH_LONG).show()
+                    build()
+                }
+            }.show()
+    }
+
     private fun pickCursorSpeed() {
         dialog().setTitle(R.string.cursor_speed)
             .setSingleChoiceItems(R.array.cursor_speeds, prefs.cursorSpeed - 1) { d, which ->
@@ -282,6 +310,7 @@ class SettingsActivity : Activity() {
                 WebViews.clearBrowsingData(this, null)
                 Db.get(this).clearHistory()
                 Favicons.get(this).clear()
+                prefs.clearDrmAnswers()
                 Toast.makeText(this, R.string.cleared, Toast.LENGTH_SHORT).show()
             }.setNegativeButton(android.R.string.cancel, null).show()
     }
@@ -316,5 +345,6 @@ class SettingsActivity : Activity() {
     companion object {
         private const val ROW_WIDTH = 1400
         private val THEMES = listOf("dark", "light", "system")
+        private val DRM_MODES = listOf(ProtectedMedia.ASK, ProtectedMedia.ALLOW, ProtectedMedia.BLOCK)
     }
 }

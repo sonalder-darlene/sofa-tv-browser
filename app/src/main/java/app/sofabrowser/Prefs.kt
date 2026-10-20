@@ -3,6 +3,7 @@ package app.sofabrowser
 import android.content.Context
 import android.content.SharedPreferences
 import android.net.Uri
+import app.sofabrowser.browser.ProtectedMedia
 
 data class SearchEngine(
     val id: String,
@@ -76,9 +77,22 @@ class Prefs(context: Context) {
     fun keysToPage(host: String) = host in p.getStringSet("keys_to_page", emptySet())!!
     fun setKeysToPage(host: String, on: Boolean) = editSet("keys_to_page", host, on)
 
-    /** Origins allowed to play DRM-protected media. */
-    fun drmAllowed(origin: String) = origin in p.getStringSet("drm_allowed", emptySet())!!
-    fun setDrmAllowed(origin: String, on: Boolean) = editSet("drm_allowed", origin, on)
+    /** "Protected content (DRM)": one of ProtectedMedia's ASK, ALLOW and BLOCK. */
+    var drmMode by string("drm_mode", ProtectedMedia.ASK)
+
+    /** A site's answer to the protected-content prompt: true allowed, false blocked, null never answered. */
+    fun drmAnswer(origin: String): Boolean? = when (origin) {
+        in p.getStringSet("drm_allowed", emptySet())!! -> true
+        in p.getStringSet("drm_blocked", emptySet())!! -> false
+        else -> null
+    }
+
+    fun setDrmAnswer(origin: String, allowed: Boolean) {
+        editSet("drm_allowed", origin, allowed)
+        editSet("drm_blocked", origin, !allowed)
+    }
+
+    fun clearDrmAnswers() = p.edit().remove("drm_allowed").remove("drm_blocked").apply()
 
     private fun editSet(key: String, item: String, on: Boolean) {
         val set = HashSet(p.getStringSet(key, emptySet())!!)

@@ -102,7 +102,20 @@
     <string name="ssl_back">Back to safety</string>
     <string name="ssl_proceed">Proceed (unsafe)</string>
     <string name="drm_title">Protected content</string>
-    <string name="drm_message">%s wants to play DRM-protected media. This uses the device\'s content protection system (Widevine), which can give the site a device-specific identifier.</string>
+    <string name="drm_message">%s wants to play DRM-protected media. This uses the device\'s content protection system (Widevine), which can give the site a device-specific identifier. On most TVs this video is limited to standard definition.</string>
+    <string name="drm_setting">Protected content (DRM)</string>
+    <string name="drm_setting_sub">Some streaming sites need protected playback. On most TVs it plays in standard definition only, and the site can see an ID specific to your TV.</string>
+    <string name="drm_saved">Saved. Pages already open will use it after a reload.</string>
+    <string-array name="drm_modes">
+        <item>Ask for each site</item>
+        <item>Allow on all sites</item>
+        <item>Block on all sites</item>
+    </string-array>
+    <string-array name="drm_mode_notes">
+        <item>Sofa asks the first time a site wants it, then remembers your answer.</item>
+        <item>Protected video can play anywhere, without asking.</item>
+        <item>Protected video won\'t play. Everything else is unaffected and keeps its full quality.</item>
+    </string-array>
     <string name="allow">Allow</string>
     <string name="block">Block</string>
     <string name="download">Download</string>
@@ -176,7 +189,7 @@
     <string name="clear_on_exit">Clear browsing data on exit</string>
     <string name="clear_on_exit_sub">Cookies, site storage, cache and history</string>
     <string name="clear_now">Clear browsing data now</string>
-    <string name="clear_now_confirm">Delete cookies, site storage, cache, history and saved site icons? Bookmarks and Quick access are kept.</string>
+    <string name="clear_now_confirm">Delete cookies, site storage, cache, history, saved site icons and your protected-content answers? Bookmarks and Quick access are kept.</string>
     <string name="clear">Clear</string>
     <string name="cleared">Browsing data cleared</string>
     <string name="about">About Sofa</string>
