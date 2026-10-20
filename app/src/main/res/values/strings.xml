@@ -157,6 +157,12 @@
     <string name="video_info_none">none of H.264, VP9, AV1, HEVC</string>
     <string name="video_info_note">An indication from the TV, not proof of what this video uses.</string>
     <string name="video_info_display">Display: window %1$d × %2$d, panel %3$d × %4$d</string>
+    <string name="video_info_rate">Frame rate: %s per second</string>
+    <string name="video_info_rate_waiting">Frame rate: measuring…</string>
+    <string name="video_info_rate_unknown">Frame rate: unknown</string>
+    <string name="video_info_tv_rate">TV refresh rate: %1$s Hz (also %2$s Hz at this resolution)</string>
+    <string name="video_info_tv_rate_only">TV refresh rate: %s Hz, the only one at this resolution</string>
+    <string name="video_info_tv_rate_off">Frame rate matching is turned off in the TV\'s settings (Match content frame rate).</string>
     <string name="video_info_page">Page: screen %1$d × %2$d, pixel ratio %3$s, viewport %4$d, video width %5$d (CSS px)</string>
 
     <!-- Settings -->
@@ -176,6 +182,8 @@
     <string name="javascript_sub">Many sites don\'t work without it</string>
     <string name="autoplay">Autoplay media</string>
     <string name="autoplay_sub">Let videos and sound start without a click</string>
+    <string name="match_frame_rate">Match frame rate (experimental)</string>
+    <string name="match_frame_rate_sub">Not proven on every TV yet. In fullscreen, the TV switches to the video\'s frame rate, such as 24 or 50 per second, for smoother motion. The screen goes dark for a moment while it switches. Not for videos under 5 minutes.</string>
     <string name="dark_pages">Dark web pages</string>
     <string name="dark_pages_sub">Darkens sites that don\'t have a dark theme</string>
     <string name="most_visited_setting">Most visited on home</string>

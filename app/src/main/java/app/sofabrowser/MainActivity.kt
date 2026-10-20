@@ -35,10 +35,12 @@ import app.sofabrowser.adblock.Allowlist
 import app.sofabrowser.browser.Browser
 import app.sofabrowser.browser.CursorLayout
 import app.sofabrowser.browser.ExternalPlayer
+import app.sofabrowser.browser.FrameRate
 import app.sofabrowser.browser.FullscreenLayer
 import app.sofabrowser.browser.PageDownloads
 import app.sofabrowser.browser.PlayerRequest
 import app.sofabrowser.browser.ProtectedMedia
+import app.sofabrowser.browser.RefreshRateMatch
 import app.sofabrowser.browser.UrlInput
 import app.sofabrowser.browser.VideoBar
 import app.sofabrowser.browser.VideoInfo
@@ -582,6 +584,9 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         menu?.dismiss()
         fullscreenCallback = callback
         resumeOffered = false
+        videoState = null
+        videoFps = null
+        frameTimesSeen = false
         fullscreen.bar.pipShown = pipSupported
         fullscreen.attach(view)
         browserLayer.visibility = View.INVISIBLE
@@ -592,6 +597,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     override fun onExitFullscreen() {
         if (fullscreen.visibility != View.VISIBLE) return
         VideoRelay.send(web, "unwatch")
+        refreshMatch.reset()
         fullscreen.detach()
         fullscreenCallback = null
         browserLayer.visibility = View.VISIBLE
@@ -614,6 +620,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     }
 
     override fun onVideoState(state: VideoState) {
+        videoState = state
         fullscreen.bar.update(state)
         rememberPosition(state)
     }
@@ -637,6 +644,26 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             resumeSavedAt = now
             resume.save(url, s.position, s.duration, browser.privateMode, now)
         }
+    }
+
+    // Match frame rate: the page measures the watched video's frames once per fullscreen; FrameRate has the rules.
+
+    private val refreshMatch by lazy { RefreshRateMatch(this) }
+    private var videoState: VideoState? = null
+    private var videoFps: Double? = null
+    private var frameTimesSeen = false
+
+    override fun onVideoFrameTimes(times: List<Double>) {
+        if (fullscreen.visibility != View.VISIBLE || frameTimesSeen) return
+        frameTimesSeen = true
+        val fps = FrameRate.estimate(times) ?: return
+        videoFps = fps
+        val state = videoState
+        // As Android's guide advises, no blackout for short videos; live streams (no duration) qualify.
+        if (!prefs.matchFrameRate || inPip || (state != null && state.duration > 0 && state.duration < SHORT_VIDEO)) return
+        val wasPlaying = state?.paused == false
+        refreshMatch.match(fps, pause = { if (wasPlaying) command("pause") },
+            resume = { if (wasPlaying && fullscreen.visibility == View.VISIBLE) command("play") })
     }
 
     override fun toggleVideoInfo() {
@@ -663,6 +690,11 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         fullscreen.info.text = listOfNotNull(
             getString(R.string.video_info_size, info.width, info.height),
             if (info.total >= 0) getString(R.string.video_info_frames, info.total, info.dropped) else null,
+            when {
+                videoFps != null -> getString(R.string.video_info_rate, FrameRate.label(videoFps!!))
+                frameTimesSeen -> getString(R.string.video_info_rate_unknown)
+                else -> getString(R.string.video_info_rate_waiting)
+            },
             if (info.codecs.isEmpty()) null
             else getString(R.string.video_info_hardware, names(hardware).ifEmpty { getString(R.string.video_info_none) }),
             if (software.isEmpty()) null else getString(R.string.video_info_software, names(software)),
@@ -670,6 +702,12 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             "",
             getString(R.string.video_info_display, dm.widthPixels, dm.heightPixels,
                 mode?.physicalWidth ?: dm.widthPixels, mode?.physicalHeight ?: dm.heightPixels),
+            refreshMatch.otherRates().let { others ->
+                val now = FrameRate.label(refreshMatch.refreshRate.toDouble())
+                if (others.isEmpty()) getString(R.string.video_info_tv_rate_only, now)
+                else getString(R.string.video_info_tv_rate, now, others.joinToString(", ") { FrameRate.label(it.toDouble()) })
+            },
+            if (refreshMatch.turnedOffInSystem) getString(R.string.video_info_tv_rate_off) else null,
             getString(R.string.video_info_page, info.screenWidth, info.screenHeight, info.pixelRatio.toString(),
                 info.innerWidth, info.cssWidth),
         ).joinToString("\n")
@@ -1040,5 +1078,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         private const val REQ_URL = 10
         private const val REQ_NOTIFICATIONS = 11
         private const val REQ_MIC = 12
+        /** Seconds: "Match frame rate" leaves shorter videos alone. */
+        private const val SHORT_VIDEO = 300.0
     }
 }

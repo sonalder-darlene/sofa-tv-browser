@@ -125,8 +125,27 @@ object VideoRelay {
     };
     document.addEventListener('fullscreenchange', undo);
   };
+  // "Match frame rate": the media times of the frames shown, about 5 s of them, for the app to work out the rate
+  // (FrameRate.estimate). Once per watch; a time going backwards or jumping (seek, ad, new source) starts over.
+  let sampler = null;
+  const sample = (v) => {
+    if (!v.requestVideoFrameCallback) return;
+    const s = { stop: false, times: [] };
+    sampler = s;
+    const onFrame = (now, meta) => {
+      if (s.stop) return;
+      const t = meta.mediaTime, last = s.times[s.times.length - 1];
+      if (last !== undefined && (t <= last || t - last > 1)) s.times = [];
+      s.times.push(t);
+      const out = window[L];
+      if (out && s.times.length >= 100 && t - s.times[0] >= 5.5) { out.postMessage(JSON.stringify({ fr: s.times })); return; }
+      v.requestVideoFrameCallback(onFrame);
+    };
+    v.requestVideoFrameCallback(onFrame);
+  };
   const unwatch = () => {
     if (!watched) return;
+    if (sampler) { sampler.stop = true; sampler = null; }
     events.forEach((e) => watched.removeEventListener(e, onEvent));
     setNativeControls(true);
     watched = null;
@@ -137,6 +156,7 @@ object VideoRelay {
     watched = v;
     setNativeControls(false);
     events.forEach((e) => v.addEventListener(e, onEvent));
+    sample(v);
     report(true);
   };
   const forward = (msg) => {
@@ -326,10 +346,12 @@ object VideoRelay {
     /**
      * [panelScale] is PanelScale for this TV. [onState] gets the watched video's state; [onPlaying] gets a frame's id
      * and whether any video plays in it; [onInfo] answers the "info" command, and [onCandidate] and [onSource] the
-     * "locate" and "source" ones, once per frame with a video. All are called on WebView's message thread.
+     * "locate" and "source" ones, once per frame with a video. [onFrameTimes] gets the media times of the watched
+     * video's frames, once per watch. All are called on WebView's message thread.
      */
     fun install(web: WebView, key: PageKey, panelScale: Double, onState: (VideoState) -> Unit,
-                onPlaying: (String, Boolean) -> Unit, onInfo: (VideoInfo) -> Unit, onCandidate: (WatchTarget.Candidate) -> Unit, onSource: (VideoSource) -> Unit) {
+                onPlaying: (String, Boolean) -> Unit, onInfo: (VideoInfo) -> Unit, onCandidate: (WatchTarget.Candidate) -> Unit,
+                onSource: (VideoSource) -> Unit, onFrameTimes: (List<Double>) -> Unit) {
         keys[web] = key
         WebViews.addDocumentStartScript(web, script(key, panelScale))
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
@@ -339,6 +361,7 @@ object VideoRelay {
                     when {
                         o.has("f") -> onPlaying(o.getString("f"), o.optBoolean("on"))
                         o.has("i") -> onInfo(VideoInfo.from(o.getJSONObject("i")))
+                        o.has("fr") -> o.getJSONArray("fr").let { a -> onFrameTimes((0 until a.length()).map(a::getDouble)) }
                         o.has("src") -> o.getJSONObject("src").let {
                             onSource(VideoSource(it.optString("s"), it.optDouble("t", 0.0), it.optDouble("a", 0.0), it.optBoolean("drm")))
                         }
