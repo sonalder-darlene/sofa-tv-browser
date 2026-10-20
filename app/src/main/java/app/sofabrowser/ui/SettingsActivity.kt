@@ -260,7 +260,8 @@ class SettingsActivity : Activity() {
             .setView(padded(field))
             .setPositiveButton(R.string.update) { _, _ ->
                 val url = field.text.toString().trim()
-                if (!url.startsWith("https://")) { Toast.makeText(this, R.string.https_only, Toast.LENGTH_LONG).show(); return@setPositiveButton }
+                // Debug builds also take http://, so tests can serve a list from the development machine.
+                if (!url.startsWith("https://") && !(BuildConfig.DEBUG && url.startsWith("http://"))) { Toast.makeText(this, R.string.https_only, Toast.LENGTH_LONG).show(); return@setPositiveButton }
                 prefs.blocklistUrl = url
                 Toast.makeText(this, R.string.blocklist_updating, Toast.LENGTH_SHORT).show()
                 blocker.update(url) { result ->

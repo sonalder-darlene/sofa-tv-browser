@@ -40,6 +40,28 @@ class DomainBlocklist private constructor(private val hashes: LongArray) {
 
         val EMPTY = DomainBlocklist(LongArray(0))
 
+        /** One list blocking whatever [a] or [b] blocks; a domain in both counts once. */
+        fun merge(a: DomainBlocklist, b: DomainBlocklist): DomainBlocklist {
+            if (b.hashes.isEmpty()) return a
+            if (a.hashes.isEmpty()) return b
+            // Both are sorted: one pass, no boxing (about 120k entries on every start).
+            val x = a.hashes
+            val y = b.hashes
+            val out = LongArray(x.size + y.size)
+            var i = 0
+            var j = 0
+            var n = 0
+            while (i < x.size || j < y.size) {
+                val next = when {
+                    j == y.size || (i < x.size && x[i] < y[j]) -> x[i++]
+                    i == x.size || y[j] < x[i] -> y[j++]
+                    else -> { j++; x[i++] }
+                }
+                if (n == 0 || out[n - 1] != next) out[n++] = next
+            }
+            return DomainBlocklist(out.copyOf(n))
+        }
+
         /** Reads the compiled form produced by [writeTo]. */
         fun read(input: InputStream): DomainBlocklist = DataInputStream(input.buffered()).use { inp ->
             require(inp.readInt() == MAGIC) { "not a compiled blocklist" }

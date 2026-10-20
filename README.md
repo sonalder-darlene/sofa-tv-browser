@@ -14,7 +14,7 @@ called Sofa.
 - **Downloads** that pause, resume and carry on in the background.
 - **Dark and Light themes.**
 
-The app is under 1 MB.
+The app is about 1 MB.
 
 ## Install
 
@@ -36,8 +36,8 @@ Copies installed by an app store or by Obtainium never offer this; the store kee
 - **Nothing of its own:** no accounts, analytics, ads, crash reports or servers. Apart from the sites you visit,
   Sofa only contacts your search engine (for suggestions, if you turn them on), GitHub (for update checks, if
   you turn them on) and the address you choose for blocklist updates. Voice search uses the TV's speech service.
-- **Blocking:** ads and trackers are blocked on the TV against the StevenBlack hosts list (about 71,000 domains),
-  and third-party cookies are blocked.
+- **Blocking:** ads and trackers are blocked on the TV against the StevenBlack hosts list (about 71,000 domains)
+  and HaGeZi's Pop-Up Ads list (about 48,000), and third-party cookies are blocked.
 - **Blending in:** few browsers send Do Not Track and desktop Chrome is the most common browser, so Sofa sends no
   Do Not Track and uses a desktop Chrome user agent by default. Global Privacy Control can be turned on in Settings.
 - **Pages get nothing extra:** no camera, microphone, location or files.
@@ -122,8 +122,8 @@ tools/                               update-blocklist.sh, and render-art.sh (nee
 ## Licence
 
 Sofa TV Browser is free software under the [GNU General Public License v3.0 only](LICENSE) (`GPL-3.0-only`). The
-third-party parts (Material Symbols icons, the StevenBlack hosts list and `androidx.webkit`) are listed in
-[NOTICE.md](NOTICE.md).
+third-party parts (Material Symbols icons, the StevenBlack hosts list, HaGeZi's Pop-Up Ads list and
+`androidx.webkit`) are listed in [NOTICE.md](NOTICE.md).
 
 Sofa follows the remote-control design of BrowsHere, TCL's TV browser, but contains none of its code, assets or
 text.

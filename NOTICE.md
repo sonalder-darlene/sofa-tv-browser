@@ -33,6 +33,14 @@ https://github.com/StevenBlack/hosts.
 > AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
 > OR OTHER DEALINGS IN THE SOFTWARE.
 
+## HaGeZi's Pop-Up Ads list (pop-up and redirect domains)
+
+`app/src/main/assets/blocklist-popups.txt.gz` is the "Pop-Up Ads" list of HaGeZi's DNS blocklists
+(https://github.com/hagezi/dns-blocklists), copyright HaGeZi, licensed under the GNU General Public License,
+version 3, the same licence as Sofa TV Browser (see LICENSE). It is refreshed with `tools/update-popup-list.sh`.
+The list's own disclaimer (no warranty; a listed domain is a filtering decision, not an accusation) is at
+https://github.com/hagezi/dns-blocklists#disclaimer.
+
 ## AndroidX WebKit (`androidx.webkit`)
 
 Compiled into the app from the Android Open Source Project

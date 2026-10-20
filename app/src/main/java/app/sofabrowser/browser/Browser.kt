@@ -7,6 +7,9 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.net.http.SslError
 import android.os.Message
+import android.os.SystemClock
+import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.webkit.PermissionRequest
 import android.webkit.RenderProcessGoneDetail
@@ -22,6 +25,8 @@ import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import app.sofabrowser.Prefs
 import app.sofabrowser.adblock.AdBlocker
+import app.sofabrowser.adblock.Allowlist
+import app.sofabrowser.adblock.NavigationGuard
 
 /**
  * Owns the single WebView: creates it in the normal or private profile, applies settings and relays page events.
@@ -43,7 +48,10 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
         fun onProtectedMediaRequest(origin: String, grant: (Boolean) -> Unit)
         fun onDownload(url: String, userAgent: String?, contentDisposition: String?, mimeType: String?, length: Long)
         fun onBlockedLink(url: String)
-        fun onPopupBlocked()
+        /** A pop-up was blocked; [url] is set when "Allow once" can open it. */
+        fun onPopupBlocked(url: String?)
+        /** The page tried to leave for a listed host on its own; "Allow once" can follow it. */
+        fun onRedirectBlocked()
         fun onRendererGone()
     }
 
@@ -61,9 +69,10 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
         private set
 
     val adBlocker = AdBlocker.get(context)
+    private val guard = NavigationGuard()
 
     /** Creates (or re-creates) the WebView. Returns the new view; the caller attaches it to its layout. */
-    @SuppressLint("SetJavaScriptEnabled", "RequiresFeature") // MULTI_PROFILE is checked via profilesSupported
+    @SuppressLint("SetJavaScriptEnabled", "RequiresFeature", "ClickableViewAccessibility") // MULTI_PROFILE: see profilesSupported
     fun create(private: Boolean): WebView {
         destroy()
         privateMode = private
@@ -85,6 +94,13 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
         // Fresh random names per view for everything injected into pages (see PageKey).
         val key = PageKey()
         VideoRelay.install(view, key) { state -> view.post { host.onVideoState(state) } }
+        // Every press that reaches the page (the pointer's taps, a real mouse, OK in keys-to-page mode) may open one
+        // window. Both listeners only watch.
+        view.setOnTouchListener { _, e -> if (e.actionMasked == MotionEvent.ACTION_DOWN) guard.onInput(); false }
+        view.setOnKeyListener { _, code, e ->
+            if (e.action == KeyEvent.ACTION_DOWN && e.repeatCount == 0 && code in PRESS_KEYS) guard.onInput()
+            false
+        }
         PageDownloads.install(view, key)
         view.webViewClient = client
         view.webChromeClient = chrome
@@ -123,7 +139,7 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
     private val client = object : WebViewClient() {
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
             pageHost = AdBlocker.hostOf(url)
-            adBlocker.resetPageCount()
+            guard.pageStarted()
             host.onPageStarted(url)
         }
 
@@ -134,13 +150,21 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
             if (!isReload) host.onVisited(url)
         }
 
-        override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
-            if (prefs.adBlock) adBlocker.intercept(request, pageHost) else null
+        override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+            if (request.isForMainFrame) {
+                // A new document's subresources are requested before onPageStarted reaches the UI thread, so the
+                // page host and count switch over here, on the network thread, ahead of them.
+                pageHost = request.url.host
+                adBlocker.resetPageCount()
+            }
+            return if (prefs.adBlock) adBlocker.intercept(request, pageHost) else null
+        }
 
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             val url = request.url
             return when (url.scheme?.lowercase()) {
-                "http", "https", "about", "data", "blob", "javascript", null -> false
+                "http", "https" -> request.isForMainFrame && blockNavigation(request)
+                "about", "data", "blob", "javascript", null -> false
                 "intent" -> {
                     // Never launch other apps from web content; follow the page's own web fallback if it has one.
                     val fallback = runCatching { Intent.parseUri(url.toString(), Intent.URI_INTENT_SCHEME).getStringExtra("browser_fallback_url") }.getOrNull()
@@ -187,15 +211,20 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
             }
         }
 
+        @SuppressLint("RequiresFeature") // MULTI_PROFILE is checked via profilesSupported
         override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
-            if (!isUserGesture) { host.onPopupBlocked(); return false }
+            if (!isUserGesture) { adBlocker.countBlocked(); host.onPopupBlocked(null); return false }
             // Open the target in the same view (no tabs): catch the first URL the throwaway view is sent to.
             val catcher = WebView(view.context)
+            // A page can script into a window it opened, so the throwaway view must not reach the normal profile's
+            // cookies while browsing privately.
+            if (profilesSupported) runCatching { WebViewCompat.setProfile(catcher, WebViewCompat.getProfile(view).name) }
+            val opener = pageHost
             var used = false
             @SuppressLint("MissingOnRenderProcessGone") // implemented; the callback starts at API 26
             val catcherClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(v: WebView, request: WebResourceRequest): Boolean {
-                    if (!used) view.loadUrl(request.url.toString())
+                    if (!used) openWindow(view, request.url.toString(), opener)
                     used = true
                     v.post { v.destroy() }
                     return true
@@ -224,8 +253,57 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
         }
     }
 
+    /** Loads a window's first address in [view], unless the pop-up rules block it. */
+    private fun openWindow(view: WebView, url: String, opener: String?) {
+        if (guard.newWindow(blocking(opener), listed(url)) == NavigationGuard.Verdict.BLOCK) {
+            adBlocker.countBlocked()
+            guard.blocked(url, SystemClock.uptimeMillis())
+            host.onPopupBlocked(url)
+        } else {
+            // The window came from a press, so its redirects are the user's too.
+            guard.userNavigation()
+            view.loadUrl(url)
+        }
+    }
+
+    /** True when a main-frame navigation or redirect hop the page started on its own leads to a listed host. */
+    private fun blockNavigation(request: WebResourceRequest): Boolean {
+        val url = request.url.toString()
+        // The per-site switch of the page the navigation left, not of a host the chain passes through.
+        if (!request.isRedirect) chainHost = pageHost
+        val verdict = guard.navigation(request.hasGesture(), request.isRedirect, listed(url), blocking(chainHost))
+        if (verdict == NavigationGuard.Verdict.ALLOW) return false
+        adBlocker.countBlocked()
+        guard.blocked(url, SystemClock.uptimeMillis())
+        host.onRedirectBlocked()
+        return true
+    }
+
+    private var chainHost: String? = null
+
+    private fun listed(url: String) = isWebUrl(url) && hostOf(url)?.let(adBlocker.list::isBlocked) == true
+
+    /** Sofa is about to load an address itself; its redirects then count as the user's. */
+    fun userNavigation() = guard.userNavigation()
+
+    // History moves and reloads are the user's own navigations too.
+    fun goBack() { guard.userNavigation(); web?.goBack() }
+    fun goForward() { guard.userNavigation(); web?.goForward() }
+    fun reload() { guard.userNavigation(); web?.reload() }
+
+    /** Whether ad blocking (and with it pop-up and redirect blocking) applies to pages from [pageHost]. */
+    private fun blocking(pageHost: String?) = prefs.adBlock && (pageHost == null || !Allowlist.contains(context, pageHost))
+
+    /** The address blocked last, if "Allow once" may still open it. */
+    fun pendingAllow(): String? = guard.pending(SystemClock.uptimeMillis())
+
+    /** Opens the address blocked last, once. */
+    fun allowOnce(): String? = guard.takePending(SystemClock.uptimeMillis())
+
     companion object {
         private const val PRIVATE_PROFILE = "private"
+        private val PRESS_KEYS = setOf(KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER,
+            KeyEvent.KEYCODE_BUTTON_A)
         private const val GPC_SCRIPT =
             "try{Object.defineProperty(Navigator.prototype,'globalPrivacyControl',{get:()=>true,configurable:true})}catch(e){}"
 

@@ -9,6 +9,7 @@ import java.io.ByteArrayInputStream
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.zip.GZIPInputStream
 import kotlin.concurrent.thread
 
@@ -19,34 +20,62 @@ import kotlin.concurrent.thread
  */
 class AdBlocker private constructor(private val context: Context) {
 
+    /** What is blocked: the main list (bundled, or the user's download) and the bundled pop-up list together. */
     @Volatile var list: DomainBlocklist = DomainBlocklist.EMPTY
         private set
 
-    @Volatile var blockedCount = 0
-        private set
+    /** The main list (bundled, or the user's download), and the bundled pop-up and redirect domains added to it. */
+    @Volatile private var main: DomainBlocklist = DomainBlocklist.EMPTY
+    @Volatile private var popups: DomainBlocklist = DomainBlocklist.EMPTY
+    private val lock = Any()
+
+    private fun publish() = synchronized(lock) { list = DomainBlocklist.merge(main, popups) }
+
+    private val blocked = AtomicInteger()
+
+    /** Requests, pop-ups and redirects blocked since the current page started. */
+    val blockedCount: Int get() = blocked.get()
 
     private val compiled get() = File(context.filesDir, "blocklist.bin")
 
     init {
         thread(name = "blocklist-load", priority = Thread.MIN_PRIORITY) {
-            // A broken list must never take the browser down; at worst nothing is blocked.
-            list = runCatching { compiled.inputStream().use(DomainBlocklist::read) }.getOrNull()
-                ?: runCatching { compileBundled() }.getOrDefault(DomainBlocklist.EMPTY)
+            // A broken list must never take the browser down; at worst nothing is blocked. The compiled main list
+            // loads in moments, so it blocks first; the pop-up list (parsed from text) joins it after. A download
+            // finished meanwhile wins over what is loaded here.
+            val cached = runCatching { compiled.inputStream().use(DomainBlocklist::read) }.getOrNull()
+                ?: runCatching { parseAsset(BUNDLED_ASSET) }.getOrNull()?.also { runCatching { writeCache(it) } }
+            if (cached != null) synchronized(lock) { if (main === DomainBlocklist.EMPTY) main = cached }
+            publish()
+            popups = runCatching { parseAsset(POPUP_ASSET) }.getOrDefault(DomainBlocklist.EMPTY)
+            publish()
         }
     }
 
-    /** Returns an empty response to cancel a blocked subresource request, or null to let it through. */
+    /** Returns a stand-in response for a blocked subresource request (see [BlockedResponse]), or null to let it through. */
     fun intercept(request: WebResourceRequest, pageHost: String?): WebResourceResponse? {
         if (request.isForMainFrame) return null
         val host = request.url.host ?: return null
         if (pageHost != null && Allowlist.contains(context, pageHost)) return null
         if (!list.isBlocked(host)) return null
-        blockedCount++
-        return WebResourceResponse("text/plain", "utf-8", 403, "Blocked", emptyMap(), ByteArrayInputStream(ByteArray(0)))
+        blocked.incrementAndGet()
+        val accept = request.requestHeaders.entries.firstOrNull { it.key.equals("Accept", ignoreCase = true) }?.value
+        return when (BlockedResponse.kind(request.url.toString(), accept)) {
+            BlockedResponse.Kind.IMAGE -> ok("image/gif", BlockedResponse.PIXEL)
+            BlockedResponse.Kind.CSS -> ok("text/css", ByteArray(0))
+            BlockedResponse.Kind.ERROR ->
+                WebResourceResponse("text/plain", "utf-8", 403, "Blocked", emptyMap(), ByteArrayInputStream(ByteArray(0)))
+        }
     }
 
-    fun resetPageCount() {
-        blockedCount = 0
+    private fun ok(mime: String, body: ByteArray) =
+        WebResourceResponse(mime, "utf-8", 200, "OK", mapOf("Cache-Control" to "no-store"), ByteArrayInputStream(body))
+
+    fun resetPageCount() = blocked.set(0)
+
+    /** Counts something blocked outside [intercept], such as a pop-up or a redirect. */
+    fun countBlocked() {
+        blocked.incrementAndGet()
     }
 
     /**
@@ -66,7 +95,8 @@ class AdBlocker private constructor(private val context: Context) {
                 val fresh = stream.bufferedReader().use(DomainBlocklist::parse)
                 check(fresh.size > 0) { "no domain rules found" }
                 save(fresh)
-                fresh.size
+                // What is blocked now, pop-up list included, as Settings counts it.
+                list.size
             } finally {
                 conn.disconnect()
             }
@@ -76,28 +106,34 @@ class AdBlocker private constructor(private val context: Context) {
     /** Reverts to the list bundled with the app. */
     fun resetToBundled() = thread(name = "blocklist-reset") {
         compiled.delete()
-        list = runCatching { compileBundled() }.getOrDefault(DomainBlocklist.EMPTY)
+        runCatching { save(parseAsset(BUNDLED_ASSET)) }
     }
 
-    private fun compileBundled(): DomainBlocklist {
-        // The repository keeps the list gzipped; AGP un-gzips ".gz" assets when packaging (the APK's zip
-        // compression covers it), so accept either form.
-        val stream = runCatching { context.assets.open(BUNDLED_ASSET.removeSuffix(".gz")) }.getOrNull()
-            ?: GZIPInputStream(context.assets.open(BUNDLED_ASSET))
-        val parsed = stream.bufferedReader().use(DomainBlocklist::parse)
-        save(parsed)
-        return parsed
+    // The repository keeps the lists gzipped; AGP un-gzips ".gz" assets when packaging (the APK's zip compression
+    // covers it), so accept either form.
+    private fun parseAsset(name: String): DomainBlocklist {
+        val stream = runCatching { context.assets.open(name.removeSuffix(".gz")) }.getOrNull()
+            ?: GZIPInputStream(context.assets.open(name))
+        return stream.bufferedReader().use(DomainBlocklist::parse)
     }
 
-    private fun save(fresh: DomainBlocklist) {
+    /** The compiled cache holds the main list only; the pop-up list is always added from the APK. */
+    private fun writeCache(fresh: DomainBlocklist) {
         val tmp = File(context.filesDir, "blocklist.bin.tmp")
         tmp.outputStream().use(fresh::writeTo)
         tmp.renameTo(compiled)
-        list = fresh
+    }
+
+    /** Makes [fresh] the main list, cached for next time, and blocks it with the pop-up list. */
+    private fun save(fresh: DomainBlocklist) {
+        writeCache(fresh)
+        synchronized(lock) { main = fresh }
+        publish()
     }
 
     companion object {
         const val BUNDLED_ASSET = "blocklist-hosts.txt.gz"
+        const val POPUP_ASSET = "blocklist-popups.txt.gz"
 
         @SuppressLint("StaticFieldLeak") // holds the application context only
         @Volatile private var instance: AdBlocker? = null

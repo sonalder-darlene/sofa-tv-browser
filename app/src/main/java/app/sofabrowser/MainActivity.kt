@@ -155,6 +155,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         if (url.isBlank()) return
         ensureWeb()
         showBrowser()
+        browser.userNavigation()
         // Older WebViews can't add Sec-GPC to every request; at least send it with navigations we start.
         if (prefs.sendGpc && !WebViewFeature.isFeatureSupported(WebViewFeature.CUSTOM_REQUEST_HEADERS)) {
             web?.loadUrl(url, mapOf("Sec-GPC" to "1"))
@@ -202,7 +203,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             KeyEvent.KEYCODE_BACK -> {
                 if (down && event.repeatCount == 0) when {
                     cursor.scrollMode -> cursor.setScrollMode(false)
-                    prefs.backGoesBack && web?.canGoBack() == true -> web?.goBack()
+                    prefs.backGoesBack && web?.canGoBack() == true -> browser.goBack()
                     else -> showMenu()
                 }
                 return true
@@ -289,10 +290,12 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             loading = loading,
             bookmarked = url.isNotEmpty() && db.isBookmarked(url),
             adBlockOn = prefs.adBlock && (host == null || !Allowlist.contains(this, host)),
+            blocked = browser.adBlocker.blockedCount,
             desktop = prefs.userAgent != "mobile",
             pointer = cursor.cursorEnabled,
             zoomPercent = (100 * 1.25.pow(zoomStep)).roundToInt(),
             privateMode = browser.privateMode,
+            allowPending = browser.pendingAllow() != null,
         )
     }
 
@@ -318,10 +321,11 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         val url = w.url.orEmpty()
         val host = Browser.hostOf(url)
         when (action) {
+            BrowserMenu.Action.ALLOW_ONCE -> { menu?.dismiss(); browser.allowOnce()?.let(::openUrl) }
             BrowserMenu.Action.HOME -> showHome()
-            BrowserMenu.Action.BACK -> if (w.canGoBack()) w.goBack()
-            BrowserMenu.Action.FORWARD -> if (w.canGoForward()) w.goForward()
-            BrowserMenu.Action.RELOAD -> { if (loading) w.stopLoading() else w.reload(); menu?.dismiss() }
+            BrowserMenu.Action.BACK -> if (w.canGoBack()) browser.goBack()
+            BrowserMenu.Action.FORWARD -> if (w.canGoForward()) browser.goForward()
+            BrowserMenu.Action.RELOAD -> { if (loading) w.stopLoading() else browser.reload(); menu?.dismiss() }
             BrowserMenu.Action.BOOKMARK -> if (Browser.isWebUrl(url)) {
                 if (db.isBookmarked(url)) db.removeBookmark(url) else db.addBookmark(w.title.orEmpty(), url)
                 toast(if (db.isBookmarked(url)) R.string.bookmark_added else R.string.bookmark_removed)
@@ -338,7 +342,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
                 Allowlist.set(this, host, allowed)
                 toast(if (allowed) R.string.adblock_site_disabled else R.string.adblock_site_enabled)
                 menu?.dismiss()
-                w.reload()
+                browser.reload()
             }
             BrowserMenu.Action.USER_AGENT -> pickUserAgent()
             BrowserMenu.Action.SCROLL -> { menu?.dismiss(); cursor.setScrollMode(true) }
@@ -379,7 +383,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
 
     private fun setUserAgent(mode: String) {
         prefs.userAgent = mode
-        web?.let { WebViews.applyUserAgent(it, mode, prefs.customUserAgent); it.reload() }
+        web?.let { WebViews.applyUserAgent(it, mode, prefs.customUserAgent); browser.reload() }
         menu?.dismiss()
     }
 
@@ -559,7 +563,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         val host = Browser.hostOf(error.url) ?: error.url
         dialog().setTitle(R.string.ssl_title)
             .setMessage(getString(R.string.ssl_message, host))
-            .setPositiveButton(R.string.ssl_back) { _, _ -> handler.cancel(); if (web?.canGoBack() == true) web?.goBack() }
+            .setPositiveButton(R.string.ssl_back) { _, _ -> handler.cancel(); if (web?.canGoBack() == true) browser.goBack() }
             .setNeutralButton(R.string.ssl_proceed) { _, _ -> handler.proceed() }
             .setOnCancelListener { handler.cancel() }
             .show()
@@ -653,7 +657,9 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
 
     override fun onBlockedLink(url: String) = toast(R.string.link_blocked)
 
-    override fun onPopupBlocked() = toast(R.string.popup_blocked)
+    override fun onPopupBlocked(url: String?) = toast(if (url != null) R.string.popup_blocked_allow else R.string.popup_blocked)
+
+    override fun onRedirectBlocked() = toast(R.string.redirect_blocked_allow)
 
     override fun onRendererGone() {
         val url = web?.url

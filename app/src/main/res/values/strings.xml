@@ -73,6 +73,10 @@
     <string name="adblock_site">Ad block</string>
     <string name="adblock_site_on">Ad block: on here</string>
     <string name="adblock_site_off">Ad block: off here</string>
+    <plurals name="adblock_site_on_count">
+        <item quantity="one">Ad block: on here · %d blocked</item>
+        <item quantity="other">Ad block: on here · %d blocked</item>
+    </plurals>
     <string name="adblock_site_disabled">Ad blocking turned off for this site</string>
     <string name="adblock_site_enabled">Ad blocking turned on for this site</string>
     <string name="adblock_globally_off">Ad blocking is turned off in Settings</string>
@@ -90,6 +94,9 @@
     <string name="percent">%d%%</string>
     <string name="link_blocked">Sofa doesn\'t open other apps from web pages</string>
     <string name="popup_blocked">Pop-up blocked</string>
+    <string name="popup_blocked_allow">Blocked a pop-up. To open it, use Allow once in the menu.</string>
+    <string name="redirect_blocked_allow">Blocked a redirect. To follow it, use Allow once in the menu.</string>
+    <string name="allow_once">Allow once</string>
     <string name="ssl_title">Your connection is not private</string>
     <string name="ssl_message">The security certificate of %s can\'t be trusted. Someone may be trying to steal your information.</string>
     <string name="ssl_back">Back to safety</string>

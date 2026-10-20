@@ -21,7 +21,7 @@ import app.sofabrowser.R
  */
 class BrowserMenu(context: Context, private val actions: Actions) : Dialog(context, android.R.style.Theme_Translucent_NoTitleBar) {
 
-    enum class Action { HOME, BACK, FORWARD, RELOAD, BOOKMARK, PIN, HISTORY, BOOKMARKS, DOWNLOADS, ADBLOCK, USER_AGENT, SCROLL, POINTER, ZOOM_OUT, ZOOM_IN, SETTINGS }
+    enum class Action { HOME, ALLOW_ONCE, BACK, FORWARD, RELOAD, BOOKMARK, PIN, HISTORY, BOOKMARKS, DOWNLOADS, ADBLOCK, USER_AGENT, SCROLL, POINTER, ZOOM_OUT, ZOOM_IN, SETTINGS }
 
     interface Actions {
         fun onAddress()
@@ -35,10 +35,14 @@ class BrowserMenu(context: Context, private val actions: Actions) : Dialog(conte
         val loading: Boolean,
         val bookmarked: Boolean,
         val adBlockOn: Boolean,
+        /** Requests, pop-ups and redirects blocked on this page. */
+        val blocked: Int,
         val desktop: Boolean,
         val pointer: Boolean,
         val zoomPercent: Int,
         val privateMode: Boolean,
+        /** A pop-up or redirect was just blocked and can still be opened once. */
+        val allowPending: Boolean,
     )
 
     private val buttons = LinkedHashMap<Action, LabeledIconButton>()
@@ -100,6 +104,8 @@ class BrowserMenu(context: Context, private val actions: Actions) : Dialog(conte
             })
         }
         add(Action.HOME, R.drawable.ic_home, R.string.home)
+        // Second, not first: the leftmost button's label would be cut off by the screen edge.
+        add(Action.ALLOW_ONCE, R.drawable.ic_open_in_new, R.string.allow_once)
         add(Action.BACK, R.drawable.ic_arrow_back, R.string.back)
         add(Action.FORWARD, R.drawable.ic_arrow_forward, R.string.forward)
         add(Action.RELOAD, R.drawable.ic_refresh, R.string.reload)
@@ -130,12 +136,15 @@ class BrowserMenu(context: Context, private val actions: Actions) : Dialog(conte
     fun show(state: State) {
         if (!isShowing) show()
         update(state)
-        (buttons[lastFocused]?.takeIf { it.isEnabled } ?: buttons[Action.HOME])?.requestFocus()
+        // A pending "Allow once" is why the menu was opened, most likely.
+        val first = if (state.allowPending) Action.ALLOW_ONCE else lastFocused
+        (buttons[first]?.takeIf { it.isEnabled && it.visibility == android.view.View.VISIBLE } ?: buttons[Action.HOME])?.requestFocus()
     }
 
     fun update(s: State) {
         if (!::address.isInitialized) return
         address.text = s.address.ifEmpty { context.getString(R.string.search_hint) }
+        buttons[Action.ALLOW_ONCE]?.visibility = if (s.allowPending) android.view.View.VISIBLE else android.view.View.GONE
         buttons[Action.BACK]?.setEnabledLook(s.canGoBack)
         buttons[Action.FORWARD]?.setEnabledLook(s.canGoForward)
         buttons[Action.RELOAD]?.set(if (s.loading) R.drawable.ic_close else R.drawable.ic_refresh,
@@ -143,7 +152,11 @@ class BrowserMenu(context: Context, private val actions: Actions) : Dialog(conte
         buttons[Action.BOOKMARK]?.set(if (s.bookmarked) R.drawable.ic_star_filled else R.drawable.ic_star,
             context.getString(if (s.bookmarked) R.string.bookmarked else R.string.bookmark))
         buttons[Action.ADBLOCK]?.set(if (s.adBlockOn) R.drawable.ic_shield_filled else R.drawable.ic_shield,
-            context.getString(if (s.adBlockOn) R.string.adblock_site_on else R.string.adblock_site_off))
+            when {
+                !s.adBlockOn -> context.getString(R.string.adblock_site_off)
+                s.blocked > 0 -> context.resources.getQuantityString(R.plurals.adblock_site_on_count, s.blocked, s.blocked)
+                else -> context.getString(R.string.adblock_site_on)
+            })
         buttons[Action.USER_AGENT]?.set(if (s.desktop) R.drawable.ic_desktop_windows else R.drawable.ic_smartphone,
             context.getString(R.string.user_agent))
         buttons[Action.POINTER]?.set(if (s.pointer) R.drawable.ic_mouse else R.drawable.ic_keyboard,

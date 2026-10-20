@@ -63,6 +63,29 @@ class DomainBlocklistTest {
     }
 
     @Test
+    fun aMergedListBlocksWhatEitherBlocksAndCountsSharedDomainsOnce() {
+        val main = listOf("0.0.0.0 tracker.test\n0.0.0.0 shared.test\n")
+        val popups = listOf("popunder.test\nshared.test\n")
+        val both = DomainBlocklist.merge(main, popups)
+        assertEquals(3, both.size)
+        assertTrue(both.isBlocked("tracker.test"))
+        assertTrue(both.isBlocked("x.popunder.test"))
+        assertFalse(both.isBlocked("example.test"))
+        assertEquals(2, DomainBlocklist.merge(main, DomainBlocklist.EMPTY).size)
+    }
+
+    @Test
+    fun mergingOverlappingListsKeepsEachDomainOnce() {
+        val a = listOf((1..50).joinToString("\n") { "a$it.test" })
+        val b = listOf((25..80).joinToString("\n") { "a$it.test" })
+        val both = DomainBlocklist.merge(a, b)
+        assertEquals(80, both.size)
+        assertEquals(50, DomainBlocklist.merge(a, a).size)
+        assertTrue((1..80).all { both.isBlocked("a$it.test") })
+        assertEquals(80, DomainBlocklist.merge(DomainBlocklist.EMPTY, both).size)
+    }
+
+    @Test
     fun emptyListBlocksNothing() {
         assertFalse(DomainBlocklist.EMPTY.isBlocked("doubleclick.net"))
     }
