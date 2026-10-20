@@ -5,14 +5,19 @@ Remote-control browsing
 • OK clicks, holding OK while moving drags, and hover works, so hover menus open.
 • Pushing the pointer against a screen edge scrolls the page, or whatever is under the pointer.
 • Scroll mode, and a D-pad mode for sites built for keyboard navigation.
-• The Back key opens a menu: address, navigation, bookmarks, history, ad blocking per site, "Browse as" (desktop, mobile, iPad, Smart TV or your own user agent), zoom and settings.
+• The Back key opens a menu: address, Watch, navigation, find in page, bookmarks, history, ad blocking per site, "Browse as" (desktop, mobile, iPad, Smart TV or your own user agent), zoom and settings.
 
 Home screen
 • Your own quick-access tiles, which you can add, edit and reorder.
 • Most visited sites, worked out on the TV from your history, and your recent bookmarks.
 
 Video
-• Fullscreen video gets a control bar, even for videos embedded from other sites: back and forward 10 seconds, play/pause, a scrub bar and playback speed.
+• Watch: one press of Play (or Watch in the menu) finds the page's main video, even inside an embedded player, and plays it fullscreen.
+• Fullscreen video gets a control bar, even for videos embedded from other sites: back and forward 10 seconds, play/pause, a scrub bar, playback speed, subtitles where the video has them, Video info and picture-in-picture on TVs that offer it.
+• Play in another app: send the video to VLC, mpv, MX Player or another player. Android asks once and Sofa remembers; hold OK on the button to choose again.
+• In fullscreen, sites see your TV's real resolution, so on a 4K TV they can send their 4K stream.
+• Match frame rate (experimental, off by default): on TVs that offer several refresh rates, the TV switches to the video's frame rate in fullscreen, such as 24 per second for films, for smoother motion.
+• The screen stays on while a video plays, and long films offer to continue where you stopped.
 
 Search
 • At first start you choose the search engine yourself: Brave Search, DuckDuckGo, Ecosia, Google, Kagi, MetaGer, Mojeek, Murena Find, Qwant, Startpage, Swisscows or Uruky, or later any address you like.
@@ -23,10 +28,11 @@ Downloads
 • Up to three at once, with pause and resume, automatic retries, and downloads that carry on in the background.
 
 Privacy
-• Ads and trackers are blocked on the TV itself, using the StevenBlack hosts list. Third-party cookies are blocked.
+• Ads, trackers and pop-ups are blocked on the TV itself, using the StevenBlack hosts list and HaGeZi's Pop-Up Ads list. Third-party cookies are blocked.
 • Few browsers send Do Not Track, and desktop Chrome is the most common browser, so Sofa never sends Do Not Track and shows a desktop Chrome user agent by default. Both help it blend in.
 • Private browsing runs in a separate WebView profile where the TV's WebView supports it.
 • Pages never get the camera, microphone, location or your files.
+• You choose how long history is kept (7, 30 or 90 days, always or never) and whether protected (DRM) video asks first, always plays or never plays.
 • No crash reporting, remote configuration or cloud backup.
 
 Updates

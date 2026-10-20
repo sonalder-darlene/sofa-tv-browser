@@ -6,10 +6,14 @@ called Sofa.
 ![Sofa's home screen: search, top-bar buttons, quick-access tiles and most visited sites](fastlane/metadata/android/en-US/images/tvScreenshots/1.png)
 
 - **A mouse pointer on the D-pad**, with hover, drag, and scrolling by pushing against the screen edge.
-- **A menu on the Back key**: address, back and forward, bookmarks, history, zoom, ad blocking per site, and
-  "Browse as" desktop, mobile or TV.
+- **A menu on the Back key**: address, Watch, back and forward, find in page, bookmarks, history, zoom, ad
+  blocking per site, and "Browse as" desktop, mobile or TV.
 - **A home screen** with your own tiles, your most visited sites and your bookmarks.
-- **Controls for fullscreen video**: seek, pause and playback speed.
+- **Watch**: one press of Play finds the page's main video and plays it fullscreen.
+- **Controls for fullscreen video**: seek, pause, playback speed, subtitles, Video info, picture-in-picture, and
+  Play in another app (Android asks once, Sofa remembers; hold OK on the button to choose again).
+- **Match frame rate** (experimental), on TVs that offer it: films play at 24 Hz instead of juddering at 60.
+- **Pop-ups and redirects to ad sites blocked**, with "Allow once" in the menu when you need one.
 - **Search** with the engine you choose at first start, and voice search.
 - **Downloads** that pause, resume and carry on in the background.
 - **Dark and Light themes.**
@@ -43,7 +47,28 @@ Copies installed by an app store or by Obtainium never offer this; the store kee
 - **Pages get nothing extra:** no camera, microphone, location or files.
 - **Private browsing** uses a separate WebView profile that is deleted afterwards. On TVs whose WebView is too old
   for that, it keeps no history and erases site data when it ends.
+- **History** is kept for as long as you choose: 7, 30 or 90 days (the default), always or never.
 - **WebView reporting:** usage reports to Google are off, and so are Safe Browsing lookups unless you turn them on.
+
+## Video
+
+- **Decoding:** Sofa doesn't change how video is decoded. The TV's web engine (Android System WebView) does it,
+  with the TV's video hardware where the format allows; Video info shows what the TV reports. Sofa's fullscreen
+  controls are drawn on top of the picture.
+- **4K:** in fullscreen, sites see the TV's real resolution, so on a 4K TV they can send their 4K stream. The web
+  engine then shows it through Sofa's HD window, as it does for every app, so the panel gets an upscaled HD
+  picture; it is still sharper than the site's HD stream.
+- **Frame rate:** with Settings → Match frame rate (experimental, off by default), the TV switches to the video's frame rate in
+  fullscreen, such as 24 or 50 per second, and back afterwards. Sofa measures the rate from the frames the page
+  shows, and only switches between refresh rates the TV offers at its current resolution. The screen goes dark for
+  a moment while the TV switches, so videos under 5 minutes are left alone. The setting only appears on TVs that
+  offer more than one refresh rate, and Android 12's "Match content frame rate: Never" turns it off.
+- **Resolution:** Sofa never changes the TV's resolution. Web video always reaches the screen through Sofa's
+  window, so switching the output to the video's resolution would only move the scaling elsewhere.
+- **Protected (DRM) video** plays in standard definition on most TVs: the web engine only offers software
+  protection, and streaming services keep HD for hardware protection. Sofa asks each site first, and Settings →
+  Protected content can allow or block it everywhere.
+- **The screen stays on** while a video plays, and long films offer to continue where you stopped.
 
 ## Not there yet
 

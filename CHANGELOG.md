@@ -1,5 +1,39 @@
 # Changelog
 
+## 1.1.0 (2026-10-20)
+
+**Watching video**
+
+- **Watch:** press Play on the remote, or Watch in the menu, and Sofa finds the video on the page and plays it
+  fullscreen, even when it comes from another site.
+- **New buttons in fullscreen:**
+  - subtitles on and off, when the video has them;
+  - picture-in-picture, on TVs that support it;
+  - Video info: the video's quality and frame rate, and whether the TV decodes it in hardware;
+  - Play in another app: open the video in VLC, MX Player or another player. Android asks the first time and Sofa
+    remembers; hold OK on the button to pick another one.
+- **Continue where you stopped** in long films.
+- **Sharper video on 4K TVs:** in fullscreen, sites can now send their 4K stream.
+- **Smoother films (experimental):** turn on "Match frame rate" in Settings, and the TV switches to the film's
+  frame rate, such as 24 per second, while it plays fullscreen. Only on TVs that support it; the screen goes dark
+  for a moment when it switches.
+- **The screen stays on** while a video plays, and can go to sleep again when you pause.
+
+**Fewer ads and pop-ups**
+
+- Pop-ups and pages that jump to ad sites on their own are blocked, now with a second list made for pop-up ads.
+  Links you press still work, and "Allow once" in the menu opens something that was blocked.
+- Fewer "please turn off your ad blocker" messages.
+- The Ad block button in the menu shows how many things were blocked on the page.
+
+**Browsing and settings**
+
+- **Find in page,** typed or spoken.
+- **Keep history for** 7, 30 or 90 days, always or never. Your choice from 1.0.0 carries over.
+- **Protected video** (the kind streaming services lock): ask for each site, always allow, or always block.
+- Sofa tells you when your TV's web engine is very old and needs an update, and About shows its version.
+- **Fixed:** ad blocking and its count now work from the moment a page starts loading.
+
 ## 1.0.0 (2026-10-19)
 
 First public release.
