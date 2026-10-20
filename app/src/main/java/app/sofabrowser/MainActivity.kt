@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
 import android.net.http.SslError
@@ -47,6 +48,8 @@ import app.sofabrowser.downloads.Http
 import app.sofabrowser.downloads.Status as DownloadStatus
 import app.sofabrowser.ui.BrowserMenu
 import app.sofabrowser.ui.DownloadsActivity
+import app.sofabrowser.ui.FindBar
+import app.sofabrowser.ui.VoiceInput
 import app.sofabrowser.ui.HomeView
 import app.sofabrowser.ui.ListActivity
 import app.sofabrowser.ui.Palette
@@ -61,7 +64,8 @@ import kotlin.math.pow
 import kotlin.math.roundToInt
 
 /** The single activity for the home screen and the browser; settings and lists are separate screens. */
-class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Actions, VideoBar.Actions, CursorLayout.Listener {
+class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Actions, VideoBar.Actions, CursorLayout.Listener,
+    FindBar.Actions {
 
     private lateinit var prefs: Prefs
     private val db by lazy { Db.get(this) }
@@ -74,6 +78,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     private lateinit var fullscreen: FullscreenLayer
     private lateinit var home: HomeView
     private var menu: BrowserMenu? = null
+    private lateinit var findBar: FindBar
+    private val voiceInput by lazy { VoiceInput(this, findVoiceListener) }
 
     private var fullscreenCallback: WebChromeClient.CustomViewCallback? = null
     private var loading = false
@@ -120,6 +126,9 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         }
         browserLayer.addView(scrollPill, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
             Gravity.BOTTOM or Gravity.END).apply { setMargins(0, 0, 120.px, 120.px) })
+        findBar = FindBar(this, this)
+        browserLayer.addView(findBar, FrameLayout.LayoutParams(1300.px, FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = 40.px })
         root.addView(browserLayer)
 
         fullscreen = FullscreenLayer(this, VideoBar(this, this))
@@ -153,6 +162,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     private fun ensureWeb() {
         if (web != null) return
         val view = browser.create(prefs.privateMode)
+        view.setFindListener { active, total, _ -> findBar.setMatches(active, total) }
         cursor.addView(view, 0, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
     }
 
@@ -179,6 +189,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
 
     private fun showHome() {
         menu?.dismiss()
+        if (findBar.showing) closeFind()
         // Leaving a page for the home screen shouldn't leave its video playing behind it.
         VideoRelay.send(web, "pause")
         web?.onPause()
@@ -196,6 +207,16 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     @SuppressLint("GestureBackNavigation")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (fullscreen.visibility == View.VISIBLE) return fullscreenKey(event) || super.dispatchKeyEvent(event)
+        if (findBar.showing && !homeShown) {
+            if (event.keyCode == KeyEvent.KEYCODE_BACK) {
+                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                    if (voiceInput.listening) voiceInput.cancel() else closeFind()
+                }
+                return true
+            }
+            // While the bar has focus, the D-pad moves between its buttons instead of the pointer.
+            if (findBar.hasFocus()) return super.dispatchKeyEvent(event)
+        }
         if (homeShown) {
             if (event.keyCode == KeyEvent.KEYCODE_BACK) {
                 if (event.action == KeyEvent.ACTION_UP && !event.isCanceled) backOnHome()
@@ -331,6 +352,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             BrowserMenu.Action.BACK -> if (w.canGoBack()) browser.goBack()
             BrowserMenu.Action.FORWARD -> if (w.canGoForward()) browser.goForward()
             BrowserMenu.Action.RELOAD -> { if (loading) w.stopLoading() else browser.reload(); menu?.dismiss() }
+            BrowserMenu.Action.FIND -> { menu?.dismiss(); findBar.open(voice = prefs.voiceSearch && voiceInput.available) }
             BrowserMenu.Action.BOOKMARK -> if (Browser.isWebUrl(url)) {
                 if (db.isBookmarked(url)) db.removeBookmark(url) else db.addBookmark(w.title.orEmpty(), url)
                 toast(if (db.isBookmarked(url)) R.string.bookmark_added else R.string.bookmark_removed)
@@ -495,6 +517,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     // Browser events
 
     override fun onPageStarted(url: String) {
+        if (findBar.showing) closeFind()
         loading = true
         zoomStep = 0
         progress.visibility = View.VISIBLE
@@ -707,7 +730,44 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         web?.let { WebViews.cookieManager(it).flush() }
     }
 
+    // Find in page
+
+    override fun find(query: String) {
+        if (query.isEmpty()) web?.clearMatches() else web?.findAllAsync(query)
+    }
+
+    override fun findNext(forward: Boolean) {
+        web?.findNext(forward)
+    }
+
+    override fun findByVoice() = when {
+        voiceInput.listening -> voiceInput.cancel()
+        !voiceInput.hasPermission -> requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQ_MIC)
+        else -> voiceInput.start()
+    }
+
+    override fun closeFind() {
+        voiceInput.cancel()
+        findBar.close()
+        web?.clearMatches()
+        web?.requestFocus()
+    }
+
+    private val findVoiceListener = object : VoiceInput.Listener {
+        override fun onListening(active: Boolean) = findBar.setListening(active)
+        override fun onLevel(level: Float) = Unit
+        override fun onPartial(text: String) = findBar.field.setText(text)
+        override fun onResult(text: String) = findBar.setQuery(text)
+        override fun onFailed(message: Int) = toast(message)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_MIC && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) voiceInput.start()
+    }
+
     override fun onDestroy() {
+        voiceInput.destroy()
         if (isFinishing) {
             val wasPrivate = browser.privateMode && !browser.isolated
             browser.destroy()
@@ -755,5 +815,6 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     companion object {
         private const val REQ_URL = 10
         private const val REQ_NOTIFICATIONS = 11
+        private const val REQ_MIC = 12
     }
 }

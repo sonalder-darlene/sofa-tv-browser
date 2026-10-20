@@ -47,7 +47,7 @@ Copies installed by an app store or by Obtainium never offer this; the store kee
 
 ## Not there yet
 
-Tabs, find in page, reader mode, typing from a phone, and translations.
+Tabs, reader mode, typing from a phone, and translations.
 
 ## For developers
 

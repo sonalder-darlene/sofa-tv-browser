@@ -80,6 +80,13 @@
     <string name="adblock_site_disabled">Ad blocking turned off for this site</string>
     <string name="adblock_site_enabled">Ad blocking turned on for this site</string>
     <string name="adblock_globally_off">Ad blocking is turned off in Settings</string>
+    <string name="find_in_page">Find in page</string>
+    <string name="find_hint">Find in page</string>
+    <string name="find_previous">Previous match</string>
+    <string name="find_next">Next match</string>
+    <string name="find_close">Close find</string>
+    <string name="find_none">No matches</string>
+    <string name="find_count">%1$d of %2$d</string>
     <string name="user_agent">Browse as</string>
     <string name="custom_user_agent">Custom user agent</string>
     <string name="scroll_mode">Scroll mode</string>
