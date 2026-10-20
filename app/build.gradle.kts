@@ -75,6 +75,11 @@ android {
     }
 
     buildTypes {
+        // Test builds install next to the real Sofa (named "Sofa (test)" in src/debug), so testing on a TV keeps its
+        // data.
+        debug {
+            applicationIdSuffix = ".debug"
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
