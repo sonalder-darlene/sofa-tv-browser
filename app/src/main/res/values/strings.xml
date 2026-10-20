@@ -193,6 +193,12 @@
     <string name="clear">Clear</string>
     <string name="cleared">Browsing data cleared</string>
     <string name="about">About Sofa</string>
+    <string name="about_engine">Web engine: Chrome %s</string>
+    <string name="old_webview_title">Your TV\'s web engine is out of date</string>
+    <string name="old_webview_message">Sofa shows pages with the web engine that comes with your TV (Android System WebView). This one is quite old. Sofa can\'t update it, but your TV can: check its app store, or the TV maker\'s updates. Older versions may be missing security fixes, and some sites may not work properly. You can keep browsing in the meantime.</string>
+    <string name="keep_browsing">Keep browsing</string>
+    <string name="how_to_update">How to update</string>
+    <string name="how_to_update_message">Open the app store on your TV and look for \"Android System WebView\", then choose Update. If your TV has no app store, updates come with the TV\'s system updates, so check its settings or the maker\'s website.</string>
 
     <string-array name="user_agents">
         <item>Desktop</item>

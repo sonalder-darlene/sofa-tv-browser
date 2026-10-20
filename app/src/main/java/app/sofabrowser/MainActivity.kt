@@ -36,6 +36,7 @@ import app.sofabrowser.browser.UrlInput
 import app.sofabrowser.browser.VideoBar
 import app.sofabrowser.browser.VideoRelay
 import app.sofabrowser.browser.VideoState
+import app.sofabrowser.browser.WebViewAge
 import app.sofabrowser.browser.WebViews
 import app.sofabrowser.data.Db
 import app.sofabrowser.data.Favicons
@@ -100,7 +101,10 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         DownloadEngine.forgetPrivate()
         if (!prefs.setupDone || Updater.offered(this) && !prefs.updatesAsked) startActivity(Intent(this, SetupActivity::class.java))
         // Opt-in, and only in builds and copies that no app store updates; an offer waits for the home screen.
-        else if (savedInstanceState == null) Updater.checkOnLaunch(this) { homeShown && !isFinishing }
+        else if (savedInstanceState == null) {
+            Updater.checkOnLaunch(this) { homeShown && !isFinishing }
+            warnIfOldWebView()
+        }
 
         val root = FrameLayout(this)
         browserLayer = FrameLayout(this).apply { visibility = View.GONE }
@@ -714,6 +718,25 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             prefs.privateMode = false
         }
         super.onDestroy()
+    }
+
+    /** Once per WebView version, and again every few months: Sofa can't update the engine, only say so. */
+    private fun warnIfOldWebView() {
+        val engine = WebViews.engine(this)
+        val now = System.currentTimeMillis()
+        if (!WebViewAge.shouldWarn(engine.major, engine.version, prefs.webViewWarnedVersion, prefs.webViewWarnedAt, now)) return
+        prefs.webViewWarnedVersion = engine.version
+        prefs.webViewWarnedAt = now
+        val d = dialog().setTitle(R.string.old_webview_title)
+            .setMessage(R.string.old_webview_message)
+            .setPositiveButton(R.string.keep_browsing, null)
+            .setNeutralButton(R.string.how_to_update) { _, _ ->
+                dialog().setTitle(R.string.how_to_update).setMessage(R.string.how_to_update_message)
+                    .setPositiveButton(android.R.string.ok, null).show()
+            }
+            .create()
+        d.setOnShowListener { d.getButton(AlertDialog.BUTTON_POSITIVE).requestFocus() }
+        d.show()
     }
 
     // Helpers

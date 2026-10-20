@@ -103,7 +103,19 @@ object WebViews {
 
     private fun chromeMajor(context: Context): String = chromeMajor ?: run {
         val ua = runCatching { WebSettings.getDefaultUserAgent(context) }.getOrDefault("")
-        (Regex("""Chrome/(\d+)""").find(ua)?.groupValues?.get(1) ?: "140").also { chromeMajor = it }
+        (WebViewAge.major(null, ua)?.toString() ?: "140").also { chromeMajor = it }
+    }
+
+    /** The installed WebView: its package version name ("" when unknown) and Chromium major version. */
+    data class Engine(val version: String, val major: Int?) {
+        /** For people: the full version when it is Google's format, else just the major one. */
+        val label: String get() = if (major != null && version.startsWith("$major.")) version else major?.toString() ?: "?"
+    }
+
+    fun engine(context: Context): Engine {
+        val version = runCatching { WebViewCompat.getCurrentWebViewPackage(context)?.versionName }.getOrNull().orEmpty()
+        val ua = runCatching { WebSettings.getDefaultUserAgent(context) }.getOrNull()
+        return Engine(version, WebViewAge.major(version, ua))
     }
 
     /** The cookie jar of [web]'s profile (the private profile has its own). */

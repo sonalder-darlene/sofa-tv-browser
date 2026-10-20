@@ -319,6 +319,7 @@ class SettingsActivity : Activity() {
         dialog().setTitle(getString(R.string.app_name) + " " + BuildConfig.VERSION_NAME)
             .setMessage(getString(R.string.about_text) +
                 (if (Updater.offered(this)) " " + getString(R.string.about_updates) else "") +
+                "\n\n" + getString(R.string.about_engine, WebViews.engine(this).label) +
                 "\n\n" + getString(R.string.about_license))
             .setPositiveButton(android.R.string.ok, null)
             .setNeutralButton(R.string.license) { _, _ -> showAsset(R.string.license, "LICENSE") }

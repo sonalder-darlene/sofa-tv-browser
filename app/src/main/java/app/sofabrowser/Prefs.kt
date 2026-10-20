@@ -61,6 +61,9 @@ class Prefs(context: Context) {
     var showMostVisited by boolean("most_visited", true)
     var privateMode by boolean("private_mode", false)
     var askedNotifications by boolean("asked_notifications", false)
+    /** The WebView version the old-WebView warning was last shown for, and when. */
+    var webViewWarnedVersion by string("webview_warned_version", "")
+    var webViewWarnedAt by long("webview_warned_at", 0L)
 
     /**
      * Looks for a new release on GitHub when Sofa starts, at most once a day. Only offered to copies that no app
