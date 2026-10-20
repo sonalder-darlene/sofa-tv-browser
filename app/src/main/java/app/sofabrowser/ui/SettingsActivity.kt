@@ -29,6 +29,7 @@ import app.sofabrowser.browser.ProtectedMedia
 import app.sofabrowser.browser.WebViews
 import app.sofabrowser.data.Db
 import app.sofabrowser.data.Favicons
+import app.sofabrowser.data.HistoryRetention
 import app.sofabrowser.update.Updater
 
 /** One centred list of settings, styled like BrowsHere's: rows turn white with black text when focused. */
@@ -99,7 +100,7 @@ class SettingsActivity : Activity() {
         switch(R.string.gpc, R.string.gpc_sub, prefs::sendGpc)
         switch(R.string.safe_browsing, R.string.safe_browsing_sub, prefs::safeBrowsing)
         row(getString(R.string.drm_setting), getString(R.string.drm_setting_sub), valueText(drmLabel())) { pickDrm() }
-        switch(R.string.remember_history, R.string.remember_history_sub, prefs::rememberHistory)
+        row(getString(R.string.keep_history), getString(R.string.keep_history_sub), valueText(historyLabel())) { pickHistory() }
         switch(R.string.clear_on_exit, R.string.clear_on_exit_sub, prefs::clearOnExit)
         nav(R.string.clear_now, null) { clearNow() }
 
@@ -234,6 +235,21 @@ class SettingsActivity : Activity() {
                 if (Prefs.UA_MODES[which] == "custom") askText(R.string.custom_user_agent, prefs.customUserAgent) {
                     prefs.customUserAgent = it; prefs.userAgent = "custom"; build()
                 } else { prefs.userAgent = Prefs.UA_MODES[which]; build() }
+            }.show()
+    }
+
+    private fun historyLabel() =
+        resources.getStringArray(R.array.history_periods)[HistoryRetention.CHOICES.indexOf(prefs.historyDays)
+            .takeIf { it >= 0 } ?: HistoryRetention.CHOICES.indexOf(HistoryRetention.DEFAULT)]
+
+    /** A shorter period, or Never, removes the older pages right away, so the choice shows at once in History. */
+    private fun pickHistory() {
+        dialog().setTitle(R.string.keep_history)
+            .setSingleChoiceItems(R.array.history_periods, HistoryRetention.CHOICES.indexOf(prefs.historyDays)) { d, which ->
+                d.dismiss()
+                prefs.historyDays = HistoryRetention.CHOICES[which]
+                Db.get(this).pruneHistory(prefs.historyDays)
+                build()
             }.show()
     }
 

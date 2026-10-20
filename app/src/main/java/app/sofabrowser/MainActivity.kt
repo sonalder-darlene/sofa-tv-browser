@@ -50,6 +50,7 @@ import app.sofabrowser.browser.WebViewAge
 import app.sofabrowser.browser.WebViews
 import app.sofabrowser.data.Db
 import app.sofabrowser.data.Favicons
+import app.sofabrowser.data.HistoryRetention
 import app.sofabrowser.data.Site
 import app.sofabrowser.downloads.Download
 import app.sofabrowser.downloads.DownloadEngine
@@ -99,7 +100,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
 
     private val web get() = browser.web
     private val homeShown get() = home.visibility == View.VISIBLE
-    private val recordHistory get() = prefs.rememberHistory && !browser.privateMode
+    private val recordHistory get() = HistoryRetention.records(prefs.historyDays) && !browser.privateMode
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -110,7 +111,9 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         prefs.privateMode = false
         Browser.deletePrivateProfile()
         browser = Browser(this, prefs, this)
-        db.pruneHistory()
+        // Only a period prunes at start: "Never" removes saved pages when chosen in Settings, so updating from
+        // 1.0.0 with history off (now "Never") keeps them, as 1.0.0 did.
+        if (prefs.historyDays > 0) db.pruneHistory(prefs.historyDays)
         DownloadEngine.init(this)
         // Private downloads don't outlive a session.
         DownloadEngine.forgetPrivate()

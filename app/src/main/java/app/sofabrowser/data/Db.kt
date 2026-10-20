@@ -135,9 +135,9 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, "sofa
         writableDatabase.delete("history", null, null)
     }
 
-    /** Drops history older than [days] days; history is a convenience, not an archive. */
-    fun pruneHistory(days: Int = 90) {
-        val cutoff = System.currentTimeMillis() - days * 24L * 60 * 60 * 1000
+    /** Removes the pages "Keep history for" no longer keeps ([days] as in HistoryRetention). */
+    fun pruneHistory(days: Int) {
+        val cutoff = HistoryRetention.cutoff(days, System.currentTimeMillis()) ?: return
         writableDatabase.delete("history", "visited < ?", arrayOf(cutoff.toString()))
     }
 

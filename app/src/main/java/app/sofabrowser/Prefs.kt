@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.net.Uri
 import app.sofabrowser.browser.ProtectedMedia
 import app.sofabrowser.browser.ResumeStore
+import app.sofabrowser.data.HistoryRetention
 
 data class SearchEngine(
     val id: String,
@@ -71,7 +72,11 @@ class Prefs(context: Context) {
     var videoPlayer by string("video_player", "")
     var textZoom by int("text_zoom", 100)
     var cursorSpeed by int("cursor_speed", 2) // 1 slow .. 3 fast
-    var rememberHistory by boolean("remember_history", true)
+    /** "Keep history for", in days, or HistoryRetention.ALWAYS / NEVER; 1.0.0's on/off switch carries over. */
+    var historyDays: Int
+        get() = if (p.contains("history_days")) p.getInt("history_days", HistoryRetention.DEFAULT)
+        else HistoryRetention.fromOldSwitch(p.getBoolean("remember_history", true))
+        set(v) = p.edit().putInt("history_days", v).apply()
     /** Clears cookies, site storage, cache and history whenever the app is closed. */
     var clearOnExit by boolean("clear_on_exit", false)
     var safeBrowsing by boolean("safe_browsing", false)

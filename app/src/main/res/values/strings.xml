@@ -211,8 +211,15 @@
     <string name="gpc_sub">Asks sites not to sell or share your data. Off by default: few browsers send it, so it can make you easier to recognise. Do Not Track is never sent.</string>
     <string name="safe_browsing">Google Safe Browsing</string>
     <string name="safe_browsing_sub">Checks pages against Google\'s list of dangerous sites; shares partial page-address hashes with Google</string>
-    <string name="remember_history">Remember history</string>
-    <string name="remember_history_sub">Kept on this device for 90 days</string>
+    <string name="keep_history">Keep history for</string>
+    <string name="keep_history_sub">Pages you visit stay in History, on this device, for this long. Older ones are removed. Never: nothing is saved.</string>
+    <string-array name="history_periods">
+        <item>7 days</item>
+        <item>30 days</item>
+        <item>90 days</item>
+        <item>Always</item>
+        <item>Never</item>
+    </string-array>
     <string name="clear_on_exit">Clear browsing data on exit</string>
     <string name="clear_on_exit_sub">Cookies, site storage, cache, history and where you stopped videos</string>
     <string name="clear_now">Clear browsing data now</string>
