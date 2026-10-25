@@ -99,4 +99,77 @@ class NavigationGuardTest {
         assertEquals(Verdict.ALLOW, guard.newWindow(blocking = false, listed = true))
         assertEquals(Verdict.ALLOW, guard.newWindow(blocking = false, listed = true))
     }
+
+    @Test
+    fun aPressAnywhereCantOpenAnotherSitesWindow() {
+        // The pop-under: a press on a button or the page opens an ad network no list knows yet.
+        guard.onInput()
+        assertEquals(Verdict.BLOCK, guard.newWindow(blocking = true, listed = false, fromLink = false, sameSite = false))
+    }
+
+    @Test
+    fun linksAndTheSitesOwnWindowsStillOpen() {
+        guard.onInput()
+        assertEquals(Verdict.ALLOW, guard.newWindow(blocking = true, listed = false, fromLink = true, sameSite = false))
+        guard.onInput()
+        assertEquals(Verdict.ALLOW, guard.newWindow(blocking = true, listed = false, fromLink = false, sameSite = true))
+        // A link to a listed host is still blocked.
+        guard.onInput()
+        assertEquals(Verdict.BLOCK, guard.newWindow(blocking = true, listed = true, fromLink = true, sameSite = false))
+    }
+
+    @Test
+    fun aPressThatFollowedALinkGetsNoWindowAsWell() {
+        // A press on a card opens the series page and, from a script on the same press, an ad window.
+        guard.onInput()
+        guard.windowRequested(gesture = true)
+        assertEquals(Verdict.ALLOW, guard.navigation(gesture = false, redirect = false, listed = false, blocking = true))
+        assertEquals(Verdict.BLOCK, guard.newWindow(blocking = true, listed = false, fromLink = true, sameSite = false))
+        // The next press may open a window again.
+        guard.onInput()
+        assertEquals(Verdict.ALLOW, guard.newWindow(blocking = true, listed = false, fromLink = true, sameSite = false))
+    }
+
+    @Test
+    fun aPressThatOpensAWindowCantAlsoSendThePageToAnotherSite() {
+        // The tab-under: the page opens itself in a window and sends the view to an ad.
+        guard.onInput()
+        guard.windowRequested(gesture = true)
+        assertEquals(Verdict.BLOCK, guard.navigation(gesture = true, redirect = false, listed = false, blocking = true,
+            fromLink = false, crossSite = true))
+        // ... and the hops after it are not the user's either.
+        assertEquals(Verdict.BLOCK, guard.navigation(gesture = false, redirect = true, listed = true, blocking = true))
+    }
+
+    @Test
+    fun buttonsThatGoToAnotherSiteStillWork() {
+        // No window on this press: a "Sign in with …" button or a form that leaves the site.
+        guard.onInput()
+        assertEquals(Verdict.ALLOW, guard.navigation(gesture = true, redirect = false, listed = false, blocking = true,
+            fromLink = false, crossSite = true))
+        // A window on an earlier press doesn't count against this one.
+        guard.windowRequested(gesture = true)
+        guard.onInput()
+        assertEquals(Verdict.ALLOW, guard.navigation(gesture = true, redirect = false, listed = false, blocking = true,
+            fromLink = false, crossSite = true))
+    }
+
+    @Test
+    fun aPressThatIsNotOnALinkCantSendThePageToAListedHost() {
+        guard.onInput()
+        assertEquals(Verdict.BLOCK, guard.navigation(gesture = true, redirect = false, listed = true, blocking = true,
+            fromLink = false, crossSite = true))
+        guard.onInput()
+        assertEquals(Verdict.ALLOW, guard.navigation(gesture = true, redirect = false, listed = true, blocking = true,
+            fromLink = true, crossSite = true))
+    }
+
+    @Test
+    fun siteSwitchOffAllowsScriptWindowsAndTabUnders() {
+        guard.onInput()
+        guard.windowRequested(gesture = true)
+        assertEquals(Verdict.ALLOW, guard.newWindow(blocking = false, listed = false, fromLink = false, sameSite = false))
+        assertEquals(Verdict.ALLOW, guard.navigation(gesture = true, redirect = false, listed = false, blocking = false,
+            fromLink = false, crossSite = true))
+    }
 }

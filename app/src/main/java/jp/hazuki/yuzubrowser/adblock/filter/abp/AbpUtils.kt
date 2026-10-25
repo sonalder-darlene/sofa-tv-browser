@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Modified for Sofa TV Browser (2026), from Fulguris commit 66d56d45: Sofa's list names: page-wide exceptions added, modify and redirect lists removed.
+// Modified for Sofa TV Browser (2026), from Fulguris commit 66d56d45: Sofa's list names: page-wide exceptions, pop-up and page lists added, modify and redirect lists removed.
 
 package jp.hazuki.yuzubrowser.adblock.filter.abp
 
@@ -26,10 +26,15 @@ internal const val ABP_PREFIX_IMPORTANT_ALLOW = "ia_"
 internal const val ABP_PREFIX_DOCUMENT_ALLOW = "wd_"
 internal const val ABP_PREFIX_DISABLE_ELEMENT_PAGE = "wp_"
 internal const val ABP_PREFIX_DISABLE_GENERIC_ELEMENT_PAGE = "wg_"
+// rules for windows a page opens ($popup) and for whole pages the browser goes to (blocking $document)
+internal const val ABP_PREFIX_POPUP_DENY = "pb_"
+internal const val ABP_PREFIX_POPUP_ALLOW = "pw_"
+internal const val ABP_PREFIX_DOCUMENT_DENY = "bd_"
 // badfilter is an additional prefix for lists
 internal const val ABP_PREFIX_BADFILTER = "bf_"
 
 internal val ABP_LISTS = listOf(
     ABP_PREFIX_DENY, ABP_PREFIX_ALLOW, ABP_PREFIX_IMPORTANT, ABP_PREFIX_IMPORTANT_ALLOW,
     ABP_PREFIX_DOCUMENT_ALLOW, ABP_PREFIX_DISABLE_ELEMENT_PAGE, ABP_PREFIX_DISABLE_GENERIC_ELEMENT_PAGE,
+    ABP_PREFIX_POPUP_DENY, ABP_PREFIX_POPUP_ALLOW, ABP_PREFIX_DOCUMENT_DENY,
 )

@@ -49,7 +49,7 @@ class CompiledList(
     companion object {
         private const val MAGIC = 0x534f464c // "SOFL"
         /** Bump when the format or the parser changes: older caches are then compiled again from the list text. */
-        const val FORMAT = 1
+        const val FORMAT = 2
 
         private val NAMES = ABP_LISTS + ABP_LISTS.map { ABP_PREFIX_BADFILTER + it }
 

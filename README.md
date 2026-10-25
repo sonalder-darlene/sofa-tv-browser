@@ -15,7 +15,7 @@ called Sofa.
 - **Match frame rate** (experimental), on TVs that offer it: films play at 24 Hz instead of juddering at 60.
 - **Ad blocking with filter lists** in the formats of uBlock Origin, Adblock Plus and hosts files, including
   hiding the empty boxes ads leave behind. One switch adds EasyList and EasyPrivacy.
-- **Pop-ups and redirects to ad sites blocked**, with "Allow once" in the menu when you need one.
+- **Pop-ups blocked**, even from ad networks no list knows yet, with "Allow once" in the menu when you need one.
 - **Search** with the engine you choose at first start, and voice search.
 - **Downloads** that pause, resume and carry on in the background.
 - **Dark and Light themes.**
@@ -62,8 +62,10 @@ Everything is matched on the TV; nothing about your browsing leaves it.
   with a few MB of memory to spare. Settings → Filter lists takes any other list by its address, in hosts, Adblock
   Plus or uBlock Origin format, and switches each list on or off.
 - **Element hiding** removes the empty boxes and banners that blocked ads leave, also when a page adds them later.
-- **Pop-ups:** windows a page opens without a press, windows to listed ad sites, and pages that send you to a
-  listed ad site on their own are blocked. The menu's "Allow once" opens the last thing blocked.
+- **Pop-ups:** with one view and no tabs, a pop-up would replace the page you were on. Sofa blocks windows a page
+  opens without a press, windows to listed ad sites, windows a script opens to another site when you didn't press a
+  link to it, and the invisible links pop-under networks lay over a page. Pages that send you to a listed ad site
+  on their own are stopped too. The menu's "Allow once" opens the last thing blocked.
 - **Updates:** lists are downloaded when you add or update them, without cookies. Sofa can also update them every
   few days by itself; it asks at first start, and EasyList and EasyPrivacy, which change every few days, are best
   kept that way.

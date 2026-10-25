@@ -11,6 +11,9 @@ import jp.hazuki.yuzubrowser.adblock.filter.abp.ABP_PREFIX_DISABLE_GENERIC_ELEME
 import jp.hazuki.yuzubrowser.adblock.filter.abp.ABP_PREFIX_DOCUMENT_ALLOW
 import jp.hazuki.yuzubrowser.adblock.filter.abp.ABP_PREFIX_IMPORTANT
 import jp.hazuki.yuzubrowser.adblock.filter.abp.ABP_PREFIX_IMPORTANT_ALLOW
+import jp.hazuki.yuzubrowser.adblock.filter.abp.ABP_PREFIX_POPUP_ALLOW
+import jp.hazuki.yuzubrowser.adblock.filter.abp.ABP_PREFIX_POPUP_DENY
+import jp.hazuki.yuzubrowser.adblock.filter.abp.ABP_PREFIX_DOCUMENT_DENY
 import jp.hazuki.yuzubrowser.adblock.filter.unified.FILTER_TYPE_START_END
 import jp.hazuki.yuzubrowser.adblock.filter.unified.NO_PARTY_PREFERENCE
 import jp.hazuki.yuzubrowser.adblock.filter.unified.STRICT_FIRST_PARTY
@@ -40,6 +43,29 @@ class RuleSet private constructor(
     private val documentAllow = lists.getValue(ABP_PREFIX_DOCUMENT_ALLOW)
     private val elemhideAllow = lists.getValue(ABP_PREFIX_DISABLE_ELEMENT_PAGE)
     private val generichideAllow = lists.getValue(ABP_PREFIX_DISABLE_GENERIC_ELEMENT_PAGE)
+    private val popupDeny = lists.getValue(ABP_PREFIX_POPUP_DENY)
+    private val popupAllow = lists.getValue(ABP_PREFIX_POPUP_ALLOW)
+    private val documentDeny = lists.getValue(ABP_PREFIX_DOCUMENT_DENY)
+
+    /**
+     * Whether a window a page at [openerHost] opens at [url] is blocked: its host is a blocked domain, or a $popup rule
+     * matches it and no $popup exception does.
+     */
+    fun blocksPopup(url: RequestUrl, openerHost: String?): Boolean {
+        val host = url.host ?: return false
+        val request = ContentRequest(url, openerHost, ContentRequest.TYPE_POPUP, party(host, openerHost))
+        if (popupAllow[request] != null) return false
+        return domains.isBlocked(host) || popupDeny[request] != null
+    }
+
+    /** Whether [url] is a page lists block outright: a blocked domain, or a $document rule without exception. */
+    fun blocksPage(url: RequestUrl): Boolean {
+        val host = url.host ?: return false
+        if (domains.isBlocked(host)) return true
+        val request = ContentRequest(url, host, ContentRequest.TYPE_DOCUMENT, STRICT_FIRST_PARTY)
+        return documentDeny[request] != null && documentAllow[request] == null
+    }
+
     /**
      * Whether a subresource request for [url] of content [type] (ContentRequest.TYPE_*) is blocked on a page at
      * [pageHost]. Call [pageAllowed] once per page first; this doesn't repeat it.

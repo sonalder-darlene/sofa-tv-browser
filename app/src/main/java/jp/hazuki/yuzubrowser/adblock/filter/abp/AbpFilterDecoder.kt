@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Modified for Sofa TV Browser (2026), from Fulguris commit 66d56d45: network rules only, one line at a time (Sofa reads files, hosts lines and element hiding itself); rules that would need header, parameter or redirect changes are skipped instead of decoded (they used to block or allow too much without them); $sitekey rules are skipped (one of them allowed every page); page-wide $document, $elemhide and $generichide exceptions get their own lists; $from is $domain; no android dependencies.
+// Modified for Sofa TV Browser (2026), from Fulguris commit 66d56d45: network rules only, one line at a time (Sofa reads files, hosts lines and element hiding itself); rules that would need header, parameter or redirect changes are skipped instead of decoded (they used to block or allow too much without them); $sitekey rules are skipped (one of them allowed every page); page-wide $document, $elemhide and $generichide exceptions get their own lists; $from is $domain; $popup and $document rules go to lists of their own, for windows and page navigations; no android dependencies.
 
 package jp.hazuki.yuzubrowser.adblock.filter.abp
 
@@ -39,6 +39,7 @@ class AbpFilterDecoder {
         var filter = this
         var elementFilter = 0
         var explicitDocument = false
+        var explicitPopup = false
         var badfilter = ""
         var important = false
         val blocking = if (filter.startsWith("@@")) {
@@ -86,6 +87,7 @@ class AbpFilterDecoder {
                     }
                     type > 0 -> {
                         if (type == ContentRequest.TYPE_DOCUMENT && !inverse) explicitDocument = true
+                        if (type == ContentRequest.TYPE_POPUP && !inverse) explicitPopup = true
                         contentType = if (inverse) {
                             if (contentType == 0) contentType = ContentRequest.TYPE_ALL
                             contentType and (type.inv())
@@ -198,12 +200,18 @@ class AbpFilterDecoder {
                 else ABP_PREFIX_DISABLE_GENERIC_ELEMENT_PAGE, contentType)
             return
         }
+        // Pop-ups and whole pages are only matched by rules that name them, as in uBlock Origin; such rules get lists
+        // of their own, and whatever other types they name go on to the usual lists.
+        if (explicitPopup) add(if (blocking) ABP_PREFIX_POPUP_DENY else ABP_PREFIX_POPUP_ALLOW, ContentRequest.TYPE_POPUP)
+        if (explicitDocument) add(if (blocking) ABP_PREFIX_DOCUMENT_DENY else ABP_PREFIX_DOCUMENT_ALLOW, ContentRequest.TYPE_DOCUMENT)
+        val named = (if (explicitPopup) ContentRequest.TYPE_POPUP else 0) or (if (explicitDocument) ContentRequest.TYPE_DOCUMENT else 0)
+        val rest = contentType and named.inv()
+        if (named != 0 && (rest and ContentRequest.INVERSE.inv()) == 0) return
         when {
-            important && blocking -> add(ABP_PREFIX_IMPORTANT, contentType)
-            blocking -> add(ABP_PREFIX_DENY, contentType)
-            important -> add(ABP_PREFIX_IMPORTANT_ALLOW, contentType)
-            explicitDocument -> add(ABP_PREFIX_DOCUMENT_ALLOW, contentType)
-            else -> add(ABP_PREFIX_ALLOW, contentType)
+            important && blocking -> add(ABP_PREFIX_IMPORTANT, rest)
+            blocking -> add(ABP_PREFIX_DENY, rest)
+            important -> add(ABP_PREFIX_IMPORTANT_ALLOW, rest)
+            else -> add(ABP_PREFIX_ALLOW, rest)
         }
     }
 
@@ -272,7 +280,8 @@ class AbpFilterDecoder {
             "websocket" -> ContentRequest.TYPE_WEB_SOCKET
             "media" -> ContentRequest.TYPE_MEDIA
             "font" -> ContentRequest.TYPE_FONT
-            "popup", "object", "webrtc", "ping", "object-subrequest", "popunder" -> ContentRequest.TYPE_UNSUPPORTED
+            "popup", "popunder" -> ContentRequest.TYPE_POPUP
+            "object", "webrtc", "ping", "object-subrequest" -> ContentRequest.TYPE_UNSUPPORTED
             "xmlhttprequest", "xhr" -> ContentRequest.TYPE_XHR
             "genericblock" -> -1
             "elemhide", "ehide" -> ContentRequest.TYPE_ELEMENT_HIDE

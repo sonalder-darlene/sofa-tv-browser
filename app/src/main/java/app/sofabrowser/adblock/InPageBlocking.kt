@@ -19,8 +19,13 @@ import org.json.JSONObject
  * thousands. Selectors go in as CSS rules one by one, so a broken or hostile selector is dropped on its own and can't
  * run script; CosmeticRule refuses anything that could leave its rule.
  *
+ * **Trap links.** Pop-under networks lay an invisible link to an ad over the whole page, so the first press anywhere
+ * opens the ad, and with one view the ad replaces the page. WebView sees an ordinary press on a link. The script
+ * looks at the press first: a link to another site that is nearly invisible, or laid over most of the screen, is
+ * removed before the press lands, and Sofa says a pop-up was blocked. The press then usually reaches what was under it.
+ *
  * The channel has a random name per WebView ([PageKey]); a page that finds it can only ask which of its own elements
- * would be hidden.
+ * would be hidden, or claim it blocked a pop-up.
  */
 object InPageBlocking {
 
@@ -28,7 +33,7 @@ object InPageBlocking {
 (() => {
   const ch = window[${JSONObject.quote(key.cosmetic)}];
   if (!ch) return;
-  let sheet = null, generic = false, timer = 0;
+  let sheet = null, generic = false, guard = false, timer = 0, reported = 0;
   const seen = new Set(), queue = [], pending = [];
   const rule = (s) => s + '{display:none!important}';
   const hide = (list) => {
@@ -73,9 +78,49 @@ object InPageBlocking {
     if (document.documentElement) queue.push(document.documentElement);
     later();
   };
+  // Trap links: nearly invisible, or laid over most of the screen, and leading to another site.
+  const site = (h) => h.split('.').slice(-2).join('.');
+  const trap = (target) => {
+    const a = target && target.closest ? target.closest('a[href]') : null;
+    if (!a) return null;
+    let u;
+    try { u = new URL(a.href, location.href); } catch (x) { return null; }
+    if (!/^https?:$/.test(u.protocol) || site(u.hostname) === site(location.hostname)) return null;
+    const screen = innerWidth * innerHeight;
+    let opacity = 1, layer = null;
+    for (let el = target; el && el.nodeType === 1; el = el.parentElement) {
+      const s = getComputedStyle(el);
+      opacity *= parseFloat(s.opacity);
+      if (s.position === 'fixed' || s.position === 'absolute') {
+        const r = el.getBoundingClientRect();
+        if (r.width * r.height >= screen * 0.3) layer = el;
+      }
+    }
+    const r = a.getBoundingClientRect();
+    if (opacity < 0.1) return { el: layer || a, href: u.href };
+    if (layer && r.width * r.height >= screen * 0.5) return { el: layer, href: u.href };
+    return null;
+  };
+  const press = (e) => {
+    if (!guard) return;
+    const t = trap(e.target);
+    if (!t) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (t.el.style.getPropertyValue('display') === 'none') return;
+    t.el.style.setProperty('display', 'none', 'important');
+    t.el.style.setProperty('pointer-events', 'none', 'important');
+    // One press sends several events; Sofa hears about the trap once.
+    if (Date.now() - reported > 1000) ch.postMessage(JSON.stringify({ o: t.href }));
+    reported = Date.now();
+  };
+  for (const type of ['pointerdown', 'mousedown', 'touchstart', 'pointerup', 'mouseup', 'touchend', 'click', 'auxclick']) {
+    window.addEventListener(type, press, { capture: true, passive: false });
+  }
   ch.addEventListener('message', (e) => {
     let m;
     try { m = JSON.parse(e.data); } catch (x) { return; }
+    if (m.p) guard = true;
     hide(m.s);
     if (m.g && !generic) { generic = true; start(); }
   });
@@ -85,9 +130,10 @@ object InPageBlocking {
 
     /**
      * Installs in-page blocking in [web]; [active] says, for the page in the main frame, whether ad blocking is on there.
-     * Needs WebView's document-start scripts and message listeners; without them pages keep their elements.
+     * [onTrapBlocked] gets the address of a trap link the script removed. Needs WebView's document-start scripts and
+     * message listeners; without them pages keep their elements and trap links.
      */
-    fun install(web: WebView, key: PageKey, blocker: AdBlocker, active: () -> Boolean) {
+    fun install(web: WebView, key: PageKey, blocker: AdBlocker, active: () -> Boolean, onTrapBlocked: (String) -> Unit) {
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER) ||
             !WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) return
         if (!WebViews.addDocumentStartScript(web, script(key))) return
@@ -96,13 +142,15 @@ object InPageBlocking {
             runCatching {
                 if (!active()) return@runCatching
                 val o = JSONObject(message.data ?: return@runCatching)
-                val page = pages.get(blocker.rules, pageUrl(o.optString("u"), origin)) ?: return@runCatching
+                o.optString("o").takeIf { it.startsWith("http") }?.let { onTrapBlocked(it); return@runCatching }
+                val page = pages.get(blocker.rules, pageUrl(o.optString("u"), origin))
                 val keys = o.optJSONArray("k")
                 val out = JSONObject()
                 if (keys == null) {
-                    if (page.selectors.isEmpty() && !page.generic) return@runCatching
-                    out.put("s", JSONArray(page.selectors)).put("g", page.generic)
+                    out.put("p", true)
+                    if (page != null) out.put("s", JSONArray(page.selectors)).put("g", page.generic)
                 } else {
+                    if (page == null) return@runCatching
                     val found = blocker.rules.cosmetics.forKeys(page, List(minOf(keys.length(), MAX_KEYS)) { keys.optString(it) })
                     if (found.isEmpty()) return@runCatching
                     out.put("s", JSONArray(found))

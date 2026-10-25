@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Modified for Sofa TV Browser (2026), from Fulguris commit 66d56d45: plain RequestUrl instead of android.net.Uri, tags made lazily, no headers or method.
+// Modified for Sofa TV Browser (2026), from Fulguris commit 66d56d45: plain RequestUrl instead of android.net.Uri, tags made lazily, no headers or method, a pop-up type.
 
 package jp.hazuki.yuzubrowser.adblock.core
 
@@ -42,6 +42,8 @@ class ContentRequest(
         const val TYPE_UNSUPPORTED = 0x0100 // was TYPE_POPUP, now gathers all types that are not (currently) supported
         const val TYPE_WEB_SOCKET = 0x0200
         const val TYPE_XHR = 0x0400
+        // added for Sofa: a window a page opens ($popup), never set on network requests
+        const val TYPE_POPUP = 0x0800
         const val TYPE_ALL = 0xffff
         // INVERSE and TYPE_ is 0
         //  except if content type has ~ in filter string (again exception: no type results in TYPE_ALL)

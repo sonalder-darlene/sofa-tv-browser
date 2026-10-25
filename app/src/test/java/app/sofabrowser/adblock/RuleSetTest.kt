@@ -120,7 +120,6 @@ class RuleSetTest {
     fun unsupportedRulesAreSkippedRatherThanAppliedTooWidely() {
         val list = compile("""
             ${'$'}popup,third-party
-            ||ads.example^${'$'}popup
             @@${'$'}sitekey=abc,document
             ||site.example^${'$'}csp=script-src 'none'
             ||site.example^${'$'}removeparam=utm_source
@@ -133,7 +132,7 @@ class RuleSetTest {
             example.com${'$'}${'$'}script[tag-content="ad"]
         """)
         assertEquals(0, list.rules)
-        assertEquals(12, list.skipped)
+        assertEquals(11, list.skipped)
         val r = RuleSet.Builder().apply { add(list) }.build()
         assertFalse(r.blocks("https://site.example/v.js"))
         assertFalse(r.blocks("https://ads.example/"))
@@ -220,6 +219,44 @@ class RuleSetTest {
         assertEquals(ContentRequest.TYPE_SUB_DOCUMENT, type("https://a.test/frame", "text/html,application/xhtml+xml"))
         // A host that looks like a file name is not an extension.
         assertTrue(type("https://cdn.js/") and ContentRequest.TYPE_XHR != 0)
+    }
+
+    @Test
+    fun popupRulesOnlyMatchWindowsAndPlainRulesDontMatchWindowsByPath() {
+        val r = rules("""
+            ||popads.example^${'$'}popup
+            ||mixed.example^${'$'}popup,script
+            /go/out^${'$'}popup,third-party
+            @@||popads.example/ok^${'$'}popup
+            /ads/*
+            0.0.0.0 listed.example
+        """)
+        fun popup(url: String, opener: String? = "news.example") = r.blocksPopup(RequestUrl(url), opener)
+        assertTrue(popup("https://popads.example/x"))
+        assertFalse(popup("https://popads.example/ok"))
+        assertTrue(popup("https://mixed.example/"))
+        assertTrue(popup("https://redir.test/go/out?u=1"))
+        assertFalse(popup("https://news.example/go/out?u=1"))
+        // A domain on a list blocks windows to it, as before; a path rule without $popup doesn't.
+        assertTrue(popup("https://listed.example/"))
+        assertFalse(popup("https://shop.test/ads/summer"))
+        // $popup rules never block a page's own requests.
+        assertFalse(r.blocks("https://popads.example/x.js"))
+        assertTrue(r.blocks("https://mixed.example/x.js"))
+    }
+
+    @Test
+    fun documentRulesBlockPagesNotRequests() {
+        val r = rules("""
+            ||scam.example^${'$'}document
+            @@||scam.example/help^${'$'}document
+            0.0.0.0 listed.example
+        """)
+        assertTrue(r.blocksPage(RequestUrl("https://scam.example/win")))
+        assertFalse(r.blocksPage(RequestUrl("https://scam.example/help")))
+        assertTrue(r.blocksPage(RequestUrl("https://listed.example/")))
+        assertFalse(r.blocksPage(RequestUrl("https://news.example/")))
+        assertFalse(r.blocks("https://scam.example/x.js"))
     }
 
     @Test

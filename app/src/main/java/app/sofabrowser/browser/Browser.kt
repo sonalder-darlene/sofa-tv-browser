@@ -30,6 +30,7 @@ import app.sofabrowser.adblock.AdBlocker
 import app.sofabrowser.adblock.Allowlist
 import app.sofabrowser.adblock.InPageBlocking
 import app.sofabrowser.adblock.NavigationGuard
+import app.sofabrowser.adblock.Sites
 
 /**
  * Owns the single WebView: creates it in the normal or private profile, applies settings and relays page events.
@@ -126,7 +127,12 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
             false
         }
         PageDownloads.install(view, key)
-        InPageBlocking.install(view, key, adBlocker, active = { blocking(pageHost) })
+        InPageBlocking.install(view, key, adBlocker, active = { blocking(pageHost) }) { url ->
+            debug("trap link removed: $url")
+            adBlocker.countBlocked()
+            guard.blocked(url, SystemClock.uptimeMillis())
+            host.onPopupBlocked(url)
+        }
         view.webViewClient = client
         view.webChromeClient = chrome
         view.setDownloadListener { url, ua, disposition, mime, length -> host.onDownload(url, ua, disposition, mime, length) }
@@ -199,7 +205,7 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             val url = request.url
             return when (url.scheme?.lowercase()) {
-                "http", "https" -> request.isForMainFrame && blockNavigation(request)
+                "http", "https" -> request.isForMainFrame && blockNavigation(view, request)
                 "about", "data", "blob", "javascript", null -> false
                 "intent" -> {
                     // Never launch other apps from web content; follow the page's own web fallback if it has one.
@@ -213,7 +219,17 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
         }
 
         @SuppressLint("WebViewClientOnReceivedSslError")
-        override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) = host.onSslError(handler, error)
+        override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
+            // Only the page itself may ask the user. Anything else with a broken certificate (ad frames on such sites
+            // often have one) is refused quietly, as Chrome does, instead of putting a dialog over the page.
+            val errorHost = hostOf(error.url)
+            if (error.url != pageUrl && errorHost != null && !errorHost.equals(pageHost, ignoreCase = true)) {
+                debug("certificate error refused: ${error.url}")
+                handler.cancel()
+            } else {
+                host.onSslError(handler, error)
+            }
+        }
 
         override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
             if (view === web) host.onRendererGone()
@@ -249,6 +265,10 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
 
         @SuppressLint("RequiresFeature") // MULTI_PROFILE is checked via profilesSupported
         override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
+            guard.windowRequested(isUserGesture)
+            // What the press was on, now, before the page can move things: windows from a link to them are the user's.
+            val pressed = pressedLink(view)
+            debug("window: gesture=$isUserGesture dialog=$isDialog link=$pressed")
             if (!isUserGesture) { adBlocker.countBlocked(); host.onPopupBlocked(null); return false }
             // Open the target in the same view (no tabs): catch the first URL the throwaway view is sent to.
             val catcher = WebView(view.context)
@@ -260,7 +280,7 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
             @SuppressLint("MissingOnRenderProcessGone") // implemented; the callback starts at API 26
             val catcherClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(v: WebView, request: WebResourceRequest): Boolean {
-                    if (!used) openWindow(view, request.url.toString(), opener)
+                    if (!used) openWindow(view, request.url.toString(), opener, pressed)
                     used = true
                     v.post { v.destroy() }
                     return true
@@ -298,8 +318,12 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
     }
 
     /** Loads a window's first address in [view], unless the pop-up rules block it. */
-    private fun openWindow(view: WebView, url: String, opener: String?) {
-        if (guard.newWindow(blocking(opener), listed(url)) == NavigationGuard.Verdict.BLOCK) {
+    private fun openWindow(view: WebView, url: String, opener: String?, pressed: String?) {
+        val sameSite = opener != null && hostOf(url)?.let { Sites.same(it.lowercase(), opener.lowercase()) } == true
+        val verdict = guard.newWindow(blocking(opener), isWebUrl(url) && adBlocker.popupListed(url, opener),
+            fromLink = pressed.leadsTo(url), sameSite = sameSite)
+        debug("window $verdict: $url (from $opener, link=$pressed)")
+        if (verdict == NavigationGuard.Verdict.BLOCK) {
             adBlocker.countBlocked()
             guard.blocked(url, SystemClock.uptimeMillis())
             host.onPopupBlocked(url)
@@ -310,12 +334,16 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
         }
     }
 
-    /** True when a main-frame navigation or redirect hop the page started on its own leads to a listed host. */
-    private fun blockNavigation(request: WebResourceRequest): Boolean {
+    /** True when the pop-up and redirect rules (NavigationGuard) stop a main-frame navigation or redirect hop. */
+    private fun blockNavigation(view: WebView, request: WebResourceRequest): Boolean {
         val url = request.url.toString()
         // The per-site switch of the page the navigation left, not of a host the chain passes through.
         if (!request.isRedirect) chainHost = pageHost
-        val verdict = guard.navigation(request.hasGesture(), request.isRedirect, listed(url), blocking(chainHost))
+        val target = hostOf(url)?.lowercase()
+        val crossSite = target != null && chainHost?.let { !Sites.same(target, it.lowercase()) } == true
+        val verdict = guard.navigation(request.hasGesture(), request.isRedirect, isWebUrl(url) && adBlocker.pageListed(url),
+            blocking(chainHost), fromLink = pressedLink(view).leadsTo(url), crossSite = crossSite)
+        debug("navigation $verdict: $url gesture=${request.hasGesture()} redirect=${request.isRedirect}")
         if (verdict == NavigationGuard.Verdict.ALLOW) return false
         adBlocker.countBlocked()
         guard.blocked(url, SystemClock.uptimeMillis())
@@ -324,6 +352,31 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
     }
 
     private var chainHost: String? = null
+
+    /**
+     * What the last press landed on, from WebView's own hit test (no page script involved): a link's address, "" for an
+     * image link (WebView doesn't say where it goes), or null when it wasn't a link.
+     */
+    private fun pressedLink(view: WebView): String? {
+        val hit = view.hitTestResult
+        return when (hit.type) {
+            WebView.HitTestResult.SRC_ANCHOR_TYPE -> hit.extra.orEmpty()
+            WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE -> ""
+            else -> null
+        }
+    }
+
+    /** Whether a press on the link [this] (see [pressedLink]) explains going to [url]. */
+    private fun String?.leadsTo(url: String): Boolean = when {
+        this == null -> false
+        isEmpty() -> true
+        else -> substringBefore('#') == url.substringBefore('#') || hostOf(this)?.equals(hostOf(url), ignoreCase = true) == true
+    }
+
+    /** Pop-up and redirect decisions in the log of test builds, for sites that misbehave. */
+    private fun debug(message: String) {
+        if (app.sofabrowser.BuildConfig.DEBUG) android.util.Log.d("SofaPopup", message)
+    }
 
     private fun listed(url: String) = isWebUrl(url) && hostOf(url)?.let(adBlocker::listed) == true
 

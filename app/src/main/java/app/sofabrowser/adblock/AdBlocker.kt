@@ -25,7 +25,7 @@ import java.util.zip.GZIPOutputStream
 
 /**
  * Ad and tracker blocking with filter lists in Adblock Plus / uBlock Origin syntax or hosts format: network rules
- * through the Yuzu Browser engine (as adapted in Fulguris), element hiding through [InPageBlocking]. Everything is
+ * through the Yuzu Browser engine (as adapted in Fulguris), element hiding and trap links through [InPageBlocking]. Everything is
  * matched on the device; nothing about browsing leaves it. Two lists ship in the APK; more can be added by address,
  * and each list is downloaded only when the user asks (a plain GET without cookies or identifiers).
  *
@@ -65,8 +65,14 @@ class AdBlocker private constructor(private val context: Context) {
         }
     }
 
-    /** Whether [host] is on a blocked-domain list; what pop-up and redirect blocking check. */
+    /** Whether [host] is on a blocked-domain list; what video stream detection checks. */
     fun listed(host: String): Boolean = rules.domains.isBlocked(host)
+
+    /** Whether lists block a window that a page at [openerHost] opens at [url] (blocked domains and $popup rules). */
+    fun popupListed(url: String, openerHost: String?): Boolean = rules.blocksPopup(RequestUrl(url), openerHost)
+
+    /** Whether lists block the page at [url] (blocked domains and $document rules), for pages a site sends Sofa to. */
+    fun pageListed(url: String): Boolean = rules.blocksPage(RequestUrl(url))
 
     /** The page's address and whether a @@…$document exception lets everything on it through, for [intercept]. */
     @Volatile private var page: Pair<String, Boolean>? = null

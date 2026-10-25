@@ -15,6 +15,15 @@
 - Blocking still happens entirely on the TV, and lists are downloaded without cookies.
 - **Faster start:** lists are stored ready to use, so they load in a moment instead of being read again each time.
 
+**Far fewer pop-ups**
+
+- A press anywhere on a page no longer opens an ad in place of the page: windows that a script opens to another
+  site are blocked unless you pressed a link to it, and so are the invisible links that pop-under networks lay over
+  a page. Your press then usually reaches what you were pressing.
+- A press on a link can't also open an ad, and a page can't send itself to an ad site as it opens a window.
+- The pop-up rules of filter lists now count too.
+- Ads with a broken security certificate no longer interrupt the page with a warning; only the page itself can.
+
 ## 1.1.0 (2026-10-20)
 
 **Watching video**
