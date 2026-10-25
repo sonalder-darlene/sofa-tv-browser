@@ -62,4 +62,26 @@
     <string name="about_license">Sofa is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License, version 3. It comes with no warranty.</string>
     <string name="license">Licence</string>
     <string name="third_party">Third-party</string>
+
+    <!-- Game pads -->
+    <string name="game_controller">Game controller</string>
+    <string name="game_controller_sub">Xbox, PlayStation, 8BitDo and other pads: see what each button does</string>
+    <string name="pad_select">Select (hold to drag)</string>
+    <string name="pad_back">Back</string>
+    <string name="pad_watch">Watch the page\'s video</string>
+    <string name="pad_search">Search or type an address</string>
+    <string name="pad_menu">Menu</string>
+    <string name="pad_home">Home screen</string>
+    <string name="pad_history">Previous and next page</string>
+    <string name="pad_page">Page up and down</string>
+    <string name="pad_left_stick">Left stick</string>
+    <string name="pad_right_stick">Right stick</string>
+    <string name="pad_pointer">Pointer (push further to go faster)</string>
+    <string name="pad_scroll">Scroll</string>
+    <string name="pad_in_video">In fullscreen video</string>
+    <string name="pad_controls">Show the controls, then choose</string>
+    <string name="pad_play_pause">Play or pause</string>
+    <string name="pad_seek_short">10 seconds back or forward</string>
+    <string name="pad_seek_long">30 seconds back or forward</string>
+    <string name="pad_note">The D-pad works like the remote\'s. On sites that take keys directly (pointer off), the sticks and D-pad go to the site.</string>
 </resources>

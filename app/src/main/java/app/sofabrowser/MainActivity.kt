@@ -17,7 +17,9 @@ import android.os.SystemClock
 import android.text.InputType
 import android.util.Rational
 import android.view.Gravity
+import android.view.InputDevice
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -37,6 +39,7 @@ import app.sofabrowser.browser.CursorLayout
 import app.sofabrowser.browser.ExternalPlayer
 import app.sofabrowser.browser.FrameRate
 import app.sofabrowser.browser.FullscreenLayer
+import app.sofabrowser.browser.GamePad
 import app.sofabrowser.browser.PageDownloads
 import app.sofabrowser.browser.PlayerRequest
 import app.sofabrowser.browser.ProtectedMedia
@@ -63,6 +66,7 @@ import app.sofabrowser.ui.DownloadsActivity
 import app.sofabrowser.ui.FindBar
 import app.sofabrowser.ui.VoiceInput
 import app.sofabrowser.ui.HomeView
+import app.sofabrowser.ui.PadHelp
 import app.sofabrowser.ui.ListActivity
 import app.sofabrowser.ui.Palette
 import app.sofabrowser.ui.SearchActivity
@@ -222,6 +226,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     // manifest opts out of predictive back (enableOnBackInvokedCallback="false") to keep receiving it.
     @SuppressLint("GestureBackNavigation")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (padKey(event)) return true
         if (fullscreen.visibility == View.VISIBLE) return fullscreenKey(event) || super.dispatchKeyEvent(event)
         if (findBar.showing && !homeShown) {
             if (event.keyCode == KeyEvent.KEYCODE_BACK) {
@@ -317,6 +322,92 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             return bar.dispatchKeyEvent(event)
         }
         return false
+    }
+
+    // Game pads: each button stands in for a remote key or a browser action (GamePad has the layout), and the
+    // sticks aim and scroll the pointer. Elsewhere (menus, lists, the bar) Android's own handling applies: A and B
+    // act as OK and Back, and the stick moves the focus.
+
+    private val triggers = GamePad.Triggers()
+
+    private fun padKey(event: KeyEvent): Boolean {
+        val action = GamePad.action(event.keyCode, fullscreen.visibility == View.VISIBLE) ?: return false
+        padSeen(event.device)
+        val trigger = when (event.keyCode) { KeyEvent.KEYCODE_BUTTON_L2 -> 0; KeyEvent.KEYCODE_BUTTON_R2 -> 1; else -> -1 }
+        val stand = GamePad.remoteKey(action)
+        when {
+            trigger >= 0 -> {
+                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 && triggers.key(trigger, event.eventTime)) padPress(action)
+            }
+            // Down, repeats and up all go through, so holding A drags and long-presses as holding OK does.
+            stand != null -> dispatchKeyEvent(KeyEvent(event.downTime, event.eventTime, event.action, stand, event.repeatCount,
+                event.metaState, event.deviceId, event.scanCode, event.flags, event.source))
+            event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 -> padPress(action)
+        }
+        return true
+    }
+
+    private fun padPress(action: GamePad.Action) {
+        GamePad.remoteKey(action)?.let { code ->
+            val now = SystemClock.uptimeMillis()
+            dispatchKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_DOWN, code, 0))
+            dispatchKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_UP, code, 0))
+            return
+        }
+        val inFullscreen = fullscreen.visibility == View.VISIBLE
+        when (action) {
+            GamePad.Action.WATCH -> if (!homeShown) watch()
+            GamePad.Action.SEARCH -> if (homeShown) onSearch() else onAddress()
+            GamePad.Action.HOME -> if (!homeShown) showHome()
+            GamePad.Action.HISTORY_BACK -> if (!homeShown && web?.canGoBack() == true) browser.goBack()
+            GamePad.Action.HISTORY_FORWARD -> if (!homeShown && web?.canGoForward() == true) browser.goForward()
+            GamePad.Action.SEEK_BACK_LONG, GamePad.Action.SEEK_FORWARD_LONG -> if (inFullscreen) {
+                command("seekBy", if (action == GamePad.Action.SEEK_BACK_LONG) -30.0 else 30.0)
+                fullscreen.bar.show(focusScrub = true)
+            }
+            GamePad.Action.VIDEO_INFO -> if (inFullscreen) toggleVideoInfo()
+            else -> {}
+        }
+    }
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean =
+        padMotion(event) || super.dispatchGenericMotionEvent(event)
+
+    /** The sticks drive the pointer that is in use, and the analog triggers page; false leaves the event to Android. */
+    private fun padMotion(event: MotionEvent): Boolean {
+        if (!event.isFromSource(InputDevice.SOURCE_JOYSTICK) || event.actionMasked != MotionEvent.ACTION_MOVE) return false
+        padSeen(event.device)
+        val inFullscreen = fullscreen.visibility == View.VISIBLE
+        for (side in 0..1) {
+            val axes = if (side == 0) intArrayOf(MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_BRAKE)
+            else intArrayOf(MotionEvent.AXIS_RTRIGGER, MotionEvent.AXIS_GAS)
+            val pull = axes.maxOf { event.getAxisValue(it) }
+            val code = if (side == 0) KeyEvent.KEYCODE_BUTTON_L2 else KeyEvent.KEYCODE_BUTTON_R2
+            if (triggers.axis(side, pull, event.eventTime)) GamePad.action(code, inFullscreen)?.let(::padPress)
+        }
+        val pointer = when {
+            homeShown || menu?.isShowing == true -> null
+            inFullscreen -> fullscreen.pointer.takeIf { it.cursorEnabled }
+            findBar.hasFocus() -> null
+            else -> cursor.takeIf { it.cursorEnabled }
+        } ?: return false
+        val device = event.device
+        fun flat(axis: Int) = device?.getMotionRange(axis, event.source)?.flat ?: 0f
+        // The right stick is Z and RZ on almost every pad Android knows; a few older layouts report RX and RY.
+        val (rx, ry) = if (device == null || device.getMotionRange(MotionEvent.AXIS_Z) != null) MotionEvent.AXIS_Z to MotionEvent.AXIS_RZ
+        else MotionEvent.AXIS_RX to MotionEvent.AXIS_RY
+        val (ax, ay) = GamePad.stick(event.getAxisValue(MotionEvent.AXIS_X), event.getAxisValue(MotionEvent.AXIS_Y), flat(MotionEvent.AXIS_X))
+        val (sx, sy) = GamePad.stick(event.getAxisValue(rx), event.getAxisValue(ry), flat(rx))
+        return pointer.stick(ax, ay, sx, sy)
+    }
+
+    private val padsSeen = HashSet<Int>()
+
+    /** The first time a pad is used in a session, the first few times ever, a card shows its buttons. */
+    private fun padSeen(device: InputDevice?) {
+        if (device == null || !padsSeen.add(device.id) || prefs.padHints >= PAD_HINTS) return
+        prefs.padHints++
+        PadHelp.showHint(this, browserLayer.parent as FrameLayout, GamePad.family(device.vendorId))
     }
 
     private fun backOnHome() {
@@ -1080,6 +1171,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         private const val REQ_URL = 10
         private const val REQ_NOTIFICATIONS = 11
         private const val REQ_MIC = 12
+        /** How many times, ever, the game pad card is shown. */
+        private const val PAD_HINTS = 3
         /** Seconds: "Match frame rate" leaves shorter videos alone. */
         private const val SHORT_VIDEO = 300.0
     }

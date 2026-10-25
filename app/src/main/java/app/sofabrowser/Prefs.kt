@@ -77,6 +77,8 @@ class Prefs(context: Context) {
     var videoPlayer by string("video_player", "")
     var textZoom by int("text_zoom", 100)
     var cursorSpeed by int("cursor_speed", 2) // 1 slow .. 3 fast
+    /** How often the game pad card was shown. */
+    var padHints by int("pad_hints", 0)
     /** "Keep history for", in days, or HistoryRetention.ALWAYS / NEVER; 1.0.0's on/off switch carries over. */
     var historyDays: Int
         get() = if (p.contains("history_days")) p.getInt("history_days", HistoryRetention.DEFAULT)

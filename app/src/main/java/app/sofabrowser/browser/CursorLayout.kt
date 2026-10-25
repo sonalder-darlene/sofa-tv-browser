@@ -23,6 +23,9 @@ import kotlin.math.min
  * at the pointer's speed through a synthetic finger drag, which also moves inner scrollers and iframes. OK taps at
  * the pointer, OK held while moving drags, and OK held still for a second switches to scroll mode. The pointer
  * hides after five seconds without use; the first OK after that only reveals it.
+ *
+ * A game pad's left stick moves the pointer at a speed set by how far it is pushed ([GamePad.stick]), and its
+ * right stick scrolls whatever is under the pointer, both through the same paths as the D-pad.
  */
 class CursorLayout(context: Context) : FrameLayout(context) {
 
@@ -66,6 +69,11 @@ class CursorLayout(context: Context) : FrameLayout(context) {
 
     /** Remaining distance of a page scroll (CH+/CH-) still to be animated, in px. */
     private var pendingScrollY = 0f
+
+    /** Game pad sticks, already through the dead zone and curve: the pointer's and the scroll's, -1..1 each. */
+    private val aim = PointF()
+    private val wheel = PointF()
+    private var wheelScrolling = false
 
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF577FFF.toInt() }
     private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; style = Paint.Style.STROKE; strokeWidth = 4f }
@@ -180,6 +188,21 @@ class CursorLayout(context: Context) : FrameLayout(context) {
         }
     }
 
+    /**
+     * The sticks moved: [ax], [ay] aim the pointer and [sx], [sy] scroll. Returns false when both are at rest and were
+     * before, so Android can turn a pad's hat (its D-pad) into D-pad keys as usual.
+     */
+    fun stick(ax: Float, ay: Float, sx: Float, sy: Float): Boolean {
+        val wasMoving = aim.x != 0f || aim.y != 0f || wheel.x != 0f || wheel.y != 0f
+        aim.set(ax, ay)
+        wheel.set(sx, sy)
+        val moving = ax != 0f || ay != 0f || sx != 0f || sy != 0f
+        if (!moving && !wasMoving) return false
+        lastActivity = SystemClock.uptimeMillis()
+        if (moving) start()
+        return true
+    }
+
     fun setScrollMode(active: Boolean) {
         if (scrollMode == active) return
         scrollMode = active
@@ -211,8 +234,10 @@ class CursorLayout(context: Context) : FrameLayout(context) {
 
             vel.x = if (dirX == 0) 0f else (vel.x + dirX * accel).coerceIn(-maxSpeed, maxSpeed)
             vel.y = if (dirY == 0) 0f else (vel.y + dirY * accel).coerceIn(-maxSpeed, maxSpeed)
-            val stepX = vel.x * frames
-            val stepY = vel.y * frames
+            // A pushed stick sets the speed directly, without the D-pad's ramp.
+            val aiming = aim.x != 0f || aim.y != 0f
+            val stepX = (if (aiming) aim.x * maxSpeed * STICK_SPEED else vel.x) * frames
+            val stepY = (if (aiming) aim.y * maxSpeed * STICK_SPEED else vel.y) * frames
 
             if (scrollMode) {
                 // Directions scroll the page; the pointer stays put.
@@ -231,9 +256,17 @@ class CursorLayout(context: Context) : FrameLayout(context) {
                         hover()
                     }
                 }
-                val sx = if ((pos.x > w - edge && vel.x > 0) || (pos.x < edge && vel.x < 0)) stepX else 0f
-                val sy = if ((pos.y > h - edge && vel.y > 0) || (pos.y < edge && vel.y < 0)) stepY else 0f
+                val sx = if ((pos.x > w - edge && stepX > 0) || (pos.x < edge && stepX < 0)) stepX else 0f
+                val sy = if ((pos.y > h - edge && stepY > 0) || (pos.y < edge && stepY < 0)) stepY else 0f
                 if ((sx != 0f || sy != 0f) && !okHeld) dragScroll(sx, sy)
+            }
+
+            if (wheel.x != 0f || wheel.y != 0f) {
+                wheelScrolling = true
+                dragScroll(wheel.x * h / 25f * frames, wheel.y * h / 25f * frames)
+            } else if (wheelScrolling) {
+                wheelScrolling = false
+                endDrag()
             }
 
             if (pendingScrollY != 0f) {
@@ -244,7 +277,7 @@ class CursorLayout(context: Context) : FrameLayout(context) {
             }
 
             invalidate()
-            if (dirX != 0 || dirY != 0 || pendingScrollY != 0f) {
+            if (dirX != 0 || dirY != 0 || pendingScrollY != 0f || aiming || wheelScrolling) {
                 Choreographer.getInstance().postFrameCallback(this)
             } else {
                 running = false
@@ -290,6 +323,9 @@ class CursorLayout(context: Context) : FrameLayout(context) {
         okHeld = false
         dirX = 0; dirY = 0
         vel.set(0f, 0f)
+        aim.set(0f, 0f)
+        wheel.set(0f, 0f)
+        wheelScrolling = false
         pendingScrollY = 0f
     }
 
@@ -354,5 +390,7 @@ class CursorLayout(context: Context) : FrameLayout(context) {
         const val HIDE_AFTER_MS = 5000L
         const val HOLD_FOR_SCROLL_MS = 1000L
         private const val NUDGE = 6f
+        /** A stick pushed all the way moves the pointer at this share of the D-pad's top speed. */
+        private const val STICK_SPEED = 0.8f
     }
 }

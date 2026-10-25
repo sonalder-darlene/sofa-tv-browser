@@ -6,6 +6,8 @@ called Sofa.
 ![Sofa's home screen: search, top-bar buttons, quick-access tiles and most visited sites](fastlane/metadata/android/en-US/images/tvScreenshots/1.png)
 
 - **A mouse pointer on the D-pad**, with hover, drag, and scrolling by pushing against the screen edge.
+- **Game pads** (Xbox, PlayStation, 8BitDo and others): the left stick moves the pointer, the right stick scrolls,
+  and the buttons work as in a console browser. Settings → Game controller shows them all.
 - **A menu on the Back key**: address, Watch, back and forward, find in page, bookmarks, history, zoom, ad
   blocking per site, and "Browse as" desktop, mobile or TV.
 - **A home screen** with your own tiles, your most visited sites and your bookmarks.
