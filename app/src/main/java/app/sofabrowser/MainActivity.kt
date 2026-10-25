@@ -36,12 +36,17 @@ import androidx.webkit.WebViewFeature
 import app.sofabrowser.adblock.Allowlist
 import app.sofabrowser.browser.Browser
 import app.sofabrowser.browser.CursorLayout
+import app.sofabrowser.browser.Decoders
 import app.sofabrowser.browser.ExternalPlayer
+import app.sofabrowser.browser.PageHeaders
+import app.sofabrowser.browser.StreamCopyProvider
+import app.sofabrowser.browser.StreamResolver
 import app.sofabrowser.browser.FrameRate
 import app.sofabrowser.browser.FullscreenLayer
 import app.sofabrowser.browser.GamePad
 import app.sofabrowser.browser.PageDownloads
 import app.sofabrowser.browser.PlayerRequest
+import app.sofabrowser.browser.Playlist
 import app.sofabrowser.browser.ProtectedMedia
 import app.sofabrowser.browser.RefreshRateMatch
 import app.sofabrowser.browser.UrlInput
@@ -75,6 +80,7 @@ import app.sofabrowser.ui.SetupActivity
 import app.sofabrowser.ui.Ui
 import app.sofabrowser.ui.px
 import app.sofabrowser.update.Updater
+import java.util.Locale
 import kotlin.concurrent.thread
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -116,6 +122,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         // Private mode is a session: a cold start always begins in normal mode, with nothing left over.
         prefs.privateMode = false
         Browser.deletePrivateProfile()
+        // Copies for other players are needed only while one starts; a kill or crash may have left some.
+        StreamCopyProvider.clear(this)
         browser = Browser(this, prefs, this)
         // Only a period prunes at start: "Never" removes saved pages when chosen in Settings, so updating from
         // 1.0.0 with history off (now "Never") keeps them, as 1.0.0 did.
@@ -564,6 +572,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         // Leaving or entering private mode throws away the current page and, for private mode, everything in it.
         browser.destroy()
         if (!entering && !wasIsolated) WebViews.clearBrowsingData(this, null)
+        // Stream copies hold what was watched (signed stream addresses); none outlives either side of the switch.
+        StreamCopyProvider.clear(this)
         prefs.privateMode = entering
         if (entering) {
             dialog().setTitle(R.string.private_mode)
@@ -866,20 +876,53 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
 
     private fun playInChosen() {
         collectingSources = false
+        val w = web ?: return
         val video = sources.maxByOrNull { it.area }
-        val sniffed = browser.streams.best()
-        val stream = video?.src?.takeIf(Browser::isWebUrl) ?: sniffed
-        // As downloads do: the page's user agent and address, and the cookies for the stream. Only on this press.
-        val headers = web?.let { w ->
-            mapOf("User-Agent" to w.settings.userAgentString.orEmpty(), "Referer" to w.url.orEmpty(),
-                "Cookie" to stream?.let { WebViews.cookieManager(w).getCookie(it) }.orEmpty())
+        val userAgent = w.settings.userAgentString.orEmpty()
+        val cookies = WebViews.cookieManager(w)
+        val direct = video?.src?.takeIf(Browser::isWebUrl)
+        val candidates = if (direct == null && video != null && !video.protected) browser.streams.candidates() else emptyList()
+        // The page fetches its manifests again first; reading the rest takes the network: off the main thread, then back.
+        browser.fetchInPage(StreamResolver.manifestsToRead(candidates), PAGE_FETCH_MS) { fromPage ->
+            thread(name = "play-in") {
+                val resolved = if (candidates.isEmpty()) null
+                else StreamResolver(userAgent, cookies::getCookie, ::streamLog).resolve(candidates, fromPage, checkOutside = true)
+                runOnUiThread { if (!isDestroyed) handOver(video, resolved, userAgent, cookies::getCookie) }
+            }
+        }
+    }
+
+    /** What Sofa read to find a page's stream, in the log of test builds. */
+    private fun streamLog(message: String) {
+        if (BuildConfig.DEBUG) android.util.Log.d("SofaStream", message)
+    }
+
+    private fun handOver(video: VideoSource?, resolved: StreamResolver.Resolved?, userAgent: String, cookie: (String) -> String?) {
+        val stream = video?.src?.takeIf(Browser::isWebUrl) ?: resolved?.url
+        // What the page's player sent for this stream (PageHeaders), for players that read headers. Only on this press.
+        val headers = stream?.let {
+            if (resolved == null) PageHeaders.forRequest(it, video?.page, userAgent, cookie, media = true)
+            else PageHeaders.forRequest(it, resolved.frame, userAgent, cookie)
         }.orEmpty()
-        val request = PlayerRequest.build(video?.src, web?.title, video?.position ?: 0.0, video?.protected == true, headers, sniffed)
-        val launch = when (request) {
+        val request = PlayerRequest.build(video?.src, web?.title, video?.position ?: 0.0, video?.protected == true, headers,
+            resolved?.url, video?.subtitles.orEmpty(), Locale.getDefault().language)
+        var launch = when (request) {
             PlayerRequest.Refusal.NO_VIDEO -> { toast(R.string.no_video); return }
             PlayerRequest.Refusal.IN_PAGE -> { toast(R.string.handover_in_page); return }
             PlayerRequest.Refusal.PROTECTED -> { toast(R.string.handover_drm); return }
             is PlayerRequest.Launch -> request
+        }
+        // A master playlist the site gives only to its own page: hand over Sofa's copy, whose addresses point at the
+        // site, so players that send their own headers (VLC, Just Player) can still open it. It is typed HLS for
+        // players that go by the intent's type (PlayerRequest.types has the order), and leaves out the pictures the TV
+        // can't decode in hardware (AV1 on many TVs), which a player might pick and play too slowly to show.
+        if (resolved?.needsPage == true && resolved.playlist != null) {
+            val copy = Playlist.decodableOnly(resolved.playlist, Decoders::hardware)
+            if (BuildConfig.DEBUG) {
+                fun codecs(p: String) = Regex("""#EXT-X-STREAM-INF:.*CODECS="([^"]*)"""").findAll(p).map { it.groupValues[1] }.toList()
+                streamLog("copy for another player keeps ${codecs(copy)} of ${codecs(resolved.playlist)}")
+            }
+            launch = launch.copy(uri = StreamCopyProvider.put(this, copy).toString(), mime = PlayerRequest.HLS)
         }
         // The player picked last time, unless the user asked to choose again or it was uninstalled since.
         val remembered = prefs.videoPlayer.takeUnless { choosePlayer || it.isEmpty() }
@@ -1126,6 +1169,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         if (isFinishing) {
             val wasPrivate = browser.privateMode && !browser.isolated
             browser.destroy()
+            StreamCopyProvider.clear(this)
             if (prefs.clearOnExit || wasPrivate) {
                 WebViews.clearBrowsingData(this, null)
                 if (prefs.clearOnExit) { db.clearHistory(); resume.clear() }
@@ -1171,6 +1215,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         private const val REQ_URL = 10
         private const val REQ_NOTIFICATIONS = 11
         private const val REQ_MIC = 12
+        /** How long the page may take to fetch its manifests again. */
+        private const val PAGE_FETCH_MS = 2500L
         /** How many times, ever, the game pad card is shown. */
         private const val PAD_HINTS = 3
         /** Seconds: "Match frame rate" leaves shorter videos alone. */

@@ -10,14 +10,18 @@ import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
+import android.os.Parcelable
 import app.sofabrowser.Prefs
 
 /**
  * Hands a video to another app. The players come from Android itself (whatever is installed and opens web video
  * links), so Sofa names none: the first time, Android's chooser asks, and [PlayerChosen] remembers the answer.
- * Extras are best effort, by extra name: "title" and "position" (int ms) are read by mpv-android (its intent
+ * Extras are best effort, by extra name: "title" and "position" (ms) are read by mpv-android (its intent
  * spec), VLC (Android Player Intents wiki) and MX Player (its intent API), which also reads "headers"; VLC ignores
- * headers.
+ * headers, and so does Just Player (its PlayerActivity). The position is an Int for all but VLC, which takes only a
+ * Long ([PlayerRequest.positionIsLong]). Page subtitles go as "subs", "subs.name" and "subs.enable" (MX Player's
+ * API, also read by Just Player and mpv-android) and as VLC's "subtitles_location".
  */
 object ExternalPlayer {
 
@@ -41,19 +45,34 @@ object ExternalPlayer {
     }
 
     /**
-     * [launch] for [player], with the stream's own type or else the generic video type, whichever the player
-     * declares (Android requires an explicit intent to match the target's filters). Null when it takes neither.
+     * [launch] for [player], under the first of the stream's types ([PlayerRequest.types]) the player declares
+     * (Android requires an explicit intent to match the target's filters). Null when it takes none.
      */
     private fun intentFor(context: Context, launch: PlayerRequest.Launch, player: ComponentName): Intent? =
-        listOf(launch.mime, "video/*").distinct().map { intent(launch, it) }
+        PlayerRequest.types(launch.mime, player.packageName).map { intent(launch, it, player.packageName) }
             .firstOrNull { i -> handlers(context, i).any { it.activityInfo.packageName == player.packageName && it.activityInfo.name == player.className } }
             ?.setComponent(player)
 
-    fun intent(launch: PlayerRequest.Launch, type: String = launch.mime): Intent = Intent(Intent.ACTION_VIEW).apply {
+    /** For the chooser: [launch] under each of its types some player takes, in [PlayerRequest.types] order. */
+    private fun chooserIntents(context: Context, launch: PlayerRequest.Launch): List<Intent> =
+        PlayerRequest.types(launch.mime, null).map { intent(launch, it) }.filter { handlers(context, it).isNotEmpty() }
+
+    private fun intent(launch: PlayerRequest.Launch, type: String, packageName: String? = null): Intent = Intent(Intent.ACTION_VIEW).apply {
         setDataAndType(Uri.parse(launch.uri), type)
         launch.title?.let { putExtra("title", it); putExtra(Intent.EXTRA_TITLE, it) }
-        launch.positionMs?.let { putExtra("position", it) }
+        launch.positionMs?.let { ms ->
+            if (PlayerRequest.positionIsLong(packageName)) putExtra("position", ms.toLong()) else putExtra("position", ms)
+        }
         if (launch.headers.isNotEmpty()) putExtra("headers", launch.headers.flatMap { listOf(it.key, it.value) }.toTypedArray())
+        if (launch.subtitles.isNotEmpty()) {
+            val uris = launch.subtitles.map { Uri.parse(it.url) }
+            putExtra("subs", uris.toTypedArray<Parcelable>())
+            putExtra("subs.name", launch.subtitles.map { it.label.ifEmpty { it.language } }.toTypedArray())
+            putExtra("subs.enable", arrayOf<Parcelable>(uris.first()))
+            putExtra("subtitles_location", launch.subtitles.first().url)
+        }
+        // Sofa's own copy of a playlist (StreamCopyProvider): readable by the player it is given to, only.
+        if (launch.uri.startsWith("content://")) addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
 
     /**
@@ -61,17 +80,27 @@ object ExternalPlayer {
      * none or it can't take this stream. Returns false when no app can open it.
      */
     fun open(context: Context, launch: PlayerRequest.Launch, player: ComponentName?, chooserTitle: String): Boolean {
-        val intent = intent(launch)
         val direct = player?.let { intentFor(context, launch, it) }
         return try {
             if (direct != null) context.startActivity(direct)
-            else if (handlers(context, intent).isNotEmpty()) {
+            else {
+                val intents = chooserIntents(context, launch)
+                if (intents.isEmpty()) return false
                 // Mutable: the system adds the chosen component to it.
                 val chosen = PendingIntent.getBroadcast(context, 0, Intent(context, PlayerChosen::class.java),
                     PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0))
-                context.startActivity(Intent.createChooser(intent, chooserTitle, chosen.intentSender))
+                val chooser = Intent.createChooser(intents.first(), chooserTitle, chosen.intentSender)
+                // Players that take only the stream's own type (HLS) are listed too; each app is listed once, with the
+                // first intent it takes.
+                if (intents.size > 1) chooser.putExtra(Intent.EXTRA_ALTERNATE_INTENTS, intents.drop(1).toTypedArray())
+                // VLC reads the position only as a Long, whichever intent it gets.
+                launch.positionMs?.let { ms ->
+                    chooser.putExtra(Intent.EXTRA_REPLACEMENT_EXTRAS, Bundle().apply {
+                        putBundle(PlayerRequest.VLC, Bundle().apply { putLong("position", ms.toLong()) })
+                    })
+                }
+                context.startActivity(chooser)
             }
-            else return false
             true
         } catch (_: ActivityNotFoundException) {
             false

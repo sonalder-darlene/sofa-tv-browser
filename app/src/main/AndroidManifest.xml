@@ -113,5 +113,10 @@
             android:authorities="${applicationId}.files"
             android:exported="false"
             android:grantUriPermissions="true" />
+        <provider
+            android:name=".browser.StreamCopyProvider"
+            android:authorities="${applicationId}.streams"
+            android:exported="false"
+            android:grantUriPermissions="true" />
     </application>
 </manifest>

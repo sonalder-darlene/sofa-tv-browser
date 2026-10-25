@@ -87,7 +87,7 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
     private val guard = NavigationGuard()
     private val frames = PlaybackFrames()
 
-    /** Video streams the current page fetched, for "Play in…". */
+    /** Video streams the current page fetched, for Sofa Player and "Play in…". */
     val streams = StreamSniffer()
 
     /** Creates (or re-creates) the WebView. Returns the new view; the caller attaches it to its layout. */
@@ -118,7 +118,8 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
             onInfo = { info -> view.post { host.onVideoInfo(info) } },
             onCandidate = { c -> view.post { host.onVideoCandidate(c) } },
             onSource = { s -> view.post { host.onVideoSource(s) } },
-            onFrameTimes = { t -> view.post { host.onVideoFrameTimes(t) } })
+            onFrameTimes = { t -> view.post { host.onVideoFrameTimes(t) } },
+            onFetched = { url, final, body, sender -> view.post { fetched(url, final, body, sender) } })
         // Every press that reaches the page (the pointer's taps, a real mouse, OK in keys-to-page mode) may open one
         // window. Both listeners only watch.
         view.setOnTouchListener { _, e -> if (e.actionMasked == MotionEvent.ACTION_DOWN) guard.onInput(); false }
@@ -197,7 +198,8 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
                 adBlocker.resetPageCount()
                 streams.clear()
             } else {
-                streams.request(url, listed(url))
+                if (url !in refetching) streams.request(url, listed(url), request.requestHeaders)
+                if (app.sofabrowser.BuildConfig.DEBUG && extensionOf(url) in setOf("m3u8", "mpd")) android.util.Log.d("SofaStream", "manifest $url")
             }
             return if (prefs.adBlock) adBlocker.intercept(request, pageUrl, pageHost) else null
         }
@@ -307,6 +309,51 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
             }
             return true
         }
+    }
+
+    // Manifests fetched again by the page itself (VideoRelay.fetch): the answers for one request at a time.
+
+    /** [waiting] maps each address asked for to the origin of the frames asked to fetch it. */
+    private class PageFetch(val waiting: MutableMap<String, String>, val done: (Map<String, Pair<String, String>>) -> Unit) {
+        val got = HashMap<String, Pair<String, String>>()
+    }
+    private var pageFetch: PageFetch? = null
+    /** What Sofa has the page fetch again: not the page's own fetches, so they don't count as such (StreamSniffer). */
+    @Volatile private var refetching: Set<String> = emptySet()
+
+    /**
+     * Has the frames that fetched [streams] fetch them again, as their players did. [done] gets, within [timeoutMs],
+     * the final address and text of each that came back, by the address asked for. On the main thread.
+     */
+    fun fetchInPage(streams: List<StreamSniffer.Stream>, timeoutMs: Long, done: (Map<String, Pair<String, String>>) -> Unit) {
+        val view = web
+        val asks = streams.mapNotNull { s -> StreamResolver.frameOf(s)?.let(PageHeaders::origin)?.let { s.url to it.serialized } }
+        if (view == null || asks.isEmpty()) { done(emptyMap()); return }
+        pageFetch?.let { finish(it) }
+        val f = PageFetch(asks.toMap(HashMap()), done)
+        refetching = f.waiting.keys.toSet()
+        pageFetch = f
+        asks.forEach { (url, origin) -> VideoRelay.fetch(view, url, origin) }
+        view.postDelayed({ finish(f) }, timeoutMs)
+    }
+
+    /** An answer counts only from a frame of the origin asked ([sender] is WebView's word, not the frame's). */
+    private fun fetched(url: String, final: String?, body: String?, sender: String) {
+        val f = pageFetch ?: return
+        if (!PageHeaders.sameOrigin(f.waiting[url], sender)) {
+            if (url in f.waiting && app.sofabrowser.BuildConfig.DEBUG) android.util.Log.d("SofaStream", "ignored answer from $sender for $url")
+            return
+        }
+        f.waiting.remove(url)
+        if (body != null) f.got[url] = (final ?: url) to body
+        if (f.waiting.isEmpty()) finish(f)
+    }
+
+    private fun finish(f: PageFetch) {
+        if (pageFetch !== f) return
+        pageFetch = null
+        refetching = emptySet()
+        f.done(f.got)
     }
 
     /** Panel pixels per app pixel: the TV's display mode (4K on a 4K panel) against the window Android gives apps. */

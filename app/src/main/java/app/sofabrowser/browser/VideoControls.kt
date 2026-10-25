@@ -262,6 +262,7 @@ object VideoRelay {
   const toChildren = (msg) => {
     for (let i = 0; i < window.frames.length; i++) { try { window.frames[i].postMessage(msg, '*'); } catch (e) {} }
   };
+  const fetching = new Set();
   const childFrame = (source) => [...document.querySelectorAll('iframe,frame')].find((f) => f.contentWindow === source);
   const locate = () => {
     const v = largest();
@@ -292,18 +293,35 @@ object VideoRelay {
     const m = e.data;
     if (!m || m.k !== K) return;
     switch (m.cmd) {
-      // "Play in…": every frame reports its main video's address, where it is, how big, and whether it uses DRM.
+      // "Play in…" and Sofa Player: every frame reports its main video's address, where it is, how big, whether it
+      // uses DRM, the frame's own address, and the subtitle files the page gives the video.
       case 'source': {
         const v = watched || largest(), out = window[L];
         if (v && out) {
           const r = v.getBoundingClientRect();
+          const tr = [...v.querySelectorAll('track')].filter((t) => t.src && (!t.kind || t.kind === 'subtitles' || t.kind === 'captions'))
+            .map((t) => ({ u: t.src, l: t.label || '', g: t.srclang || '' }));
           out.postMessage(JSON.stringify({ src: { s: v.currentSrc || v.src || '', t: v.currentTime || 0,
-            a: r.width * r.height, drm: !!v.mediaKeys } }));
+            a: r.width * r.height, drm: !!v.mediaKeys, pg: location.href, tr } }));
         }
         toChildren(m);
         return;
       }
       case 'locate': locate(); return;
+      // A stream manifest, fetched again by the frame whose player fetched it first (same origin), so it goes out
+      // exactly as the player's request did: some sites turn away any other client. Usually from the cache.
+      case 'fetch': {
+        const out = window[L];
+        if (out && location.origin === m.o && !fetching.has(m.u)) {
+          fetching.add(m.u);
+          fetch(m.u, { credentials: 'same-origin' })
+            .then((r) => r.ok ? r.text().then((b) => ({ u: m.u, f: r.url, b: b.slice(0, 2097152) })) : { u: m.u, s: r.status })
+            .catch(() => ({ u: m.u, s: 0 }))
+            .then((mf) => { fetching.delete(m.u); out.postMessage(JSON.stringify({ mf })); });
+        }
+        toChildren(m);
+        return;
+      }
       case 'found': fromChild(e.source, m.c || {}); return;
       case 'reveal': {
         const v = m.fid === F && largest();
@@ -347,23 +365,39 @@ object VideoRelay {
      * [panelScale] is PanelScale for this TV. [onState] gets the watched video's state; [onPlaying] gets a frame's id
      * and whether any video plays in it; [onInfo] answers the "info" command, and [onCandidate] and [onSource] the
      * "locate" and "source" ones, once per frame with a video. [onFrameTimes] gets the media times of the watched
-     * video's frames, once per watch. All are called on WebView's message thread.
+     * video's frames, once per watch. [onFetched] answers [fetch]: the address asked for, and the final address and
+     * text, or nulls when the frame couldn't fetch it, then the origin of the frame that answered. All are called on
+     * WebView's message thread.
      */
     fun install(web: WebView, key: PageKey, panelScale: Double, onState: (VideoState) -> Unit,
                 onPlaying: (String, Boolean) -> Unit, onInfo: (VideoInfo) -> Unit, onCandidate: (WatchTarget.Candidate) -> Unit,
-                onSource: (VideoSource) -> Unit, onFrameTimes: (List<Double>) -> Unit) {
+                onSource: (VideoSource) -> Unit, onFrameTimes: (List<Double>) -> Unit,
+                onFetched: (String, String?, String?, String) -> Unit) {
         keys[web] = key
         WebViews.addDocumentStartScript(web, script(key, panelScale))
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
-            WebViewCompat.addWebMessageListener(web, key.video, setOf("*")) { _, message, _, _, _ ->
+            WebViewCompat.addWebMessageListener(web, key.video, setOf("*")) { _, message, sourceOrigin, _, _ ->
+                // What a frame says about where it is counts only as far as WebView's own word on who sent it.
+                val sender = sourceOrigin.toString()
                 runCatching {
                     val o = JSONObject(message.data ?: return@runCatching)
                     when {
                         o.has("f") -> onPlaying(o.getString("f"), o.optBoolean("on"))
                         o.has("i") -> onInfo(VideoInfo.from(o.getJSONObject("i")))
                         o.has("fr") -> o.getJSONArray("fr").let { a -> onFrameTimes((0 until a.length()).map(a::getDouble)) }
+                        o.has("mf") -> o.getJSONObject("mf").let {
+                            onFetched(it.optString("u"), it.optString("f").takeIf(Browser::isWebUrl), if (it.has("b")) it.optString("b") else null, sender)
+                        }
                         o.has("src") -> o.getJSONObject("src").let {
-                            onSource(VideoSource(it.optString("s"), it.optDouble("t", 0.0), it.optDouble("a", 0.0), it.optBoolean("drm")))
+                            val tr = it.optJSONArray("tr")
+                            val tracks = (0 until (tr?.length() ?: 0)).mapNotNull { i ->
+                                tr!!.optJSONObject(i)?.let { t -> PlayerRequest.Subtitle(t.optString("u"), t.optString("l"), t.optString("g")) }
+                            }.filter { t -> Browser.isWebUrl(t.url) }
+                            val claimed = it.optString("pg").takeIf(Browser::isWebUrl)
+                            val page = PageHeaders.frameFor(claimed, sender)
+                            if (page != claimed && app.sofabrowser.BuildConfig.DEBUG) android.util.Log.d("SofaStream", "frame of $sender claimed $claimed")
+                            onSource(VideoSource(it.optString("s"), it.optDouble("t", 0.0), it.optDouble("a", 0.0), it.optBoolean("drm"),
+                                page, tracks))
                         }
                         o.has("loc") -> o.getJSONObject("loc").let {
                             onCandidate(WatchTarget.Candidate(it.getString("fid"), it.optDouble("w", 0.0), it.optDouble("h", 0.0),
@@ -383,6 +417,13 @@ object VideoRelay {
         val v = value?.let { ",v:$it" } ?: ""
         val f = frame?.let { ",fid:${JSONObject.quote(it)}" } ?: ""
         web.evaluateJavascript("window.postMessage({k:${JSONObject.quote(key.id)},cmd:'$cmd'$v$f},'*')", null)
+    }
+
+    /** Asks the frames from [origin] to fetch [url] again as their player did; [install]'s onFetched gets the answer. */
+    fun fetch(web: WebView?, url: String, origin: String) {
+        val key = keys[web ?: return] ?: return
+        web.evaluateJavascript("window.postMessage({k:${JSONObject.quote(key.id)},cmd:'fetch',u:${JSONObject.quote(url)}," +
+            "o:${JSONObject.quote(origin)}},'*')", null)
     }
 }
 
@@ -409,8 +450,13 @@ data class VideoState(
     val subtitleTracks: Int = 0, val subtitlesOn: Boolean = false,
 )
 
-/** A frame's main video for "Play in…": its address, position in seconds, on-screen area and DRM use. */
-data class VideoSource(val src: String, val position: Double, val area: Double, val protected: Boolean)
+/**
+ * A frame's main video for "Play in…" and Sofa Player: its address, position in seconds, on-screen area, DRM use,
+ * the frame's own address (or only its origin when it named another; [PageHeaders.frameFor]) and the page's subtitle
+ * files for it.
+ */
+data class VideoSource(val src: String, val position: Double, val area: Double, val protected: Boolean,
+                       val page: String? = null, val subtitles: List<PlayerRequest.Subtitle> = emptyList())
 
 /** What "Video info" shows, as the page reports it: the decoded size, frames, codec support and page geometry. */
 data class VideoInfo(

@@ -65,4 +65,40 @@ class PlayerRequestTest {
         assertEquals(null, l.positionMs)
         assertEquals(null, l.title)
     }
+
+    @Test
+    fun thePagesSubtitlesGoAlongInTheUsersLanguageFirst() {
+        val en = PlayerRequest.Subtitle("https://cdn.test/en.vtt", "English", "en")
+        val fr = PlayerRequest.Subtitle("https://cdn.test/fr.vtt", "Français", "fr")
+        val l = PlayerRequest.build("https://cdn.test/a.mp4", null, 0.0, protected = false,
+            subtitles = listOf(en, fr, en), language = "fr") as Launch
+        assertEquals(listOf(fr, en), l.subtitles)
+    }
+
+    @Test
+    fun onlyVlcReadsThePositionAsALong() {
+        // VLC: "Key position expected Long but value was a java.lang.Integer"; mpv-android, MX Player and Just Player read an Int.
+        assertEquals(true, PlayerRequest.positionIsLong("org.videolan.vlc"))
+        assertEquals(false, PlayerRequest.positionIsLong("com.brouken.player"))
+        assertEquals(false, PlayerRequest.positionIsLong("is.xyz.mpv"))
+        assertEquals(false, PlayerRequest.positionIsLong(null))
+    }
+
+    @Test
+    fun hlsIsOfferedUnderEachSpellingBeforeTheGenericType() {
+        assertEquals(listOf("application/x-mpegURL", "application/vnd.apple.mpegurl", "application/x-mpegurl", "video/*"),
+            PlayerRequest.types(PlayerRequest.HLS, "com.example.player"))
+        assertEquals(listOf("video/mp4", "video/*"), PlayerRequest.types("video/mp4", "com.example.player"))
+        assertEquals(listOf("video/*"), PlayerRequest.types("video/*", "com.example.player"))
+    }
+
+    @Test
+    fun vlcAndTheChooserGetTheGenericVideoTypeFirst() {
+        // VLC's StartActivity hands only video/* intents, extras and all, to its player; others play from 0:00.
+        assertEquals(listOf("video/*", "application/x-mpegURL", "application/vnd.apple.mpegurl", "application/x-mpegurl"),
+            PlayerRequest.types(PlayerRequest.HLS, PlayerRequest.VLC))
+        assertEquals(listOf("video/*", "application/x-mpegURL", "application/vnd.apple.mpegurl", "application/x-mpegurl"),
+            PlayerRequest.types(PlayerRequest.HLS, null))
+        assertEquals(listOf("video/mp4", "video/*"), PlayerRequest.types("video/mp4", PlayerRequest.VLC))
+    }
 }

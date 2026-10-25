@@ -52,6 +52,7 @@ Copies installed by an app store or by Obtainium never offer this; the store kee
 - **Pages get nothing extra:** no camera, microphone, location or files.
 - **Private browsing** uses a separate WebView profile that is deleted afterwards. On TVs whose WebView is too old
   for that, it keeps no history and erases site data when it ends.
+  A video handed to another app (Play in…) may stay in that app's own history, which Sofa can't erase.
 - **History** is kept for as long as you choose: 7, 30 or 90 days (the default), always or never.
 - **WebView reporting:** usage reports to Google are off, and so are Safe Browsing lookups unless you turn them on.
 

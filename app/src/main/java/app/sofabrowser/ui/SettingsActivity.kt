@@ -30,6 +30,7 @@ import app.sofabrowser.adblock.AdBlocker
 import app.sofabrowser.adblock.FilterList
 import app.sofabrowser.browser.ProtectedMedia
 import app.sofabrowser.browser.RefreshRateMatch
+import app.sofabrowser.browser.StreamCopyProvider
 import app.sofabrowser.browser.WebViews
 import app.sofabrowser.data.Db
 import app.sofabrowser.data.Favicons
@@ -445,6 +446,7 @@ class SettingsActivity : Activity() {
                 Favicons.get(this).clear()
                 prefs.clearDrmAnswers()
                 app.sofabrowser.resumeStore(this).clear()
+                StreamCopyProvider.clear(this)
                 Toast.makeText(this, R.string.cleared, Toast.LENGTH_SHORT).show()
             }.setNegativeButton(android.R.string.cancel, null).show()
     }
