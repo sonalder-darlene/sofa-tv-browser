@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Sofa</string>
-    <string name="about_text">A lightweight, private web browser for Android TV and Google TV.\n\nSofa has no accounts, no analytics, no ads and no servers of its own. Your history, bookmarks and settings stay on this device. The only connections it makes are to the sites you visit and, if you ask it to, your search engine\'s suggestions and the blocklist address you choose.</string>
+    <string name="about_text">A lightweight, private web browser for Android TV and Google TV.\n\nSofa has no accounts, no analytics, no ads and no servers of its own. Your history, bookmarks and settings stay on this device. The only connections it makes are to the sites you visit and, if you ask it to, your search engine\'s suggestions and the filter list addresses you choose.</string>
     <string name="version">Version %s</string>
 
     <!-- Home -->
@@ -189,25 +189,59 @@
     <string name="most_visited_setting">Most visited on home</string>
     <string name="most_visited_setting_sub">Worked out on this device from your history</string>
     <string name="adblock_setting">Block ads and trackers</string>
-    <string name="adblock_setting_sub">Matched on this device against a domain list</string>
-    <string name="blocklist">Blocklist</string>
-    <plurals name="blocklist_sub">
-        <item quantity="one">%d domain</item>
-        <item quantity="other">%d domains</item>
+    <string name="adblock_setting_sub">Matched on this device against filter lists</string>
+    <string name="filter_lists">Filter lists</string>
+    <string name="stronger_adblock">Stronger ad blocking</string>
+    <string name="stronger_adblock_sub">Adds EasyList and EasyPrivacy: more ads, trackers and pop-ups blocked, and the empty boxes ads leave hidden. Uses about 4 MB more memory; best with automatic list updates.</string>
+    <string name="stronger_adblock_downloading">Downloading EasyList and EasyPrivacy…</string>
+    <string name="auto_update_lists">Update filter lists automatically</string>
+    <string name="auto_update_lists_sub">Every few days, for the lists that are on. Sofa downloads each from its address without cookies; those sites see your IP address.</string>
+    <string name="auto_update_suggest_title">Keep them up to date?</string>
+    <string name="auto_update_suggest">EasyList and EasyPrivacy change every few days, as ad networks move. Turn on automatic list updates so they keep up?</string>
+    <string name="best_with_auto_updates">Best with automatic updates</string>
+    <string name="list_updates_title">Keep filter lists up to date?</string>
+    <string name="list_updates_text">Sofa blocks ads and pop-ups with filter lists, and ad networks change their addresses all the time. Sofa can download the lists that are on again every few days, without cookies, from each list\'s address: GitHub for the built-in ones, easylist.to for EasyList and EasyPrivacy. Those sites see your IP address.\n\nYou can change this any time in Settings.</string>
+    <string name="list_updates_no">Not now</string>
+    <string name="list_updates_yes">Keep them up to date</string>
+    <plurals name="rules_count">
+        <item quantity="one">%d rule</item>
+        <item quantity="other">%d rules</item>
     </plurals>
-    <plurals name="blocklist_update_message">
-        <item quantity="one">%d domain is blocked. Download a hosts file or Adblock Plus list (domain rules are used) from:</item>
-        <item quantity="other">%d domains are blocked. Download a hosts file or Adblock Plus list (domain rules are used) from:</item>
+    <string name="filter_lists_intro">Ads, trackers and pop-ups are blocked on this TV with the lists that are on. Lists in hosts, Adblock Plus and uBlock Origin format all work. Sofa only contacts a list\'s address when you add or update it, or every few days with automatic updates.</string>
+    <string name="filter_list_builtin">Built in</string>
+    <string name="filter_list_updated">Updated %s</string>
+    <string name="filter_list_updated_now">Updated just now</string>
+    <string name="filter_list_not_downloaded">Not downloaded yet</string>
+    <string name="filter_list_failed">Last update failed: %s</string>
+    <string name="filter_list_off">Off</string>
+    <string name="filter_list_sub">%1$s · %2$s</string>
+    <string name="add_filter_list">Add a list</string>
+    <string name="add_filter_list_sub">A hosts file, or a list in Adblock Plus or uBlock Origin format, by its address</string>
+    <string name="filter_list_address_message">A hosts file, or a list in Adblock Plus or uBlock Origin format:</string>
+    <string name="update_all_lists">Update all lists</string>
+    <string name="update_all_lists_sub">Downloads each list that is on again from its address</string>
+    <string name="lists_updating">Updating lists…</string>
+    <string name="lists_updated">Lists updated</string>
+    <plurals name="lists_update_failed">
+        <item quantity="one">%d list could not be updated</item>
+        <item quantity="other">%d lists could not be updated</item>
     </plurals>
-    <plurals name="blocklist_updated">
-        <item quantity="one">Blocklist updated: %d domain</item>
-        <item quantity="other">Blocklist updated: %d domains</item>
+    <string name="list_adding">Downloading the list…</string>
+    <plurals name="list_added">
+        <item quantity="one">%1$s added: %2$d rule</item>
+        <item quantity="other">%1$s added: %2$d rules</item>
     </plurals>
+    <string name="list_add_failed">Couldn\'t add the list: %s</string>
+    <plurals name="list_updated">
+        <item quantity="one">%1$s updated: %2$d rule</item>
+        <item quantity="other">%1$s updated: %2$d rules</item>
+    </plurals>
+    <string name="turn_on">Turn on</string>
+    <string name="add">Add</string>
     <string name="update">Update</string>
     <string name="reset_bundled">Use built-in</string>
     <string name="https_only">Only https:// addresses are allowed</string>
-    <string name="blocklist_updating">Downloading blocklist…</string>
-    <string name="blocklist_failed">Blocklist update failed: %s</string>
+    <string name="blocklist_failed">List update failed: %s</string>
     <string name="cookies">Cookies</string>
     <string name="cookies_sub">Needed to stay signed in to sites</string>
     <string name="cookies_confirm">Without cookies you\'ll be signed out of sites and won\'t be able to sign in. Turn cookies off?</string>

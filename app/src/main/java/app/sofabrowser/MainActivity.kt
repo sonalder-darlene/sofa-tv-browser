@@ -119,7 +119,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         DownloadEngine.init(this)
         // Private downloads don't outlive a session.
         DownloadEngine.forgetPrivate()
-        if (!prefs.setupDone || Updater.offered(this) && !prefs.updatesAsked) startActivity(Intent(this, SetupActivity::class.java))
+        if (SetupActivity.needed(this, prefs)) startActivity(Intent(this, SetupActivity::class.java))
         // Opt-in, and only in builds and copies that no app store updates; an offer waits for the home screen.
         else if (savedInstanceState == null) {
             Updater.checkOnLaunch(this) { homeShown && !isFinishing }
@@ -981,6 +981,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         if (Ui.paletteFor(this, prefs.theme) !== palette) { recreate(); return }
         browser.applySettings()
         cursor.speedLevel = prefs.cursorSpeed
+        // Cheap when nothing is due: it checks at most every few hours.
+        browser.adBlocker.refreshIfDue(prefs.autoUpdateLists)
         if (!homeShown) web?.onResume()
         else home.refresh(prefs.privateMode, prefs.adBlock)
     }

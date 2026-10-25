@@ -53,7 +53,10 @@ class Prefs(context: Context) {
     /** Shows the mic buttons; voice search runs on the TV's speech service. */
     var voiceSearch by boolean("voice_search", true)
     var adBlock by boolean("adblock", true)
-    var blocklistUrl by string("blocklist_url", "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts")
+    /** Downloads the filter lists that are on again every few days (AdBlocker.refreshIfDue); asked at first start. */
+    var autoUpdateLists by boolean("auto_update_lists", false)
+    /** The question about automatic list updates was answered (in setup, or once after updating from 1.1). */
+    var listUpdatesAsked by boolean("list_updates_asked", false)
     var cookies by boolean("cookies", true)
     var blockThirdPartyCookies by boolean("block_3p_cookies", true)
     /**

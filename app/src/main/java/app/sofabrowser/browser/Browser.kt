@@ -28,6 +28,7 @@ import androidx.webkit.WebViewFeature
 import app.sofabrowser.Prefs
 import app.sofabrowser.adblock.AdBlocker
 import app.sofabrowser.adblock.Allowlist
+import app.sofabrowser.adblock.InPageBlocking
 import app.sofabrowser.adblock.NavigationGuard
 
 /**
@@ -77,6 +78,10 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
     @Volatile var pageHost: String? = null
         private set
 
+    /** Address of the page in the main frame, for page-wide filter exceptions. */
+    @Volatile var pageUrl: String? = null
+        private set
+
     val adBlocker = AdBlocker.get(context)
     private val guard = NavigationGuard()
     private val frames = PlaybackFrames()
@@ -121,6 +126,7 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
             false
         }
         PageDownloads.install(view, key)
+        InPageBlocking.install(view, key, adBlocker, active = { blocking(pageHost) })
         view.webViewClient = client
         view.webChromeClient = chrome
         view.setDownloadListener { url, ua, disposition, mime, length -> host.onDownload(url, ua, disposition, mime, length) }
@@ -160,6 +166,7 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
     private val client = object : WebViewClient() {
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
             pageHost = AdBlocker.hostOf(url)
+            pageUrl = url
             guard.pageStarted()
             frames.clear()
             host.onPlaying(false)
@@ -170,6 +177,7 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
 
         override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
             pageHost = AdBlocker.hostOf(url)
+            pageUrl = url
             if (!isReload) host.onVisited(url)
         }
 
@@ -179,12 +187,13 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
                 // A new document's subresources are requested before onPageStarted reaches the UI thread, so the
                 // page host, count and streams switch over here, on the network thread, ahead of them.
                 pageHost = request.url.host
+                pageUrl = url
                 adBlocker.resetPageCount()
                 streams.clear()
             } else {
                 streams.request(url, listed(url))
             }
-            return if (prefs.adBlock) adBlocker.intercept(request, pageHost) else null
+            return if (prefs.adBlock) adBlocker.intercept(request, pageUrl, pageHost) else null
         }
 
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
@@ -316,7 +325,7 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
 
     private var chainHost: String? = null
 
-    private fun listed(url: String) = isWebUrl(url) && hostOf(url)?.let(adBlocker.list::isBlocked) == true
+    private fun listed(url: String) = isWebUrl(url) && hostOf(url)?.let(adBlocker::listed) == true
 
     /** Sofa is about to load an address itself; its redirects then count as the user's. */
     fun userNavigation() = guard.userNavigation()

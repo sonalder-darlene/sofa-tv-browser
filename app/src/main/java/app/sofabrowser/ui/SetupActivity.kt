@@ -10,26 +10,33 @@ import android.widget.LinearLayout
 import app.sofabrowser.Prefs
 import app.sofabrowser.R
 import app.sofabrowser.SearchEngine
+import app.sofabrowser.adblock.AdBlocker
 import app.sofabrowser.update.Updater
 
 /**
  * First start: the user picks a search engine; Sofa doesn't pick one for them. Back leaves without choosing,
- * and the question comes back next time. Copies that no app store updates then ask whether to check for updates.
+ * and the question comes back next time. Copies that no app store updates then ask whether to check for updates,
+ * and every copy asks whether to keep its filter lists up to date. A question added in a later version (the list one,
+ * after 1.1) is asked on its own the first time the new version starts.
  */
 class SetupActivity : Activity() {
 
     private lateinit var prefs: Prefs
-    private var askingUpdates = false
+    /** What Back answers on the question shown, or null while choosing the engine. */
+    private var onBack: (() -> Unit)? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Ui.init(this)
         prefs = Prefs(this)
-        when {
-            !prefs.setupDone -> askEngine()
-            Updater.offered(this) && !prefs.updatesAsked -> askUpdates()
-            else -> finish()
-        }
+        if (!prefs.setupDone) askEngine() else next()
+    }
+
+    /** The next unanswered question, or back to browsing. */
+    private fun next(): Unit = when {
+        Updater.offered(this) && !prefs.updatesAsked -> askUpdates()
+        !prefs.listUpdatesAsked -> askListUpdates()
+        else -> finish()
     }
 
     private fun page(title: Int, subtitle: Int) = LinearLayout(this).apply {
@@ -68,12 +75,31 @@ class SetupActivity : Activity() {
     }
 
     /** Opt-in update checks. Saying no is the first, focused choice, and Back means no as well. */
-    private fun askUpdates() {
-        askingUpdates = true
-        val root = page(R.string.updates_title, R.string.updates_text)
+    private fun askUpdates() = ask(R.string.updates_title, R.string.updates_text, R.string.updates_no, R.string.updates_yes,
+        focusYes = false) { check ->
+        prefs.checkUpdates = check
+        prefs.updatesAsked = true
+    }
+
+    /**
+     * Automatic filter list updates. Lists go stale within days, as ad networks keep changing addresses, so keeping them
+     * up to date is the focused choice; Back means no.
+     */
+    private fun askListUpdates() = ask(R.string.list_updates_title, R.string.list_updates_text, R.string.list_updates_no,
+        R.string.list_updates_yes, focusYes = true) { update ->
+        prefs.autoUpdateLists = update
+        prefs.listUpdatesAsked = true
+        AdBlocker.get(this).refreshIfDue(update)
+    }
+
+    /** A yes-or-no page; [answer] runs once, then the next question follows. */
+    private fun ask(title: Int, text: Int, noLabel: Int, yesLabel: Int, focusYes: Boolean, answer: (Boolean) -> Unit) {
+        val choose = { yes: Boolean -> onBack = null; answer(yes); next() }
+        onBack = { choose(false) }
+        val root = page(title, text)
         val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val no = Ui.button(this, getString(R.string.updates_no), 32) { answerUpdates(false) }
-        val yes = Ui.button(this, getString(R.string.updates_yes), 32) { answerUpdates(true) }
+        val no = Ui.button(this, getString(noLabel), 32) { choose(false) }
+        val yes = Ui.button(this, getString(yesLabel), 32) { choose(true) }
         listOf(no, yes).forEach {
             it.minWidth = 380.px
             buttons.addView(it, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
@@ -83,13 +109,7 @@ class SetupActivity : Activity() {
         }
         root.addView(buttons, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT))
         setContentView(root)
-        no.requestFocus()
-    }
-
-    private fun answerUpdates(check: Boolean) {
-        prefs.checkUpdates = check
-        prefs.updatesAsked = true
-        finish()
+        (if (focusYes) yes else no).requestFocus()
     }
 
     private fun card(engine: SearchEngine) = LinearLayout(this).apply {
@@ -144,19 +164,23 @@ class SetupActivity : Activity() {
     private fun save(engine: SearchEngine) {
         prefs.searchEngineId = engine.id
         prefs.setupDone = true
-        if (Updater.offered(this) && !prefs.updatesAsked) askUpdates() else finish()
+        next()
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             // Leaving without an engine closes Sofa; the question is asked again on the next start.
-            if (askingUpdates) answerUpdates(false) else finishAffinity()
+            onBack?.invoke() ?: finishAffinity()
             return true
         }
         return super.onKeyDown(keyCode, event)
     }
 
     companion object {
+        /** Whether a question is still unanswered, so Sofa opens this screen when it starts. */
+        fun needed(context: android.content.Context, prefs: Prefs) =
+            !prefs.setupDone || Updater.offered(context) && !prefs.updatesAsked || !prefs.listUpdatesAsked
+
         private const val COLUMNS = 4
         private const val CARD_WIDTH = 400
         private const val TEXT_WIDTH = 1300

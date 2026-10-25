@@ -2,12 +2,14 @@ package app.sofabrowser.ui
 
 import android.Manifest
 import android.app.Activity
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.os.Build
 import android.os.Bundle
 import android.text.InputType
+import android.text.format.DateUtils
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
@@ -25,6 +27,7 @@ import app.sofabrowser.BuildConfig
 import app.sofabrowser.Prefs
 import app.sofabrowser.R
 import app.sofabrowser.adblock.AdBlocker
+import app.sofabrowser.adblock.FilterList
 import app.sofabrowser.browser.ProtectedMedia
 import app.sofabrowser.browser.RefreshRateMatch
 import app.sofabrowser.browser.WebViews
@@ -38,6 +41,9 @@ class SettingsActivity : Activity() {
 
     private lateinit var prefs: Prefs
     private lateinit var list: LinearLayout
+    private val onListsPage get() = intent.getStringExtra(PAGE) == PAGE_LISTS
+    /** The Filter lists row on the main page, whose rule count is refreshed on return. */
+    private var listsRow: View? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,7 +61,13 @@ class SettingsActivity : Activity() {
             clipChildren = false
             addView(list)
         })
-        build()
+        if (onListsPage) buildLists() else build()
+    }
+
+    override fun onRestart() {
+        super.onRestart()
+        // Back from Filter lists: the rule count may have changed.
+        if (onListsPage) buildLists() else (listsRow as? TextView)?.text = rulesText(blocker.rules.rules)
     }
 
     private fun build() {
@@ -96,8 +108,12 @@ class SettingsActivity : Activity() {
 
         section(R.string.section_privacy)
         switch(R.string.adblock_setting, R.string.adblock_setting_sub, prefs::adBlock)
-        val blocker = AdBlocker.get(this)
-        nav(R.string.blocklist, resources.getQuantityString(R.plurals.blocklist_sub, blocker.list.size, blocker.list.size)) { updateBlocklist() }
+
+        strongerRow()
+        switch(R.string.auto_update_lists, R.string.auto_update_lists_sub, prefs::autoUpdateLists) { on -> listUpdatesChanged(on) }
+        listsRow = nav(R.string.filter_lists, rulesText(blocker.rules.rules)) {
+            startActivity(Intent(this, SettingsActivity::class.java).putExtra(PAGE, PAGE_LISTS))
+        }
         switch(R.string.cookies, R.string.cookies_sub, prefs::cookies, confirmOff = R.string.cookies_confirm)
         switch(R.string.third_party_cookies, R.string.third_party_cookies_sub, prefs::blockThirdPartyCookies)
         switch(R.string.gpc, R.string.gpc_sub, prefs::sendGpc)
@@ -155,12 +171,16 @@ class SettingsActivity : Activity() {
         return row
     }
 
+    private fun arrow() = ImageView(this).apply { setImageResource(R.drawable.ic_chevron_right); setColorFilter(Ui.p.textMid); layoutParams = LinearLayout.LayoutParams(40.px, 40.px) }
+
     private fun valueText(value: String) = Ui.text(this, 28, Ui.p.textMid).apply { text = value; setPadding(24.px, 0, 0, 0) }
 
-    private fun nav(title: Int, value: String?, onClick: () -> Unit) {
+    /** A row that opens something; returns its value text (or arrow), so it can be updated later. */
+    private fun nav(title: Int, value: String?, onClick: () -> Unit): View {
         val end = if (value != null) valueText(value)
-        else ImageView(this).apply { setImageResource(R.drawable.ic_chevron_right); setColorFilter(Ui.p.textMid); layoutParams = LinearLayout.LayoutParams(40.px, 40.px) }
+        else arrow()
         row(getString(title), null, end, onClick)
+        return end
     }
 
     private fun switch(title: Int, subtitle: Int, prop: kotlin.reflect.KMutableProperty0<Boolean>, confirmOff: Int? = null,
@@ -295,32 +315,125 @@ class SettingsActivity : Activity() {
             }.show()
     }
 
-    private fun updateBlocklist() {
-        val blocker = AdBlocker.get(this)
+    // Ad blocking: "Stronger ad blocking", automatic list updates, and Filter lists, a page of its own (PAGE_LISTS)
+
+    /** EasyList and EasyPrivacy in one switch, for TVs with room for them; they are downloaded when switched on. */
+    private fun strongerRow() {
+        val toggle = Toggle(blocker.stronger)
+        row(getString(R.string.stronger_adblock), getString(R.string.stronger_adblock_sub), toggle) {
+            val on = !toggle.on
+            toggle.on = on
+            if (on) Toast.makeText(this, R.string.stronger_adblock_downloading, Toast.LENGTH_LONG).show()
+            blocker.setStronger(on) {
+                if (isFinishing) return@setStronger
+                (listsRow as? TextView)?.text = rulesText(blocker.rules.rules)
+                blocker.lists.firstOrNull { it.stronger && it.error != null }?.let {
+                    Toast.makeText(this, getString(R.string.blocklist_failed, it.error), Toast.LENGTH_LONG).show()
+                }
+            }
+            if (on && !prefs.autoUpdateLists) suggestListUpdates()
+        }
+    }
+
+    /** These lists change every few days, so turning them on suggests keeping them up to date. */
+    private fun suggestListUpdates() {
+        dialog().setTitle(R.string.auto_update_suggest_title)
+            .setMessage(R.string.auto_update_suggest)
+            .setPositiveButton(R.string.turn_on) { _, _ -> prefs.autoUpdateLists = true; listUpdatesChanged(true); build() }
+            .setNegativeButton(R.string.list_updates_no, null).show()
+    }
+
+    private fun listUpdatesChanged(on: Boolean) {
+        prefs.listUpdatesAsked = true
+        blocker.refreshIfDue(on)
+    }
+
+    private val blocker get() = AdBlocker.get(this)
+
+    private fun rulesText(n: Int) = resources.getQuantityString(R.plurals.rules_count, n, n)
+
+    private fun buildLists() {
+        list.removeAllViews()
+        list.addView(Ui.text(this, 56, Ui.p.textMid, bold = true).apply {
+            text = getString(R.string.filter_lists)
+        }, LinearLayout.LayoutParams(ROW_WIDTH.px, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = 16.px })
+        list.addView(Ui.text(this, 26, Ui.p.textWeak).apply {
+            text = getString(R.string.filter_lists_intro) + " " + rulesText(blocker.rules.rules) + "."
+        }, LinearLayout.LayoutParams(ROW_WIDTH.px, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = 32.px })
+
+        val first = blocker.lists.map { l -> row(l.name, listStatus(l), Toggle(l.enabled)) { listActions(l) } }.firstOrNull()
+        switch(R.string.auto_update_lists, R.string.auto_update_lists_sub, prefs::autoUpdateLists) { on ->
+            listUpdatesChanged(on)
+            buildLists()
+        }
+        row(getString(R.string.add_filter_list), getString(R.string.add_filter_list_sub), arrow()) { enterListAddress() }
+        row(getString(R.string.update_all_lists), getString(R.string.update_all_lists_sub), arrow()) {
+            Toast.makeText(this, R.string.lists_updating, Toast.LENGTH_SHORT).show()
+            blocker.updateAll { failed ->
+                Toast.makeText(this, if (failed == 0) getString(R.string.lists_updated)
+                    else resources.getQuantityString(R.plurals.lists_update_failed, failed, failed), Toast.LENGTH_LONG).show()
+                if (!isFinishing) buildLists()
+            }
+        }
+        first?.requestFocus()
+    }
+
+    private fun listStatus(l: FilterList): String {
+        val state = when {
+            l.error != null -> getString(R.string.filter_list_failed, l.error)
+            l.updated > System.currentTimeMillis() - DateUtils.MINUTE_IN_MILLIS -> getString(R.string.filter_list_updated_now)
+            l.updated > 0 -> getString(R.string.filter_list_updated, DateUtils.getRelativeTimeSpanString(l.updated))
+            l.bundled -> getString(R.string.filter_list_builtin)
+            l.rules == 0 -> getString(R.string.filter_list_not_downloaded)
+            else -> null
+        }
+        val count = if (l.enabled) rulesText(l.rules) else getString(R.string.filter_list_off)
+        val line = if (state == null) count else getString(R.string.filter_list_sub, count, state)
+        // EasyList and EasyPrivacy go stale within days.
+        return if (l.stronger && !prefs.autoUpdateLists) getString(R.string.filter_list_sub, line, getString(R.string.best_with_auto_updates)) else line
+    }
+
+    /** What can be done with one list: switch it, download it again, go back to the built-in copy, remove it. */
+    private fun listActions(l: FilterList) {
+        val actions = mutableListOf<Pair<Int, () -> Unit>>()
+        actions += (if (l.enabled) R.string.turn_off else R.string.turn_on) to { blocker.setEnabled(l.id, !l.enabled) { if (!isFinishing) buildLists() } }
+        if (l.url != null) actions += R.string.update to {
+            Toast.makeText(this, R.string.list_adding, Toast.LENGTH_SHORT).show()
+            blocker.update(l.id) { result ->
+                result.onSuccess { Toast.makeText(this, resources.getQuantityString(R.plurals.list_updated, it.rules, it.name, it.rules), Toast.LENGTH_LONG).show() }
+                    .onFailure { Toast.makeText(this, getString(R.string.blocklist_failed, it.message), Toast.LENGTH_LONG).show() }
+                if (!isFinishing) buildLists()
+            }
+        }
+        if (l.bundled && l.updated > 0) actions += R.string.reset_bundled to { blocker.resetToBundled(l.id) { if (!isFinishing) buildLists() } }
+        if (!l.bundled) actions += R.string.remove to { blocker.remove(l.id) { if (!isFinishing) buildLists() } }
+        dialog().setTitle(l.name)
+            .setItems(actions.map { getString(it.first) }.toTypedArray()) { _, which -> actions[which].second() }
+            .setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    private fun enterListAddress() {
         val field = EditText(this).apply {
-            setText(prefs.blocklistUrl)
+            setText("https://")
             isSingleLine = true
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
         }
-        dialog().setTitle(R.string.blocklist)
-            .setMessage(resources.getQuantityString(R.plurals.blocklist_update_message, blocker.list.size, blocker.list.size))
+        dialog().setTitle(R.string.add_filter_list)
+            .setMessage(R.string.filter_list_address_message)
             .setView(padded(field))
-            .setPositiveButton(R.string.update) { _, _ ->
-                val url = field.text.toString().trim()
-                // Debug builds also take http://, so tests can serve a list from the development machine.
-                if (!url.startsWith("https://") && !(BuildConfig.DEBUG && url.startsWith("http://"))) { Toast.makeText(this, R.string.https_only, Toast.LENGTH_LONG).show(); return@setPositiveButton }
-                prefs.blocklistUrl = url
-                Toast.makeText(this, R.string.blocklist_updating, Toast.LENGTH_SHORT).show()
-                blocker.update(url) { result ->
-                    runOnUiThread {
-                        result.onSuccess { Toast.makeText(this, resources.getQuantityString(R.plurals.blocklist_updated, it, it), Toast.LENGTH_LONG).show() }
-                            .onFailure { Toast.makeText(this, getString(R.string.blocklist_failed, it.message), Toast.LENGTH_LONG).show() }
-                        if (!isFinishing) build()
-                    }
-                }
-            }
-            .setNeutralButton(R.string.reset_bundled) { _, _ -> blocker.resetToBundled(); list.postDelayed({ build() }, 1500) }
+            .setPositiveButton(R.string.add) { _, _ -> addListAt(field.text.toString().trim()) }
             .setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    private fun addListAt(url: String) {
+        // Debug builds also take http://, so tests can serve a list from the development machine.
+        if (!url.startsWith("https://") && !(BuildConfig.DEBUG && url.startsWith("http://"))) { Toast.makeText(this, R.string.https_only, Toast.LENGTH_LONG).show(); return }
+        Toast.makeText(this, R.string.list_adding, Toast.LENGTH_SHORT).show()
+        blocker.add(url) { result ->
+            result.onSuccess { Toast.makeText(this, resources.getQuantityString(R.plurals.list_added, it.rules, it.name, it.rules), Toast.LENGTH_LONG).show() }
+                .onFailure { Toast.makeText(this, getString(R.string.list_add_failed, it.message), Toast.LENGTH_LONG).show() }
+            if (!isFinishing) buildLists()
+        }
     }
 
     private fun clearNow() {
@@ -367,5 +480,7 @@ class SettingsActivity : Activity() {
         private const val ROW_WIDTH = 1400
         private val THEMES = listOf("dark", "light", "system")
         private val DRM_MODES = listOf(ProtectedMedia.ASK, ProtectedMedia.ALLOW, ProtectedMedia.BLOCK)
+        private const val PAGE = "page"
+        private const val PAGE_LISTS = "lists"
     }
 }

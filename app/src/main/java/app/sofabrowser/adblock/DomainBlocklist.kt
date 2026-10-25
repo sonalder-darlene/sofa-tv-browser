@@ -3,6 +3,7 @@ package app.sofabrowser.adblock
 import java.io.BufferedReader
 import java.io.DataInputStream
 import java.io.DataOutputStream
+import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -25,6 +26,10 @@ class DomainBlocklist private constructor(private val hashes: LongArray) {
             h = h.substring(dot + 1)
         }
     }
+
+    /** The list without the domains whose hashes are in [cancelled] ($badfilter rules). */
+    fun without(cancelled: Set<Long>): DomainBlocklist =
+        if (cancelled.isEmpty()) this else DomainBlocklist(hashes.filter { it !in cancelled }.toLongArray())
 
     fun writeTo(out: OutputStream) {
         DataOutputStream(out.buffered()).run {
@@ -62,12 +67,22 @@ class DomainBlocklist private constructor(private val hashes: LongArray) {
             return DomainBlocklist(out.copyOf(n))
         }
 
-        /** Reads the compiled form produced by [writeTo]. */
-        fun read(input: InputStream): DomainBlocklist = DataInputStream(input.buffered()).use { inp ->
-            require(inp.readInt() == MAGIC) { "not a compiled blocklist" }
-            val n = inp.readInt()
-            DomainBlocklist(LongArray(n) { inp.readLong() })
+        /** Reads the compiled form produced by [writeTo], and closes [input]. */
+        fun read(input: InputStream): DomainBlocklist = DataInputStream(input.buffered()).use(::readFrom)
+
+        /** Reads the compiled form from the current position of [input], leaving the stream open after it. */
+        fun readFrom(input: DataInputStream): DomainBlocklist {
+            if (input.readInt() != MAGIC) throw IOException("not a compiled blocklist")
+            val n = input.readInt()
+            if (n < 0) throw IOException("bad size")
+            return DomainBlocklist(LongArray(n) { input.readLong() }.also { it.sort() })
         }
+
+        /** A list of the domains whose [fnv1a] hashes are [hashes]. */
+        fun of(hashes: Collection<Long>) = DomainBlocklist(hashes.toLongArray().also { it.sort() })
+
+        /** Merges any number of lists; see [merge]. */
+        fun mergeAll(lists: List<DomainBlocklist>) = lists.fold(EMPTY, ::merge)
 
         /**
          * Parses hosts-file lines ("0.0.0.0 ads.example.com"), plain domain lines, and Adblock Plus

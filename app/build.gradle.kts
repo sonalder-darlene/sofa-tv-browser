@@ -116,12 +116,13 @@ abstract class CopyLegalFiles : DefaultTask() {
 }
 
 val legalAssets = tasks.register<CopyLegalFiles>("legalAssets") {
-    sources.from(rootProject.file("LICENSE"), rootProject.file("NOTICE.md"))
+    sources.from(rootProject.file("LICENSE"), rootProject.file("NOTICE.md"), rootProject.file("LICENSE-APACHE-2.0.txt"))
 }
 
 androidComponents {
     onVariants { variant ->
-        // Ships LICENSE and NOTICE.md: the APK carries its licence, and About can show both.
+        // Ships LICENSE, NOTICE.md and the Apache licence of the bundled ad-block engine: the APK carries its licences, and
+        // About can show the first two.
         variant.sources.assets?.addGeneratedSourceDirectory(legalAssets, CopyLegalFiles::outputDir)
     }
 }

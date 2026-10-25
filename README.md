@@ -13,6 +13,8 @@ called Sofa.
 - **Controls for fullscreen video**: seek, pause, playback speed, subtitles, Video info, picture-in-picture, and
   Play in another app (Android asks once, Sofa remembers; hold OK on the button to choose again).
 - **Match frame rate** (experimental), on TVs that offer it: films play at 24 Hz instead of juddering at 60.
+- **Ad blocking with filter lists** in the formats of uBlock Origin, Adblock Plus and hosts files, including
+  hiding the empty boxes ads leave behind. One switch adds EasyList and EasyPrivacy.
 - **Pop-ups and redirects to ad sites blocked**, with "Allow once" in the menu when you need one.
 - **Search** with the engine you choose at first start, and voice search.
 - **Downloads** that pause, resume and carry on in the background.
@@ -39,9 +41,10 @@ Copies installed by an app store or by Obtainium never offer this; the store kee
 
 - **Nothing of its own:** no accounts, analytics, ads, crash reports or servers. Apart from the sites you visit,
   Sofa only contacts your search engine (for suggestions, if you turn them on), GitHub (for update checks, if
-  you turn them on) and the address you choose for blocklist updates. Voice search uses the TV's speech service.
-- **Blocking:** ads and trackers are blocked on the TV against the StevenBlack hosts list (about 71,000 domains)
-  and HaGeZi's Pop-Up Ads list (about 48,000), and third-party cookies are blocked.
+  you turn them on) and the addresses of your filter lists (when you add or update them, or every few days if you
+  turn on automatic updates). Voice search uses the TV's speech service.
+- **Blocking:** ads and trackers are blocked on the TV (see [Ad blocking](#ad-blocking)), and third-party cookies
+  are blocked too.
 - **Blending in:** few browsers send Do Not Track and desktop Chrome is the most common browser, so Sofa sends no
   Do Not Track and uses a desktop Chrome user agent by default. Global Privacy Control can be turned on in Settings.
 - **Pages get nothing extra:** no camera, microphone, location or files.
@@ -49,6 +52,23 @@ Copies installed by an app store or by Obtainium never offer this; the store kee
   for that, it keeps no history and erases site data when it ends.
 - **History** is kept for as long as you choose: 7, 30 or 90 days (the default), always or never.
 - **WebView reporting:** usage reports to Google are off, and so are Safe Browsing lookups unless you turn them on.
+
+## Ad blocking
+
+Everything is matched on the TV; nothing about your browsing leaves it.
+
+- **Filter lists:** the StevenBlack hosts list (about 71,000 domains) and HaGeZi's Pop-Up Ads list (about 48,000) come
+  with Sofa. **Stronger ad blocking** in Settings adds EasyList and EasyPrivacy, about 145,000 more rules, for TVs
+  with a few MB of memory to spare. Settings → Filter lists takes any other list by its address, in hosts, Adblock
+  Plus or uBlock Origin format, and switches each list on or off.
+- **Element hiding** removes the empty boxes and banners that blocked ads leave, also when a page adds them later.
+- **Pop-ups:** windows a page opens without a press, windows to listed ad sites, and pages that send you to a
+  listed ad site on their own are blocked. The menu's "Allow once" opens the last thing blocked.
+- **Updates:** lists are downloaded when you add or update them, without cookies. Sofa can also update them every
+  few days by itself; it asks at first start, and EasyList and EasyPrivacy, which change every few days, are best
+  kept that way.
+- **Per site:** the Ad block button in the menu switches all of this off for one site and shows how much was
+  blocked on the page.
 
 ## Video
 
@@ -72,7 +92,7 @@ Copies installed by an app store or by Obtainium never offer this; the store kee
 
 ## Not there yet
 
-Tabs, reader mode, typing from a phone, and translations.
+Tabs, reader mode, typing from a phone, translations, and user scripts (planned: [docs/user-scripts.md](docs/user-scripts.md)).
 
 ## For developers
 
@@ -137,6 +157,7 @@ On a TV, turn on network debugging, then run `adb connect <tv-ip>:5555` and `adb
 
 ```
 app/src/main/java/app/sofabrowser/   browser/ (pointer, WebView), ui/, downloads/, adblock/, data/
+app/src/main/java/jp/hazuki/…        the Yuzu Browser filter-rule engine (Apache-2.0, see NOTICE.md)
 app/src/standard/                    the updater
 app/src/play/                        an empty stand-in for the updater
 fastlane/metadata/android/           store listing: descriptions, changelogs, graphics, screenshots
@@ -147,8 +168,14 @@ tools/                               update-blocklist.sh, and render-art.sh (nee
 ## Licence
 
 Sofa TV Browser is free software under the [GNU General Public License v3.0 only](LICENSE) (`GPL-3.0-only`). The
-third-party parts (Material Symbols icons, the StevenBlack hosts list, HaGeZi's Pop-Up Ads list and
-`androidx.webkit`) are listed in [NOTICE.md](NOTICE.md).
+third-party parts (Material Symbols icons, the StevenBlack hosts list, HaGeZi's Pop-Up Ads list, the Yuzu Browser
+ad-block engine and `androidx.webkit`) are listed in [NOTICE.md](NOTICE.md).
 
 Sofa follows the remote-control design of BrowsHere, TCL's TV browser, but contains none of its code, assets or
 text.
+
+**Thanks.** Sofa's filter-rule engine comes from [Yuzu Browser](https://github.com/hazuki0x0/YuzuBrowser) by Hazuki, as
+improved in [Fulguris](https://github.com/Slion/Fulguris) (Apache-2.0 parts only). Element hiding by class and id
+follows the design of [Brave](https://github.com/brave/adblock-rust) and [uBlock Origin](https://github.com/gorhill/uBlock),
+without their code. The lists are the work of [StevenBlack/hosts](https://github.com/StevenBlack/hosts),
+[HaGeZi](https://github.com/hagezi/dns-blocklists) and [the EasyList authors](https://easylist.to/).

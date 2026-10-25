@@ -393,6 +393,8 @@ class PageKey {
     val id = random(16)
     /** Name of the injected object that receives video state. */
     val video = "_" + random(12)
+    /** Name of the injected object that answers in-page ad blocking (InPageBlocking). */
+    val cosmetic = "_" + random(12)
     /** Name of the injected object that receives page downloads. */
     val downloads = "_" + random(12)
 

@@ -41,6 +41,29 @@ version 3, the same licence as Sofa TV Browser (see LICENSE). It is refreshed wi
 The list's own disclaimer (no warranty; a listed domain is a filtering decision, not an accusation) is at
 https://github.com/hagezi/dns-blocklists#disclaimer.
 
+## Yuzu Browser ad-block engine (filter rules)
+
+The filter-rule engine in `app/src/main/java/jp/hazuki/yuzubrowser/adblock/` (parsing Adblock Plus and uBlock Origin
+network rules, matching them, and storing them compiled) comes from Yuzu Browser by Hazuki
+(https://github.com/hazuki0x0/YuzuBrowser), as adapted in Fulguris (https://github.com/Slion/Fulguris, commit
+66d56d4501575324f09621a5babcbf4bc7641118). The four tests in `app/src/test/java/jp/hazuki/yuzubrowser/` come from the
+same place. Only files whose own header carries the Apache License are used, and each keeps that header:
+
+> Copyright (C) 2017-2019 Hazuki, Copyright 2020 Hazuki
+>
+> Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance
+> with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+>
+> Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
+> on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for
+> the specific language governing permissions and limitations under the License.
+
+The full licence text is in `LICENSE-APACHE-2.0.txt`, also shipped in the app. Sofa TV Browser changed every one of
+these files, and each says how in a line under its header: plain Kotlin instead of Android types, no rules that change
+headers, parameters or redirects, page-wide exceptions, safer cache reading, and fixes. Sofa's own code around it
+(lists, element hiding, settings) is new and under Sofa's licence. No Fulguris code under its CPAL-1.0 or MPL-2.0
+licences is included.
+
 ## AndroidX WebKit (`androidx.webkit`)
 
 Compiled into the app from the Android Open Source Project

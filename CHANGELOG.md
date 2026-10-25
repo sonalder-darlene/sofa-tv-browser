@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+**Better ad blocking**
+
+- **Filter lists** in the formats of uBlock Origin, Adblock Plus and hosts files: Sofa now understands rules for
+  parts of a site (such as `/ads/banner`), rule options, exceptions, and rules that hide the empty boxes ads leave
+  behind, including ads a page adds after it has loaded.
+- **Stronger ad blocking:** one switch in Settings adds EasyList and EasyPrivacy.
+- **Settings → Filter lists:** add lists by address, switch each one on or off, see how many rules each brings,
+  update them all at once, or go back to the copy that came with Sofa.
+- **Automatic list updates,** every few days, if you want them: Sofa asks once.
+- The two lists Sofa came with stay on. A blocklist address you set yourself is kept as a list of its own.
+- Blocking still happens entirely on the TV, and lists are downloaded without cookies.
+- **Faster start:** lists are stored ready to use, so they load in a moment instead of being read again each time.
+
 ## 1.1.0 (2026-10-20)
 
 **Watching video**
