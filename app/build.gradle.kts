@@ -30,6 +30,14 @@ val updateUrl: String = providers.gradleProperty("sofa.updateUrl")
 val releaseCert: String = providers.gradleProperty("sofa.releaseCert")
     .getOrElse("74e23f09bb4b011600c38e7d555fb38926acc3835029b7fc02e48466c34c8aa9")
 
+/** The commit a test build comes from, for its version name; empty without git (a source tarball, say). */
+val gitCommit: String = runCatching {
+    providers.exec {
+        commandLine("git", "rev-parse", "--short=7", "HEAD")
+        isIgnoreExitValue = true
+    }.standardOutput.asText.get().trim()
+}.getOrDefault("")
+
 android {
     namespace = "app.sofabrowser"
     compileSdk = 36
@@ -76,9 +84,10 @@ android {
 
     buildTypes {
         // Test builds install next to the real Sofa (named "Sofa (test)" in src/debug), so testing on a TV keeps its
-        // data.
+        // data, and name the commit they come from ("1.2.0-test+1a2b3c4"), so a report says which build it was.
         debug {
             applicationIdSuffix = ".debug"
+            versionNameSuffix = "-test" + gitCommit.takeIf { it.isNotEmpty() }?.let { "+$it" }.orEmpty()
         }
         release {
             isMinifyEnabled = true
