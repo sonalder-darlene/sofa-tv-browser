@@ -528,7 +528,15 @@ class VideoBar(context: Context, private val actions: Actions) : LinearLayout(co
     /** "Continue from 12:30", above the timeline, for a film left part-way; it goes away after a while. */
     private val resume: TextView
     private var resumeAt = 0.0
-    private val hideResume = Runnable { if (!resume.hasFocus()) resume.visibility = GONE }
+    /** The offer belongs to one video: it goes after a while, even when focused (focus moves to play/pause). */
+    private val hideResume = Runnable { clearResume() }
+
+    /** Takes the "Continue from" offer away: its time is up, or fullscreen ended. */
+    fun clearResume() {
+        resume.removeCallbacks(hideResume)
+        if (resume.hasFocus()) playPause.requestFocus()
+        resume.visibility = GONE
+    }
 
     fun offerResume(seconds: Double) {
         resumeAt = seconds
@@ -826,6 +834,7 @@ class FullscreenLayer(context: Context, val bar: VideoBar) : FrameLayout(context
     fun detach() {
         removePlayer()
         bar.hideNow()
+        bar.clearResume()
         info.visibility = GONE
         pointer.cursorEnabled = false
         pointer.removeAllViews()
