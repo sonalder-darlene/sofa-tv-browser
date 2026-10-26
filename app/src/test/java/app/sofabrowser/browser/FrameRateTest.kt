@@ -108,6 +108,21 @@ class FrameRateTest {
     }
 
     @Test
+    fun aRateMeasuredOnALowerVariantPrefersTwiceItsRate() {
+        // Dailymotion's 380p and 480p are 30 fps, 720p and up 60; Vimeo's lowest are 25, the rest 50.
+        assertEquals(18, FrameRate.pick(tv4k, tv4kDefault, 30.0, orDouble = true))
+        assertEquals(17, FrameRate.pick(tv4k, tv4kDefault, 25.0, orDouble = true))
+        // 59.94 already shows 29.97 and 59.94 alike.
+        assertNull(FrameRate.pick(tv4k, tv4kDefault, 30000.0 / 1001, orDouble = true))
+        // No 48 Hz mode: the film's own rate, as without.
+        assertEquals(11, FrameRate.pick(tv4k, tv4kDefault, 24.0, orDouble = true))
+        val at50 = tv4k.first { it.id == 17 }
+        assertNull(FrameRate.pick(tv4k, at50, 25.0, orDouble = true))
+        // A rate above 30 is never doubled.
+        assertEquals(17, FrameRate.pick(tv4k, tv4kDefault, 50.0, orDouble = true))
+    }
+
+    @Test
     fun theResolutionNeverChanges() {
         val box = listOf(Mode(1, 3840, 2160, 60f), Mode(2, 1920, 1080, 24f))
         assertNull(FrameRate.pick(box, box[0], 24.0))
@@ -133,5 +148,44 @@ class FrameRateTest {
         assertEquals("29.97", FrameRate.label(29.97003))
         assertEquals("24", FrameRate.label(24.000002))
         assertEquals("120", FrameRate.label(120.00001))
+    }
+
+    // Sofa Player measures the frames it shows itself, by the same rules as the page's script.
+
+    private fun sample(times: List<Double>): Double? {
+        val sampler = FrameRate.Sampler()
+        for (t in times) sampler.add(t)?.let { return FrameRate.estimate(it) }
+        return null
+    }
+
+    @Test
+    fun sofaPlayersOwnFramesGiveTheRate() {
+        assertEquals(25.0, sample(frames(25.0, count = 200, tick = 1e-6))!!, 0.0)
+        assertEquals(24000.0 / 1001, sample(frames(24000.0 / 1001, count = 200))!!, 1e-9)
+    }
+
+    @Test
+    fun theSamplerWaitsForAboutFiveSeconds() {
+        val sampler = FrameRate.Sampler()
+        val times = frames(50.0, count = 400)
+        val doneAt = times.indexOfFirst { sampler.add(it) != null }
+        assertEquals(275, doneAt)
+    }
+
+    @Test
+    fun aSeekStartsTheSampleOver() {
+        val sampler = FrameRate.Sampler()
+        frames(25.0, count = 100, start = 10.0).forEach { assertNull(sampler.add(it)) }
+        // Back to 2 s, then a jump of 30 s: each starts over, so no sample spans them.
+        val after = frames(25.0, count = 60, start = 2.0) + frames(25.0, count = 200, start = 40.0)
+        val result = after.firstNotNullOfOrNull { sampler.add(it) }!!
+        assertEquals(40.0, result.first(), 1e-6)
+        assertEquals(25.0, FrameRate.estimate(result)!!, 0.0)
+    }
+
+    @Test
+    fun theSampleIsGivenOnce() {
+        val sampler = FrameRate.Sampler()
+        assertEquals(1, frames(25.0, count = 400).count { sampler.add(it) != null })
     }
 }

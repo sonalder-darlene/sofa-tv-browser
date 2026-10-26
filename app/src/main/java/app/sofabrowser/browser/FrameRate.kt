@@ -47,14 +47,23 @@ object FrameRate {
      * - the exact rate, else a whole multiple of it (48 for 24);
      * - stay if the current rate is the NTSC cousin's (60 for 59.94: one repeated frame every 17 s);
      * - the cousin's rate (24 for 23.976, one repeated frame every 42 s, far better than 3:2 judder at 60).
+     *
+     * With [orDouble], a rate of 30 or less was measured on a lower variant of a stream whose higher ones may run at
+     * twice it (Dailymotion: 30 then 60): the rules above go first for twice the rate, which shows both.
      */
-    fun pick(modes: List<Mode>, current: Mode, fps: Double): Int? {
+    fun pick(modes: List<Mode>, current: Mode, fps: Double, orDouble: Boolean = false): Int? {
+        val id = (if (orDouble && fps < 31) choose(modes, current, fps * 2) else null) ?: choose(modes, current, fps)
+        return id?.takeIf { it != current.id }
+    }
+
+    /** The mode for [fps] by [pick]'s rules: [current]'s id to stay, another to switch, null when none fits. */
+    private fun choose(modes: List<Mode>, current: Mode, fps: Double): Int? {
         val same = modes.filter { it.width == current.width && it.height == current.height && it.id != current.id }
         // NTSC rates are whole rates × 1000/1001.
         val ntsc = abs(fps * 1001 / 1000 - (fps * 1001 / 1000).roundToInt()) < 1e-6
         val cousin = if (ntsc) fps * 1001 / 1000 else fps * 1000 / 1001
         for (rate in listOf(fps, cousin)) {
-            if (multiple(current.refreshRate, rate) != null) return null
+            if (multiple(current.refreshRate, rate) != null) return current.id
             same.firstOrNull { multiple(it.refreshRate, rate) == 1 }?.let { return it.id }
             same.filter { multiple(it.refreshRate, rate) != null }
                 .minByOrNull { abs(it.refreshRate - current.refreshRate) }?.let { return it.id }
@@ -77,4 +86,26 @@ object FrameRate {
     /** 23.976, 29.97, 24: as rates are usually written. */
     fun label(rate: Double): String =
         String.format(Locale.ROOT, "%.3f", rate).trimEnd('0').trimEnd('.')
+
+    /**
+     * Collects the media times (seconds) of the frames a player shows, as the page's script does for the page's
+     * video: about 5.5 s of them, starting over when a time goes back or jumps (a seek, an ad, a new source). [add]
+     * gives the times once, when there are enough for [estimate]; null before and after.
+     */
+    class Sampler {
+        private val times = ArrayList<Double>()
+        private var done = false
+
+        fun add(time: Double): List<Double>? {
+            if (done) return null
+            val last = times.lastOrNull()
+            if (last != null && (time <= last || time - last > 1)) times.clear()
+            times += time
+            if (times.size < MIN_FRAMES || time - times.first() < SAMPLE_SPAN) return null
+            done = true
+            return times.toList()
+        }
+    }
+
+    private const val SAMPLE_SPAN = 5.5
 }

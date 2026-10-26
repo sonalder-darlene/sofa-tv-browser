@@ -70,6 +70,20 @@ object Playlist {
         return if (kept == 0 || dropped == 0) body else out.joinToString("\n")
     }
 
+    /** A media playlist's init segment: its address, and where it sits in that file (length null: to the end). */
+    data class Init(val url: String, val offset: Long, val length: Long?)
+
+    /** The init segment (EXT-X-MAP) of the HLS media playlist [body] fetched from [base]; null without one (MPEG-TS). */
+    fun initSegment(body: String, base: String): Init? {
+        val map = body.lineSequence().map { it.trim() }.firstOrNull { it.startsWith("#EXT-X-MAP:") } ?: return null
+        val uri = URI_ATTRIBUTE.find(map)?.groupValues?.get(1) ?: return null
+        val url = runCatching { URI(base).resolve(uri.trim()).toString() }.getOrNull()
+            ?.takeIf { it.startsWith("https://") || it.startsWith("http://") } ?: return null
+        val range = BYTERANGE.find(map)?.groupValues
+        return Init(url, range?.get(2)?.toLongOrNull() ?: 0L, range?.get(1)?.toLongOrNull())
+    }
+
+    private val BYTERANGE = Regex("""BYTERANGE="(\d+)(?:@(\d+))?"""")
     private val CODECS = Regex("""CODECS="([^"]*)"""")
     private val URI_ATTRIBUTE = Regex("""URI="([^"]*)"""")
     private val SUBTITLE_EXTENSIONS = setOf("vtt", "webvtt", "srt", "ttml", "dfxp")

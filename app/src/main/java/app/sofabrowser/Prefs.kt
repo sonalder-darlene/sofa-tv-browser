@@ -73,6 +73,8 @@ class Prefs(context: Context) {
     var autoplay by boolean("autoplay", true)
     /** In fullscreen, switch the TV to the video's frame rate (RefreshRateMatch). Off by default: the screen blanks. */
     var matchFrameRate by boolean("match_frame_rate", false)
+    /** Sofa Player takes over fullscreen videos whose stream it can play. */
+    var sofaPlayer by boolean("sofa_player", true)
     /** The player picked in Android's chooser for "Play in…" (a flattened component name), or "" before the first. */
     var videoPlayer by string("video_player", "")
     var textZoom by int("text_zoom", 100)

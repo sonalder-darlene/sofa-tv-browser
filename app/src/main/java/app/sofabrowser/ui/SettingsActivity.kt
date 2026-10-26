@@ -104,6 +104,7 @@ class SettingsActivity : Activity() {
         switch(R.string.back_goes_back, R.string.back_goes_back_sub, prefs::backGoesBack)
         switch(R.string.javascript, R.string.javascript_sub, prefs::javascript)
         switch(R.string.autoplay, R.string.autoplay_sub, prefs::autoplay)
+        switch(R.string.sofa_player, R.string.sofa_player_sub, prefs::sofaPlayer)
         // Only on TVs that offer another refresh rate at their resolution; many offer just one.
         if (RefreshRateMatch(this).available()) switch(R.string.match_frame_rate, R.string.match_frame_rate_sub, prefs::matchFrameRate)
         nav(R.string.downloads, null) { startActivity(android.content.Intent(this, DownloadsActivity::class.java)) }

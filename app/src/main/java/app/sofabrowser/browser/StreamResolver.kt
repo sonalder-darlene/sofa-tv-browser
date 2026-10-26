@@ -1,7 +1,10 @@
 package app.sofabrowser.browser
 
+import app.sofabrowser.player.Variants
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /**
  * Finds the stream to play among those the page fetched ([StreamSniffer.candidates]): it reads the manifests,
@@ -41,6 +44,49 @@ class StreamResolver(private val userAgent: String, private val cookie: (String)
             if (dash) null else Playlist.absolute(body, finalUrl), needsPage)
     }
 
+    /**
+     * [master] (absolute addresses, as [resolve] gives it) with VIDEO-RANGE filled in from each variant's init
+     * segment when it declares none but offers twins ([Variants.twinsWithoutRange]); else unchanged. Reads each
+     * variant's playlist and the start of its init segment, a few at once, with the requests' own headers.
+     */
+    fun withReadRanges(master: String, frame: String?): String {
+        if (!Variants.twinsWithoutRange(master)) return master
+        val pool = Executors.newFixedThreadPool(PROBES_AT_ONCE)
+        try {
+            val reads = Variants.addresses(master).distinct().associateWith { url -> pool.submit<Variants.Range> { rangeOf(url, frame) } }
+            val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(PROBE_DEADLINE_MS)
+            val ranges = reads.mapValues { (_, read) ->
+                runCatching { read.get(maxOf(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS) }.getOrDefault(Variants.Range.UNKNOWN)
+            }
+            log("ranges read from init segments: ${ranges.values.groupingBy { it }.eachCount()}")
+            return Variants.withRanges(master, ranges)
+        } finally {
+            pool.shutdownNow()
+        }
+    }
+
+    private fun rangeOf(url: String, frame: String?): Variants.Range {
+        val (finalUrl, body) = fetch(url, PageHeaders.forRequest(url, frame, userAgent, cookie)) ?: return Variants.Range.UNKNOWN
+        val init = Playlist.initSegment(body, finalUrl) ?: return Variants.Range.UNKNOWN
+        val length = minOf(init.length ?: INIT_BYTES.toLong(), INIT_BYTES.toLong())
+        val headers = PageHeaders.forRequest(init.url, frame, userAgent, cookie) + ("Range" to "bytes=${init.offset}-${init.offset + length - 1}")
+        return fetchBytes(init.url, headers, INIT_BYTES)?.let(Variants::rangeOfInit) ?: Variants.Range.UNKNOWN
+    }
+
+    /** At most [max] bytes from the start of the answer, or null when the server refused. */
+    private fun fetchBytes(url: String, headers: Map<String, String>, max: Int): ByteArray? = runCatching {
+        val c = URL(url).openConnection() as HttpURLConnection
+        try {
+            c.connectTimeout = TIMEOUT_MS
+            c.readTimeout = TIMEOUT_MS
+            headers.forEach { (k, v) -> c.setRequestProperty(k, v) }
+            if (c.responseCode !in 200..299) { log("refused ${c.responseCode} $url"); return@runCatching null }
+            c.inputStream.use { it.readNBytesCompat(max) }
+        } finally {
+            c.disconnect()
+        }
+    }.onFailure { log("failed $it $url") }.getOrNull()
+
     /** The final address and the text, or null when the server refused or it isn't a short text. */
     private fun fetch(url: String, headers: Map<String, String>): Pair<String, String>? = runCatching {
         val c = URL(url).openConnection() as HttpURLConnection
@@ -71,6 +117,10 @@ class StreamResolver(private val userAgent: String, private val cookie: (String)
     companion object {
         private const val MAX_BYTES = 2 * 1024 * 1024
         private const val TIMEOUT_MS = 5000
+        /** An init segment's colr box sits in its first kilobyte or so (Vimeo's whole init is under 1 KB). */
+        private const val INIT_BYTES = 4096
+        private const val PROBES_AT_ONCE = 4
+        private const val PROBE_DEADLINE_MS = 4000L
 
         /**
          * The manifests worth reading, in order; ask the page for these. All that [StreamSniffer] keeps (15 at most):

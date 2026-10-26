@@ -12,6 +12,9 @@ object Decoders {
         return mime in hardwareTypes
     }
 
+    /** Whether a hardware decoder exists for a video MIME type ("video/avc"). */
+    fun hardwareFor(mime: String): Boolean = mime.lowercase() in hardwareTypes
+
     /** Whether the decoder [name] is a hardware one; older Androids don't say, so it goes by Android's own names. */
     fun isHardware(name: String): Boolean {
         if (Build.VERSION.SDK_INT >= 29) {

@@ -66,6 +66,8 @@ import app.sofabrowser.downloads.Download
 import app.sofabrowser.downloads.DownloadEngine
 import app.sofabrowser.downloads.Http
 import app.sofabrowser.downloads.Status as DownloadStatus
+import app.sofabrowser.player.SofaPlayer
+import app.sofabrowser.player.Variants
 import app.sofabrowser.ui.BrowserMenu
 import app.sofabrowser.ui.DownloadsActivity
 import app.sofabrowser.ui.FindBar
@@ -286,7 +288,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             KeyEvent.KEYCODE_MEDIA_REWIND, KeyEvent.KEYCODE_MEDIA_SKIP_BACKWARD -> "seekBy" to -10.0
             else -> return false
         }
-        if (event.action == KeyEvent.ACTION_DOWN) VideoRelay.send(web, cmd.first, cmd.second)
+        if (event.action == KeyEvent.ACTION_DOWN) command(cmd.first, cmd.second)
         return true
     }
 
@@ -688,6 +690,11 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         videoState = null
         videoFps = null
         frameTimesSeen = false
+        playerRateMatched = false
+        nativeTried = false
+        nativeRetryAt = 0L
+        hardwareRetried = false
+        pausedForDecoder = false
         fullscreen.bar.pipShown = pipSupported
         fullscreen.attach(view)
         browserLayer.visibility = View.INVISIBLE
@@ -697,6 +704,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
 
     override fun onExitFullscreen() {
         if (fullscreen.visibility != View.VISIBLE) return
+        // Leaving Sofa Player: the page's video carries on from where it was.
+        if (sofaPlayer.active) backToPage(play = nativeOn && sofaPlayer.playing)
         VideoRelay.send(web, "unwatch")
         refreshMatch.reset()
         fullscreen.detach()
@@ -710,7 +719,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         onExitFullscreen()
     }
 
-    override fun command(cmd: String, value: Double?) = VideoRelay.send(web, cmd, value)
+    override fun command(cmd: String, value: Double?) =
+        if (nativeOn && cmd in PLAYER_COMMANDS) sofaPlayer.command(cmd, value) else VideoRelay.send(web, cmd, value)
 
     override fun usePointer() {
         // Give the page its own controls back while the pointer is used on them.
@@ -721,7 +731,11 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     }
 
     override fun onVideoState(state: VideoState) {
+        // The page's video is paused while Sofa Player plays; the bar follows the player.
+        if (nativeOn) return
+        maybeSofaPlayer(state)
         videoState = state
+        pageStateAt = SystemClock.uptimeMillis()
         fullscreen.bar.update(state)
         rememberPosition(state)
     }
@@ -776,7 +790,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
 
     private val refreshInfo: Runnable = Runnable {
         if (fullscreen.info.visibility != View.VISIBLE) return@Runnable
-        command("info")
+        if (nativeOn) showPlayerInfo() else command("info")
         fullscreen.info.postDelayed(refreshInfo, 1000)
     }
 
@@ -785,9 +799,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         fun names(list: List<VideoInfo.Codec>) = list.joinToString(", ") { it.name }
         val hardware = info.codecs.filter { it.supported && it.efficient }
         val software = info.codecs.filter { it.supported && !it.efficient }
-        val dm = resources.displayMetrics
-        // The panel's own mode can be 4K while apps are drawn at 1080p; the 4K investigation needs both.
-        @Suppress("DEPRECATION") val mode = windowManager.defaultDisplay.mode
+        // The panel's own mode can be 4K while apps are drawn at 1080p; the 4K investigation needs both (displayInfo).
         fullscreen.info.text = listOfNotNull(
             getString(R.string.video_info_size, info.width, info.height),
             if (info.total >= 0) getString(R.string.video_info_frames, info.total, info.dropped) else null,
@@ -801,7 +813,19 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             if (software.isEmpty()) null else getString(R.string.video_info_software, names(software)),
             getString(R.string.video_info_note),
             "",
-            getString(R.string.video_info_display, dm.widthPixels, dm.heightPixels,
+        ).plus(displayInfo()).plus(getString(R.string.video_info_page, info.screenWidth, info.screenHeight, info.pixelRatio.toString(),
+                info.innerWidth, info.cssWidth)).joinToString("\n")
+    }
+
+    /**
+     * The display's side of "Video info": window and panel sizes, and the TV's refresh rates. Sofa Player draws on a
+     * video layer of the panel's own size, the page's player within the app's window: [player] says which.
+     */
+    private fun displayInfo(player: Boolean = false): List<String> {
+        val dm = resources.displayMetrics
+        @Suppress("DEPRECATION") val mode = windowManager.defaultDisplay.mode
+        return listOfNotNull(
+            getString(if (player) R.string.video_info_display_player else R.string.video_info_display, dm.widthPixels, dm.heightPixels,
                 mode?.physicalWidth ?: dm.widthPixels, mode?.physicalHeight ?: dm.heightPixels),
             refreshMatch.otherRates().let { others ->
                 val now = FrameRate.label(refreshMatch.refreshRate.toDouble())
@@ -809,9 +833,20 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
                 else getString(R.string.video_info_tv_rate, now, others.joinToString(", ") { FrameRate.label(it.toDouble()) })
             },
             if (refreshMatch.turnedOffInSystem) getString(R.string.video_info_tv_rate_off) else null,
-            getString(R.string.video_info_page, info.screenWidth, info.screenHeight, info.pixelRatio.toString(),
-                info.innerWidth, info.cssWidth),
-        ).joinToString("\n")
+        )
+    }
+
+    private fun showPlayerInfo() {
+        val lines = sofaPlayer.info()
+        val labels = listOf(R.string.video_info_native_video, R.string.video_info_decoder, R.string.video_info_native_frames, R.string.video_info_sound)
+        val rate = when {
+            playerFps != null -> getString(R.string.video_info_rate, FrameRate.label(playerFps!!))
+            rateMeasured -> getString(R.string.video_info_rate_unknown)
+            else -> getString(R.string.video_info_rate_waiting)
+        }
+        val text = (listOf(getString(R.string.sofa_player)) + lines.zip(labels).mapNotNull { (line, label) -> line?.let { getString(label, it) } } +
+            rate + "" + displayInfo(player = true)).joinToString("\n")
+        fullscreen.info.text = text
     }
 
     // Watch: locate the main video, scroll it into view if needed, tap it for real, then ask for fullscreen.
@@ -856,28 +891,38 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     // Play in…: ask every frame for its main video, hand the largest to the chosen player, pause it here.
 
     private val sources = ArrayList<VideoSource>()
-    private var collectingSources = false
 
     private var choosePlayer = false
 
     /** [choose]: show Android's chooser even when a player was remembered (a long press on the button). */
     override fun playIn(choose: Boolean) {
-        if (web == null || collectingSources) return
         choosePlayer = choose
+        collectSources(::playInChosen)
+    }
+
+    private var sourcesWanted: ((VideoSource?) -> Unit)? = null
+
+    /** Asks every frame for its main video, then gives [then] the largest, or null. */
+    private fun collectSources(then: (VideoSource?) -> Unit) {
+        if (web == null || sourcesWanted != null) return
         sources.clear()
-        collectingSources = true
-        command("source")
-        cursor.postDelayed(::playInChosen, 300)
+        sourcesWanted = then
+        VideoRelay.send(web, "source")
+        cursor.postDelayed({
+            val done = sourcesWanted ?: return@postDelayed
+            sourcesWanted = null
+            done(sources.maxByOrNull { it.area })
+        }, 300)
     }
 
     override fun onVideoSource(source: VideoSource) {
-        if (collectingSources) sources.add(source)
+        if (sourcesWanted != null) sources.add(source)
     }
 
-    private fun playInChosen() {
-        collectingSources = false
+    private fun playInChosen(found: VideoSource?) {
         val w = web ?: return
-        val video = sources.maxByOrNull { it.area }
+        // From Sofa Player, the other player starts where Sofa Player was.
+        val video = if (nativeOn) found?.copy(position = sofaPlayer.positionSeconds) else found
         val userAgent = w.settings.userAgentString.orEmpty()
         val cookies = WebViews.cookieManager(w)
         val direct = video?.src?.takeIf(Browser::isWebUrl)
@@ -935,6 +980,261 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         else toast(R.string.no_player)
     }
 
+    // Sofa Player: once the page's video plays fullscreen and its stream is known, Sofa Player gets ready unseen under
+    // it, then takes over at the same position. It falls back to the page's player if it can't (SofaPlayer has the
+    // why). Never for DRM, for files the page didn't give its video (they may be ads), or for short videos.
+
+    private val sofaPlayer: SofaPlayer by lazy { SofaPlayer(this, playerEvents) }
+    /** Sofa Player shows and plays, instead of the page's video. */
+    private var nativeOn = false
+    /** Sofa Player was tried (or refused) for this fullscreen; a second try waits until [nativeRetryAt]. */
+    private var nativeTried = false
+    private var nativeRetryAt = 0L
+    private var nativeTries = 0
+    private var nativeFps = 0f
+    /** What Sofa Player was last started on, for its one more try at a hardware decoder ([hardwareRetried]). */
+    private var sofaStarted: Pair<SofaPlayer.Source, VideoSource>? = null
+    private var hardwareRetried = false
+    /** The page's video was paused by Sofa for that try, not by the user: Sofa Player takes over playing. */
+    private var pausedForDecoder = false
+
+    private fun maybeSofaPlayer(state: VideoState) {
+        if (!prefs.sofaPlayer || nativeTried || sofaPlayer.active || fullscreen.visibility != View.VISIBLE || inPip) return
+        if (state.paused || state.position < 1 || (state.duration > 0 && state.duration < SHORT_FOR_PLAYER)) return
+        if (SystemClock.uptimeMillis() < nativeRetryAt) return
+        nativeTried = true
+        collectSources(::sofaPlayerFor)
+    }
+
+    private fun sofaPlayerFor(video: VideoSource?) {
+        val w = web ?: return
+        if (video == null || video.protected || fullscreen.visibility != View.VISIBLE) {
+            streamLog("Sofa Player not tried: " + if (video == null) "no video answered" else if (video.protected) "protected" else "left fullscreen")
+            return
+        }
+        val userAgent = w.settings.userAgentString.orEmpty()
+        val cookies = WebViews.cookieManager(w)
+        val direct = video.src.takeIf(Browser::isWebUrl)
+        if (direct != null) {
+            startSofaPlayer(SofaPlayer.Source(direct, StreamResolver.Kind.FILE, video.page, null, userAgent, cookies::getCookie, media = true, video.subtitles), video)
+            return
+        }
+        val candidates = browser.streams.candidates()
+        if (candidates.none { it.manifest }) {
+            // The page may fetch its stream a moment after it starts; look again a few times.
+            if (++nativeTries < 4) { nativeTried = false; nativeRetryAt = SystemClock.uptimeMillis() + 2000 }
+            streamLog("Sofa Player: no manifest caught yet (look $nativeTries)")
+            return
+        }
+        browser.fetchInPage(StreamResolver.manifestsToRead(candidates), PAGE_FETCH_MS) { fromPage ->
+            thread(name = "sofa-player") {
+                val resolver = StreamResolver(userAgent, cookies::getCookie, ::streamLog)
+                val resolved = resolver.resolve(candidates, fromPage, checkOutside = false)
+                    // Which pictures are HDR, when the master doesn't say, so Auto can keep to what the TV shows.
+                    ?.let { r -> r.copy(playlist = r.playlist?.let { resolver.withReadRanges(it, r.frame) }) }
+                runOnUiThread {
+                    streamLog("Sofa Player: ${resolved?.kind} ${resolved?.url}")
+                    // A file only the page's requests mention (not its video's own address) may be an ad.
+                    if (resolved == null || resolved.kind == StreamResolver.Kind.FILE || isDestroyed) return@runOnUiThread
+                    startSofaPlayer(SofaPlayer.Source(resolved.url, resolved.kind, resolved.frame, resolved.playlist, userAgent,
+                        cookies::getCookie, media = false, video.subtitles), video)
+                }
+            }
+        }
+    }
+
+    private fun startSofaPlayer(source: SofaPlayer.Source, video: VideoSource) {
+        if (fullscreen.visibility != View.VISIBLE) return
+        nativeFps = 0f
+        measuredFps = null
+        measuredBelowTop = false
+        rateMeasured = false
+        catchUps = 0
+        swapToken++
+        sofaStarted = source to video
+        fullscreen.addPlayer(sofaPlayer.view)
+        // Ahead of the page's video, which plays on while Sofa Player gets ready unseen (see onReady).
+        sofaPlayer.start(source, (pageNowMs() ?: (video.position * 1000).toLong()) + TAKEOVER_LEAD_MS, browser.pageHost?.let(qualityBySite::get))
+    }
+
+    /** Where the page's video is now: its last report, moved on by the time since when it plays. */
+    private fun pageNowMs(): Long? {
+        val s = videoState ?: return null
+        val since = if (s.paused) 0L else ((SystemClock.uptimeMillis() - pageStateAt) * s.rate).toLong()
+        return (s.position * 1000).toLong() + since
+    }
+
+    private var pageStateAt = 0L
+    /** Qualities picked by hand in Sofa Player, by site, until Sofa closes. */
+    private val qualityBySite = HashMap<String, Variants.Quality>()
+    private var catchUps = 0
+
+    /**
+     * Sofa Player is ready, unseen, at a point ahead of the page's video: it shows when the page's video gets there,
+     * so the picture carries straight on. If the page's video got past it first, Sofa Player moves further ahead,
+     * still unseen; after a few tries, or when the page's video stopped, it takes over where that is.
+     */
+    private fun swapWhenPageArrives() {
+        val page = pageNowMs()
+        val ahead = page?.let { sofaPlayer.positionMs - it }
+        streamLog("Sofa Player ready at ${sofaPlayer.positionMs} ms, page at $page ms")
+        when {
+            page == null || sofaPlayer.live -> swapIn(null)
+            videoState?.paused == true -> swapIn(page)
+            ahead!! < -SWAP_SLACK_MS -> if (++catchUps <= MAX_CATCH_UPS) sofaPlayer.catchUp(page + TAKEOVER_LEAD_MS * (catchUps + 1)) else swapIn(page)
+            else -> {
+                val token = swapToken
+                fullscreen.postDelayed({ if (token == swapToken) swapIn(null) }, (ahead / (videoState?.rate ?: 1.0)).toLong().coerceAtLeast(0))
+            }
+        }
+    }
+
+    /** Bumped whenever Sofa Player stops or starts again, so a pending swap of an older one does nothing. */
+    private var swapToken = 0
+
+    private fun swapIn(seekMs: Long?) {
+        if (fullscreen.visibility != View.VISIBLE || !sofaPlayer.active || nativeOn) return
+        val state = videoState
+        streamLog("Sofa Player takes over at ${seekMs ?: sofaPlayer.positionMs} ms, page at ${pageNowMs()} ms")
+        VideoRelay.send(web, "pause")
+        nativeOn = true
+        fullscreen.showPlayer(true)
+        sofaPlayer.takeOver(seekMs, play = state?.paused != true || pausedForDecoder, rate = state?.rate ?: 1.0)
+        fullscreen.bar.show()
+        matchPlayerRate()
+    }
+
+    private val playerEvents: SofaPlayer.Listener = object : SofaPlayer.Listener {
+        override fun onReady() {
+            if (fullscreen.visibility != View.VISIBLE) { sofaPlayer.release(); return }
+            if (!nativeOn) swapWhenPageArrives()
+        }
+
+        override fun onState(state: VideoState) {
+            if (!nativeOn) return
+            videoState = state
+            fullscreen.bar.update(state)
+            rememberPosition(state)
+        }
+
+        override fun onPlaying(playing: Boolean) {
+            nativePlaying = playing && nativeOn
+            applyKeepAwake()
+        }
+
+        // Nothing more to show: Sofa Player's buffer and decoder are let go, and the page's video plays its own last
+        // moment, so the site sees its video end (its next episode, its end screen) as it would without Sofa Player. A
+        // seek to the very end of a paused video fires no "ended". Sofa Player was tried already, so it won't come back.
+        override fun onEnded() {
+            if (nativeOn) backToPage(play = true, before = END_FOR_PAGE_S)
+        }
+
+        override fun onError(reason: String, ready: Boolean) {
+            streamLog("Sofa Player failed: $reason")
+            if (nativeOn) { backToPage(play = true); toast(R.string.sofa_player_failed) }
+            else {
+                sofaPlayer.release(); fullscreen.removePlayer()
+                // The page's video was paused only for the second try: it plays on.
+                if (pausedForDecoder) { pausedForDecoder = false; VideoRelay.send(web, "play") }
+            }
+        }
+
+        override fun onSoftwareDecoder() {
+            // Still unseen: the page's video stops so Sofa Player can try for the hardware decoder once more. If it
+            // gets software again, it plays on with it (the page's video is paused at the same point).
+            val (source, video) = sofaStarted ?: return
+            if (hardwareRetried || nativeOn || fullscreen.visibility != View.VISIBLE) return
+            hardwareRetried = true
+            pausedForDecoder = true
+            streamLog("Sofa Player: software decoder, pausing the page's video and trying again")
+            VideoRelay.send(web, "pause")
+            startSofaPlayer(source, video)
+        }
+
+        override fun onFrameRate(fps: Float) {
+            nativeFps = fps
+            if (nativeOn) matchPlayerRate()
+        }
+
+        override fun onMeasuredFrameRate(fps: Double?, belowTop: Boolean) {
+            measuredFps = fps
+            measuredBelowTop = belowTop
+            rateMeasured = true
+            if (nativeOn) matchPlayerRate()
+        }
+
+        override fun onQualityPicked(quality: Variants.Quality?) {
+            val site = browser.pageHost ?: return
+            if (quality == null) qualityBySite.remove(site) else qualityBySite[site] = quality
+        }
+    }
+
+    /** Sofa Player's frame rate: the stream's word, else what it measured from its own frames. */
+    private val playerFps get() = nativeFps.takeIf { it > 0f }?.toDouble() ?: measuredFps
+    private var measuredFps: Double? = null
+    /** [measuredFps] came from a picture below the stream's largest: its rate may be half the stream's. */
+    private var measuredBelowTop = false
+    private var rateMeasured = false
+    /** Sofa Player matched (or chose not to match) the TV's rate in this fullscreen; the page's measurement is apart. */
+    private var playerRateMatched = false
+
+    /** "Match frame rate" for Sofa Player, once per fullscreen, as for the page's video. */
+    private fun matchPlayerRate() {
+        val fps = playerFps ?: return
+        if (playerRateMatched) return
+        playerRateMatched = true
+        val state = videoState
+        val declared = nativeFps > 0f
+        val source = if (declared) "declared" else if (measuredBelowTop) "measured below the top picture" else "measured"
+        if (!prefs.matchFrameRate || inPip || (state != null && state.duration > 0 && state.duration < SHORT_VIDEO)) {
+            streamLog("Sofa Player frame rate ${FrameRate.label(fps)} ($source): no switch (setting off, picture-in-picture, or video under ${SHORT_VIDEO.toInt()} s)")
+            return
+        }
+        val switched = refreshMatch.match(fps, pause = { sofaPlayer.command("pause", null) },
+            resume = { if (fullscreen.visibility == View.VISIBLE) sofaPlayer.command("play", null) }, orDouble = !declared && measuredBelowTop)
+        streamLog("Sofa Player frame rate ${FrameRate.label(fps)} ($source): " +
+            if (switched) "mode requested" else "no switch (none better, already asked, or no other mode)")
+    }
+
+    /** Hands the video back to the page's player, at Sofa Player's position, or [before] seconds earlier. */
+    private fun backToPage(play: Boolean, before: Double = 0.0) {
+        val at = (sofaPlayer.positionSeconds - before).coerceAtLeast(0.0)
+        val wasOn = nativeOn
+        nativeOn = false
+        swapToken++
+        nativePlaying = false
+        sofaPlayer.release()
+        fullscreen.removePlayer()
+        applyKeepAwake()
+        if (!wasOn) return
+        VideoRelay.send(web, "seekTo", at)
+        if (play) VideoRelay.send(web, "play")
+    }
+
+    override fun sitePlayer() {
+        backToPage(play = true)
+        fullscreen.bar.show()
+    }
+
+    override fun tracks() {
+        val quality = sofaPlayer.qualities(getString(R.string.auto), getString(R.string.quality_beyond))
+        val sound = sofaPlayer.audios()
+        val subs = sofaPlayer.subtitles(getString(R.string.subtitles_off))
+        val rows = listOfNotNull(
+            Triple(R.string.quality, quality, quality.firstOrNull { it.selected }?.label),
+            if (sound.size > 1) Triple(R.string.sound, sound, sound.firstOrNull { it.selected }?.label) else null,
+            if (subs.size > 1) Triple(R.string.subtitles, subs, subs.firstOrNull { it.selected }?.label) else null,
+        )
+        val labels = rows.map { (title, _, now) -> getString(title) + (now?.let { ": $it" } ?: "") }.toTypedArray()
+        dialog().setTitle(R.string.tracks).setItems(labels) { _, which ->
+            val (title, choices, _) = rows[which]
+            dialog().setTitle(title).setSingleChoiceItems(choices.map { it.label }.toTypedArray(), choices.indexOfFirst { it.selected }) { d, i ->
+                choices[i].apply()
+                d.dismiss()
+            }.show()
+        }.show()
+    }
+
     // Picture-in-picture: the fullscreen video shrinks into a corner, from the bar or on Home while it plays.
 
     private val pipSupported get() =
@@ -959,11 +1259,13 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         if (isInPictureInPictureMode) { fullscreen.bar.hideNow(); menu?.dismiss() }
     }
 
-    private var videoPlaying = false
+    private var pagePlaying = false
+    private var nativePlaying = false
+    private val videoPlaying get() = pagePlaying || nativePlaying
     private var started = false
 
     override fun onPlaying(playing: Boolean) {
-        videoPlaying = playing
+        pagePlaying = playing
         applyKeepAwake()
     }
 
@@ -1103,6 +1405,13 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     override fun onStop() {
         // Stopped while in picture-in-picture means its window was closed: no sound may go on playing.
         if (inPip) { VideoRelay.send(web, "pause"); web?.onPause() }
+        // Out of sight (picture-in-picture keeps the activity started), Sofa Player lets go of its buffer and decoder:
+        // the page's video holds the place, and Sofa Player may take over again once it plays.
+        if (sofaPlayer.active) {
+            backToPage(play = false)
+            nativeTried = false
+            nativeTries = 0
+        }
         started = false
         applyKeepAwake()
         DownloadEngine.removeListener(downloadsListener)
@@ -1166,6 +1475,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
 
     override fun onDestroy() {
         voiceInput.destroy()
+        sofaPlayer.release()
         if (isFinishing) {
             val wasPrivate = browser.privateMode && !browser.isolated
             browser.destroy()
@@ -1215,8 +1525,20 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         private const val REQ_URL = 10
         private const val REQ_NOTIFICATIONS = 11
         private const val REQ_MIC = 12
+        /** The commands Sofa Player takes in place of the page's video. */
+        private val PLAYER_COMMANDS = setOf("toggle", "play", "pause", "seekBy", "seekTo", "rate", "subs")
+        /** Seconds: shorter videos (trailers, previews, ads) stay with the page's player. */
+        private const val SHORT_FOR_PLAYER = 60.0
         /** How long the page may take to fetch its manifests again. */
         private const val PAGE_FETCH_MS = 2500L
+        /** Seconds of the end the page's video plays itself after Sofa Player finished, so the site sees the end. */
+        private const val END_FOR_PAGE_S = 0.5
+        /** How far ahead of the page's video Sofa Player gets ready: about what it takes to start (ms). */
+        private const val TAKEOVER_LEAD_MS = 4000L
+        /** How far the page's video may have passed Sofa Player's first picture and it still swaps in there (ms). */
+        private const val SWAP_SLACK_MS = 150L
+        /** How many times Sofa Player moves further ahead, unseen, before it takes over with a seek. */
+        private const val MAX_CATCH_UPS = 2
         /** How many times, ever, the game pad card is shown. */
         private const val PAD_HINTS = 3
         /** Seconds: "Match frame rate" leaves shorter videos alone. */

@@ -12,8 +12,8 @@ object PlayerRequest {
     data class Launch(val uri: String, val mime: String, val title: String?, val positionMs: Int?,
                       val headers: Map<String, String>, val subtitles: List<Subtitle> = emptyList()) : Result
 
-    /** A subtitle file the page gives its video (a <track>): address, label and language. */
-    data class Subtitle(val url: String, val label: String, val language: String)
+    /** A subtitle file the page gives its video (a <track>): address, label, language, and whether the page shows it. */
+    data class Subtitle(val url: String, val label: String, val language: String, val showing: Boolean = false)
 
     enum class Refusal : Result { NO_VIDEO, IN_PAGE, PROTECTED }
 

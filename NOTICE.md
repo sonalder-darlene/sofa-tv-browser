@@ -70,6 +70,15 @@ Compiled into the app from the Android Open Source Project
 (https://developer.android.com/jetpack/androidx/releases/webkit), Copyright The Android Open Source Project,
 licensed under the Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0).
 
+## AndroidX Media3 (`androidx.media3`) and the libraries it uses
+
+Sofa Player is built on Media3's ExoPlayer with its HLS and DASH modules
+(https://developer.android.com/jetpack/androidx/releases/media3), Copyright The Android Open Source Project. They
+bring Guava and `failureaccess` (https://github.com/google/guava, Copyright The Guava Authors), JSpecify
+(https://jspecify.dev, Copyright The JSpecify Authors) and a few small AndroidX libraries (annotation, collection,
+concurrent-futures, core, exifinterface, lifecycle, versionedparcelable), all compiled into the app and all
+licensed under the Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0).
+
 ## Search engine icons
 
 `app/src/main/res/drawable-nodpi/engine_*.webp` are the icons the search engines publish on their own sites,

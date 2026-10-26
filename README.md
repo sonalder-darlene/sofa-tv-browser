@@ -12,6 +12,8 @@ called Sofa.
   blocking per site, and "Browse as" desktop, mobile or TV.
 - **A home screen** with your own tiles, your most visited sites and your bookmarks.
 - **Watch**: one press of Play finds the page's main video and plays it fullscreen.
+- **Sofa Player**: in fullscreen, Sofa plays the site's stream in its own player when it can, with 4K at full
+  resolution, HDR, and a choice of quality, sound and subtitles. Otherwise the site's player carries on.
 - **Controls for fullscreen video**: seek, pause, playback speed, subtitles, Video info, picture-in-picture, and
   Play in another app (Android asks once, Sofa remembers; hold OK on the button to choose again).
 - **Match frame rate** (experimental), on TVs that offer it: films play at 24 Hz instead of juddering at 60.
@@ -22,7 +24,7 @@ called Sofa.
 - **Downloads** that pause, resume and carry on in the background.
 - **Dark and Light themes.**
 
-The app is about 1 MB.
+The app is about 2 MB.
 
 ## Install
 
@@ -77,15 +79,27 @@ Everything is matched on the TV; nothing about your browsing leaves it.
 
 ## Video
 
-- **Decoding:** Sofa doesn't change how video is decoded. The TV's web engine (Android System WebView) does it,
-  with the TV's video hardware where the format allows; Video info shows what the TV reports. Sofa's fullscreen
-  controls are drawn on top of the picture.
-- **4K:** in fullscreen, sites see the TV's real resolution, so on a 4K TV they can send their 4K stream. The web
-  engine then shows it through Sofa's HD window, as it does for every app, so the panel gets an upscaled HD
-  picture; it is still sharper than the site's HD stream.
+- **Sofa Player:** once a video plays fullscreen, Sofa looks for the stream behind it: a video file, or an HLS or
+  DASH stream the page loaded. If it can play it, Sofa Player (AndroidX Media3) gets ready out of sight and takes
+  over at the same position. It draws on a video layer of its own, so a 4K stream reaches a 4K panel at full
+  resolution, in HDR when the stream and the TV have it. "Quality, sound and subtitles" on the bar lists what the
+  stream offers, and Video info shows the decoder and the frames dropped. When the stream has no subtitles of its
+  own, the page's subtitle files are offered instead, and the one the site was showing stays on. If Sofa Player only
+  gets a software decoder while the TV has a hardware one for the video (the site's player may still hold it), it
+  pauses the site's video and tries once more before taking over. Its requests are the ones the page's
+  player would make, with the same headers and cookies, and it keeps no cache. Protected (DRM) video, videos under
+  a minute and streams a page builds itself (YouTube's, for one) stay with the site's player.
+- **Back to the site's player:** the bar's "Site's player" button switches back at the same position, and so does
+  Sofa if its player can't go on. Settings → Sofa Player turns it off.
+- **Decoding:** with the site's player, the TV's web engine (Android System WebView) decodes the video, with the
+  TV's video hardware where the format allows; Video info shows what the TV reports. Sofa's fullscreen controls are
+  drawn on top of the picture.
+- **4K with the site's player:** in fullscreen, sites see the TV's real resolution, so on a 4K TV they can send
+  their 4K stream. The web engine then shows it through Sofa's HD window, as it does for every app, so the panel
+  gets an upscaled HD picture; it is still sharper than the site's HD stream.
 - **Frame rate:** with Settings → Match frame rate (experimental, off by default), the TV switches to the video's frame rate in
   fullscreen, such as 24 or 50 per second, and back afterwards. Sofa measures the rate from the frames the page
-  shows, and only switches between refresh rates the TV offers at its current resolution. The screen goes dark for
+  shows (Sofa Player reads it from the stream), and only switches between refresh rates the TV offers at its current resolution. The screen goes dark for
   a moment while the TV switches, so videos under 5 minutes are left alone. The setting only appears on TVs that
   offer more than one refresh rate, and Android 12's "Match content frame rate: Never" turns it off.
 - **Resolution:** Sofa never changes the TV's resolution. Web video always reaches the screen through Sofa's
@@ -109,8 +123,8 @@ nix develop -c ./gradlew testStandardDebugUnitTest testPlayDebugUnitTest lintSta
 ```
 
 Without Nix, use JDK 17 or newer and an Android SDK with platform 36 and build-tools 36.1.0 in `ANDROID_HOME`.
-The project uses AGP 9.4.1, Kotlin 2.4.21 and Gradle 9.8.1. The UI is plain framework views, and
-`androidx.webkit` is the only dependency.
+The project uses AGP 9.4.1, Kotlin 2.4.21 and Gradle 9.8.1. The UI is plain framework views; the
+dependencies are `androidx.webkit` and Media3 (ExoPlayer with HLS and DASH) for Sofa Player.
 
 **Two builds**
 
@@ -161,7 +175,7 @@ On a TV, turn on network debugging, then run `adb connect <tv-ip>:5555` and `adb
 **Layout**
 
 ```
-app/src/main/java/app/sofabrowser/   browser/ (pointer, WebView), ui/, downloads/, adblock/, data/
+app/src/main/java/app/sofabrowser/   browser/ (pointer, WebView), player/ (Sofa Player), ui/, downloads/, adblock/, data/
 app/src/main/java/jp/hazuki/…        the Yuzu Browser filter-rule engine (Apache-2.0, see NOTICE.md)
 app/src/standard/                    the updater
 app/src/play/                        an empty stand-in for the updater

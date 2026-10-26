@@ -95,4 +95,16 @@ class PlaylistTest {
     fun everythingDecodableIsUnchanged() {
         assertEquals(master, Playlist.decodableOnly(master, noAv1))
     }
+
+    @Test
+    fun theInitSegmentOfAMediaPlaylist() {
+        val base = "https://vod.test/avf/f9297517/media.m3u8?sig=1"
+        val withRange = "#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXT-X-MAP:URI=\"../init/f9.mp4?sig=2\",BYTERANGE=\"944@100\"\n#EXTINF:6,\nseg1.m4s"
+        assertEquals(Playlist.Init("https://vod.test/avf/init/f9.mp4?sig=2", 100L, 944L), Playlist.initSegment(withRange, base))
+        val whole = "#EXTM3U\n#EXT-X-MAP:URI=\"https://cdn.test/init.mp4\"\n#EXTINF:6,\nseg1.m4s"
+        assertEquals(Playlist.Init("https://cdn.test/init.mp4", 0L, null), Playlist.initSegment(whole, base))
+        // MPEG-TS has none; a local address is never fetched.
+        assertEquals(null, Playlist.initSegment("#EXTM3U\n#EXTINF:6,\nseg1.ts", base))
+        assertEquals(null, Playlist.initSegment("#EXTM3U\n#EXT-X-MAP:URI=\"file:///sdcard/x.mp4\"", base))
+    }
 }

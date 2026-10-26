@@ -18,6 +18,7 @@ import android.widget.TextView
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import app.sofabrowser.R
+import app.sofabrowser.player.PlayerSurface
 import app.sofabrowser.ui.Ui
 import app.sofabrowser.ui.px
 import org.json.JSONObject
@@ -300,7 +301,7 @@ object VideoRelay {
         if (v && out) {
           const r = v.getBoundingClientRect();
           const tr = [...v.querySelectorAll('track')].filter((t) => t.src && (!t.kind || t.kind === 'subtitles' || t.kind === 'captions'))
-            .map((t) => ({ u: t.src, l: t.label || '', g: t.srclang || '' }));
+            .map((t) => ({ u: t.src, l: t.label || '', g: t.srclang || '', o: !!t.track && t.track.mode === 'showing' }));
           out.postMessage(JSON.stringify({ src: { s: v.currentSrc || v.src || '', t: v.currentTime || 0,
             a: r.width * r.height, drm: !!v.mediaKeys, pg: location.href, tr } }));
         }
@@ -391,7 +392,7 @@ object VideoRelay {
                         o.has("src") -> o.getJSONObject("src").let {
                             val tr = it.optJSONArray("tr")
                             val tracks = (0 until (tr?.length() ?: 0)).mapNotNull { i ->
-                                tr!!.optJSONObject(i)?.let { t -> PlayerRequest.Subtitle(t.optString("u"), t.optString("l"), t.optString("g")) }
+                                tr!!.optJSONObject(i)?.let { t -> PlayerRequest.Subtitle(t.optString("u"), t.optString("l"), t.optString("g"), t.optBoolean("o")) }
                             }.filter { t -> Browser.isWebUrl(t.url) }
                             val claimed = it.optString("pg").takeIf(Browser::isWebUrl)
                             val page = PageHeaders.frameFor(claimed, sender)
@@ -482,7 +483,10 @@ data class VideoInfo(
     }
 }
 
-/** The fullscreen control bar: -10 s, play/pause, +10 s, scrub bar, subtitles, speed, info, pointer and exit. */
+/**
+ * The fullscreen control bar: -10 s, play/pause, +10 s, scrub bar, subtitles, speed, info, pointer and exit; with Sofa
+ * Player, also its tracks and the way back to the site's player.
+ */
 @SuppressLint("ViewConstructor")
 class VideoBar(context: Context, private val actions: Actions) : LinearLayout(context) {
 
@@ -493,6 +497,10 @@ class VideoBar(context: Context, private val actions: Actions) : LinearLayout(co
         fun toggleVideoInfo()
         fun playIn(choose: Boolean)
         fun pictureInPicture()
+        /** Sofa Player's quality, sound and subtitle choices. */
+        fun tracks()
+        /** From Sofa Player back to the site's own player. */
+        fun sitePlayer()
     }
 
     private val playPause: ImageView
@@ -504,6 +512,18 @@ class VideoBar(context: Context, private val actions: Actions) : LinearLayout(co
     private var state = VideoState(0.0, 0.0, true, 1.0)
 
     private val pip: ImageView
+    private val tracks: ImageView
+    private val site: ImageView
+
+    /** Sofa Player plays: its own buttons show, and the pointer (for the page's controls) doesn't. */
+    var native = false
+        set(v) {
+            field = v
+            tracks.visibility = if (v) VISIBLE else GONE
+            site.visibility = if (v) VISIBLE else GONE
+            pointer.visibility = if (v) GONE else VISIBLE
+        }
+    private val pointer: ImageView
 
     /** "Continue from 12:30", above the timeline, for a film left part-way; it goes away after a while. */
     private val resume: TextView
@@ -581,6 +601,8 @@ class VideoBar(context: Context, private val actions: Actions) : LinearLayout(co
             }
         }
         buttons.addView(speed, LayoutParams(120.px, 72.px).apply { marginStart = 16.px })
+        tracks = button(R.drawable.ic_settings, R.string.tracks) { actions.tracks() }.apply { visibility = GONE }
+        buttons.addView(tracks)
         // "Play in…": the player picked the first time, from then on; a long press (hold OK) picks again.
         buttons.addView(button(R.drawable.ic_output, R.string.play_in) { actions.playIn(choose = false) }.apply {
             // A held key gets Android's long-press flag on its repeat; the release then mustn't also click.
@@ -598,7 +620,10 @@ class VideoBar(context: Context, private val actions: Actions) : LinearLayout(co
             .apply { visibility = GONE }
         buttons.addView(pip)
         buttons.addView(button(R.drawable.ic_info, R.string.video_info) { actions.toggleVideoInfo() })
-        buttons.addView(button(R.drawable.ic_mouse, R.string.pointer) { actions.usePointer() })
+        site = button(R.drawable.ic_desktop_windows, R.string.site_player) { actions.sitePlayer() }.apply { visibility = GONE }
+        buttons.addView(site)
+        pointer = button(R.drawable.ic_mouse, R.string.pointer) { actions.usePointer() }
+        buttons.addView(pointer)
         buttons.addView(button(R.drawable.ic_close, R.string.exit_fullscreen) { actions.exitFullscreen() })
         addView(buttons)
     }
@@ -617,6 +642,15 @@ class VideoBar(context: Context, private val actions: Actions) : LinearLayout(co
     }
 
     val showing get() = visibility == VISIBLE
+
+    /** Told when the bar shows or hides, so Sofa Player's subtitles can move out of its way. */
+    var onShowing: ((Boolean) -> Unit)? = null
+
+    override fun setVisibility(visibility: Int) {
+        val was = this.visibility
+        super.setVisibility(visibility)
+        if (was != visibility) onShowing?.invoke(visibility == VISIBLE)
+    }
 
     fun show(focusScrub: Boolean = false) {
         val wasHidden = !showing
@@ -724,7 +758,10 @@ class VideoBar(context: Context, private val actions: Actions) : LinearLayout(co
     }
 }
 
-/** The fullscreen layer: the page's fullscreen view under a pointer layer, with the control bar on top. */
+/**
+ * The fullscreen layer: the page's fullscreen view under a pointer layer, with the control bar on top. Sofa Player's
+ * picture lies under the page's view, hidden by it while it gets ready, and shows once the page's view is hidden.
+ */
 @SuppressLint("ViewConstructor")
 class FullscreenLayer(context: Context, val bar: VideoBar) : FrameLayout(context) {
     val pointer = CursorLayout(context).apply { cursorEnabled = false }
@@ -745,6 +782,7 @@ class FullscreenLayer(context: Context, val bar: VideoBar) : FrameLayout(context
         })
         addView(bar, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
         visibility = GONE
+        bar.onShowing = { liftSubtitles() }
     }
 
     fun attach(view: View) {
@@ -756,7 +794,37 @@ class FullscreenLayer(context: Context, val bar: VideoBar) : FrameLayout(context
         visibility = VISIBLE
     }
 
+    private var player: PlayerSurface? = null
+
+    /** Puts [view] (Sofa Player's) under the page's view, unseen until [showPlayer]. */
+    fun addPlayer(view: PlayerSurface) {
+        removePlayer()
+        player = view
+        addView(view, 0, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        liftSubtitles()
+    }
+
+    /** While the bar is up, Sofa Player's subtitles sit above it (measured once it is laid out). */
+    private fun liftSubtitles() {
+        val lift = { player?.liftSubtitles(if (bar.showing) bar.height else 0) }
+        lift()
+        if (bar.showing) bar.post { lift() }
+    }
+
+    /** Sofa Player's picture, or the page's again. */
+    fun showPlayer(on: Boolean) {
+        pointer.visibility = if (on) INVISIBLE else VISIBLE
+        bar.native = on
+    }
+
+    fun removePlayer() {
+        player?.let(::removeView)
+        player = null
+        showPlayer(false)
+    }
+
     fun detach() {
+        removePlayer()
         bar.hideNow()
         info.visibility = GONE
         pointer.cursorEnabled = false

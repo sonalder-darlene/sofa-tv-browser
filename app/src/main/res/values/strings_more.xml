@@ -84,4 +84,23 @@
     <string name="pad_seek_short">10 seconds back or forward</string>
     <string name="pad_seek_long">30 seconds back or forward</string>
     <string name="pad_note">The D-pad works like the remote\'s. On sites that take keys directly (pointer off), the sticks and D-pad go to the site.</string>
+
+    <!-- Sofa Player -->
+    <string name="sofa_player">Sofa Player</string>
+    <string name="sofa_player_sub">In fullscreen, Sofa plays the site\'s video in its own player when it can: 4K at full resolution, HDR, and a choice of quality, sound and subtitles. It falls back to the site\'s player when it can\'t.</string>
+    <string name="sofa_player_failed">Sofa Player couldn\'t go on: back to the site\'s player</string>
+    <string name="site_player">Site\'s player</string>
+    <string name="tracks">Quality, sound and subtitles</string>
+    <string name="quality">Quality</string>
+    <string name="sound">Sound</string>
+    <string name="auto">Auto</string>
+    <string name="quality_beyond">may stutter</string>
+    <string name="subtitles_off">Off</string>
+    <string name="video_info_native_video">Video: %s</string>
+    <string name="video_info_decoder">Decoder: %s</string>
+    <string name="video_info_native_frames">Frames shown / dropped: %s</string>
+    <string name="video_info_sound">Sound: %s</string>
+    <string name="decoder_hardware">%s (hardware)</string>
+    <string name="decoder_software">%s (software)</string>
+    <string name="video_info_display_player">Display: panel %3$d × %4$d, the video drawn at the panel\'s own resolution (app window %1$d × %2$d)</string>
 </resources>

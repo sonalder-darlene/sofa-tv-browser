@@ -43,12 +43,12 @@ class RefreshRateMatch(private val activity: Activity) {
 
     /**
      * Switches for a video at [fps], if a mode suits it better: [pause] runs first, [resume] once the TV has
-     * switched and settled (or after 7 s at most). Returns whether it switched.
+     * switched and settled (or after 7 s at most). Returns whether it switched. [orDouble]: see FrameRate.pick.
      */
-    fun match(fps: Double, pause: () -> Unit, resume: () -> Unit): Boolean {
+    fun match(fps: Double, pause: () -> Unit, resume: () -> Unit, orDouble: Boolean = false): Boolean {
         if (requested != 0 || !available()) return false
         val d = display ?: return false
-        val id = FrameRate.pick(d.supportedModes.map { it.toMode() }, d.mode.toMode(), fps) ?: return false
+        val id = FrameRate.pick(d.supportedModes.map { it.toMode() }, d.mode.toMode(), fps, orDouble) ?: return false
         pause()
         requested = id
         var settled = false
