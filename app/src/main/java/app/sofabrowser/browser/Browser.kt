@@ -83,6 +83,12 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
     @Volatile var pageUrl: String? = null
         private set
 
+    /**
+     * Where the main frame is going: a link or a server redirect it follows. A redirect reaches neither
+     * shouldInterceptRequest nor onPageStarted before its certificate is checked, so [pageUrl] still names the page before.
+     */
+    private var mainFrameTarget: String? = null
+
     val adBlocker = AdBlocker.get(context)
     private val guard = NavigationGuard()
     private val frames = PlaybackFrames()
@@ -207,7 +213,9 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             val url = request.url
             return when (url.scheme?.lowercase()) {
-                "http", "https" -> request.isForMainFrame && blockNavigation(view, request)
+                "http", "https" -> (request.isForMainFrame && blockNavigation(view, request)).also { blocked ->
+                    if (request.isForMainFrame && !blocked) mainFrameTarget = url.toString()
+                }
                 "about", "data", "blob", "javascript", null -> false
                 "intent" -> {
                     // Never launch other apps from web content; follow the page's own web fallback if it has one.
@@ -222,10 +230,13 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
 
         @SuppressLint("WebViewClientOnReceivedSslError")
         override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
-            // Only the page itself may ask the user. Anything else with a broken certificate (ad frames on such sites
-            // often have one) is refused quietly, as Chrome does, instead of putting a dialog over the page.
+            // Only the page itself, or the one the main frame is going to, may ask the user. Anything else with a broken
+            // certificate (ad frames on such sites often have one) is refused quietly, as Chrome does, instead of
+            // putting a dialog over the page.
             val errorHost = hostOf(error.url)
-            if (error.url != pageUrl && errorHost != null && !errorHost.equals(pageHost, ignoreCase = true)) {
+            val mine = error.url == pageUrl || error.url == mainFrameTarget || errorHost == null ||
+                errorHost.equals(pageHost, ignoreCase = true) || errorHost.equals(mainFrameTarget?.let(::hostOf), ignoreCase = true)
+            if (!mine) {
                 debug("certificate error refused: ${error.url}")
                 handler.cancel()
             } else {
