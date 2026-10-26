@@ -15,7 +15,8 @@ called Sofa.
 - **Sofa Player**: in fullscreen, Sofa plays the site's stream in its own player when it can, with 4K at full
   resolution, HDR, and a choice of quality, sound and subtitles. Otherwise the site's player carries on.
 - **Controls for fullscreen video**: seek, pause, playback speed, subtitles, Video info, picture-in-picture, and
-  Play in another app (Android asks once, Sofa remembers; hold OK on the button to choose again).
+  Play in another app (Android asks once, Sofa remembers; hold OK on the button, or use Settings → Play in…, to
+  choose again or to be asked every time).
 - **Match frame rate** (experimental), on TVs that offer it: films play at 24 Hz instead of juddering at 60.
 - **Ad blocking with filter lists** in the formats of uBlock Origin, Adblock Plus and hosts files, including
   hiding the empty boxes ads leave behind. One switch adds EasyList and EasyPrivacy.
@@ -91,6 +92,9 @@ Everything is matched on the TV; nothing about your browsing leaves it.
   a minute and streams a page builds itself (YouTube's, for one) stay with the site's player.
 - **Back to the site's player:** the bar's "Site's player" button switches back at the same position, and so does
   Sofa if its player can't go on. Settings → Sofa Player turns it off.
+- **Another app instead:** Settings → "Always play in another app" (experimental, off by default) sends fullscreen
+  videos to the "Play in…" app instead of Sofa Player. Protected videos and videos under a minute stay in Sofa.
+  How well a video plays there depends on the app and the site, which is why Sofa never does this unless asked.
 - **Decoding:** with the site's player, the TV's web engine (Android System WebView) decodes the video, with the
   TV's video hardware where the format allows; Video info shows what the TV reports. Sofa's fullscreen controls are
   drawn on top of the picture.

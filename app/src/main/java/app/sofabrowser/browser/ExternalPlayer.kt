@@ -38,6 +38,24 @@ object ExternalPlayer {
         return found.filter { it.activityInfo.packageName != context.packageName && it.priority >= 0 }
     }
 
+    /**
+     * The installed players, by name, for Settings: the apps that open a web video or an HLS stream, as the chooser
+     * would list them.
+     */
+    fun players(context: Context): List<Pair<ComponentName, String>> {
+        val pm = context.packageManager
+        val probe = Uri.parse("https://example.com/video")
+        return listOf("video/*", PlayerRequest.HLS).flatMap { type -> handlers(context, Intent(Intent.ACTION_VIEW).setDataAndType(probe, type)) }
+            .distinctBy { it.activityInfo.packageName to it.activityInfo.name }
+            .map { ComponentName(it.activityInfo.packageName, it.activityInfo.name) to it.loadLabel(pm).toString() }
+            .sortedBy { it.second.lowercase() }
+    }
+
+    /** The name of the app [choice] names, or null when it isn't installed. */
+    fun label(context: Context, choice: String): String? = installed(context, choice)?.let { c ->
+        runCatching { context.packageManager.getActivityInfo(c, 0).loadLabel(context.packageManager).toString() }.getOrNull()
+    }
+
     /** The remembered player, or null when [choice] isn't a component or that app was uninstalled. */
     fun installed(context: Context, choice: String): ComponentName? {
         val component = ComponentName.unflattenFromString(choice) ?: return null
@@ -108,12 +126,16 @@ object ExternalPlayer {
     }
 }
 
-/** Remembers the player picked in Android's chooser, so "Play in…" goes straight to it next time. */
+/**
+ * Remembers the player picked in Android's chooser, so "Play in…" goes straight to it next time; not when the user
+ * asked in Settings to choose every time.
+ */
 class PlayerChosen : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         @Suppress("DEPRECATION")
         val component = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_CHOSEN_COMPONENT, ComponentName::class.java)
         else intent.getParcelableExtra(Intent.EXTRA_CHOSEN_COMPONENT)
-        if (component != null) Prefs(context).videoPlayer = component.flattenToString()
+        val prefs = Prefs(context)
+        if (component != null && prefs.videoPlayer != Prefs.ASK_EVERY_TIME) prefs.videoPlayer = component.flattenToString()
     }
 }

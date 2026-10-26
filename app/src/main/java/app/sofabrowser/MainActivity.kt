@@ -975,8 +975,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             }
             launch = launch.copy(uri = StreamCopyProvider.put(this, copy).toString(), mime = PlayerRequest.HLS)
         }
-        // The player picked last time, unless the user asked to choose again or it was uninstalled since.
-        val remembered = prefs.videoPlayer.takeUnless { choosePlayer || it.isEmpty() }
+        // The player picked last time, unless the user asked to choose (again, or every time) or it was uninstalled since.
+        val remembered = prefs.videoPlayer.takeUnless { choosePlayer || it.isEmpty() || it == Prefs.ASK_EVERY_TIME }
         val player = remembered?.let { ExternalPlayer.installed(this, it) ?: run {
             prefs.videoPlayer = ""
             playInMessage(R.string.player_gone)
@@ -1005,10 +1005,22 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     private var pausedForDecoder = false
 
     private fun maybeSofaPlayer(state: VideoState) {
-        if (!prefs.sofaPlayer || nativeTried || sofaPlayer.active || fullscreen.visibility != View.VISIBLE || inPip) return
+        val external = prefs.forceExternalPlayer
+        if (!(prefs.sofaPlayer || external) || nativeTried || sofaPlayer.active || fullscreen.visibility != View.VISIBLE || inPip) return
         if (state.paused || state.position < 1 || (state.duration > 0 && state.duration < SHORT_FOR_PLAYER)) return
         if (SystemClock.uptimeMillis() < nativeRetryAt) return
         nativeTried = true
+        // "Always play in another app" (experimental): the "Play in…" app gets it, once per fullscreen; short videos
+        // (often ads) and protected ones, which no other app can open, stay here without a word.
+        if (external) {
+            collectSources { video ->
+                if (video?.protected == true) { streamLog("Always play in another app: protected, stays here"); return@collectSources }
+                streamLog("Always play in another app: handing over")
+                choosePlayer = false
+                playInChosen(video)
+            }
+            return
+        }
         collectSources(::sofaPlayerFor)
     }
 

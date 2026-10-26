@@ -89,6 +89,11 @@
     <string name="sofa_player">Sofa Player</string>
     <string name="sofa_player_sub">In fullscreen, Sofa plays the site\'s video in its own player when it can: 4K at full resolution, HDR, and a choice of quality, sound and subtitles. It falls back to the site\'s player when it can\'t.</string>
     <string name="sofa_player_failed">Sofa Player couldn\'t go on: back to the site\'s player</string>
+    <string name="play_in_setting_sub">The app "Play in…" sends videos to. Holding OK on the button also asks again.</string>
+    <string name="ask_every_time">Ask every time</string>
+    <string name="ask_first_time">Not chosen yet</string>
+    <string name="force_external_player">Always play in another app (experimental)</string>
+    <string name="force_external_player_sub">In fullscreen, videos go to the "Play in…" app instead of playing here. Protected and short videos stay here. How well it works depends on the app and the site.</string>
     <string name="site_player">Site\'s player</string>
     <string name="tracks">Quality, sound and subtitles</string>
     <string name="quality">Quality</string>

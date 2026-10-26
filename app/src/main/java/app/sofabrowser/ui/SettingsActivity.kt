@@ -28,6 +28,7 @@ import app.sofabrowser.Prefs
 import app.sofabrowser.R
 import app.sofabrowser.adblock.AdBlocker
 import app.sofabrowser.adblock.FilterList
+import app.sofabrowser.browser.ExternalPlayer
 import app.sofabrowser.browser.ProtectedMedia
 import app.sofabrowser.browser.RefreshRateMatch
 import app.sofabrowser.browser.StreamCopyProvider
@@ -105,6 +106,8 @@ class SettingsActivity : Activity() {
         switch(R.string.javascript, R.string.javascript_sub, prefs::javascript)
         switch(R.string.autoplay, R.string.autoplay_sub, prefs::autoplay)
         switch(R.string.sofa_player, R.string.sofa_player_sub, prefs::sofaPlayer)
+        row(getString(R.string.play_in), getString(R.string.play_in_setting_sub), valueText(playerLabel())) { pickPlayer() }
+        switch(R.string.force_external_player, R.string.force_external_player_sub, prefs::forceExternalPlayer)
         // Only on TVs that offer another refresh rate at their resolution; many offer just one.
         if (RefreshRateMatch(this).available()) switch(R.string.match_frame_rate, R.string.match_frame_rate_sub, prefs::matchFrameRate)
         nav(R.string.downloads, null) { startActivity(android.content.Intent(this, DownloadsActivity::class.java)) }
@@ -300,6 +303,29 @@ class SettingsActivity : Activity() {
                     Toast.makeText(this, R.string.drm_saved, Toast.LENGTH_LONG).show()
                     build()
                 }
+            }.show()
+    }
+
+    /** The "Play in…" app's name, "Ask every time", or that Android's chooser asks the first time. */
+    private fun playerLabel(): String = when (val choice = prefs.videoPlayer) {
+        Prefs.ASK_EVERY_TIME -> getString(R.string.ask_every_time)
+        "" -> getString(R.string.ask_first_time)
+        else -> ExternalPlayer.label(this, choice) ?: getString(R.string.ask_first_time)
+    }
+
+    private fun pickPlayer() {
+        val players = ExternalPlayer.players(this)
+        val names = listOf(getString(R.string.ask_every_time)) + players.map { it.second }
+        val chosen = players.indexOfFirst { it.first.flattenToString() == prefs.videoPlayer }
+        val current = when {
+            chosen >= 0 -> chosen + 1
+            prefs.videoPlayer == Prefs.ASK_EVERY_TIME -> 0
+            else -> -1
+        }
+        dialog().setTitle(R.string.play_in)
+            .setSingleChoiceItems(names.toTypedArray(), current) { d, which ->
+                prefs.videoPlayer = if (which == 0) Prefs.ASK_EVERY_TIME else players[which - 1].first.flattenToString()
+                d.dismiss(); build()
             }.show()
     }
 

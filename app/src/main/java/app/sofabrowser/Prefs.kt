@@ -75,8 +75,13 @@ class Prefs(context: Context) {
     var matchFrameRate by boolean("match_frame_rate", false)
     /** Sofa Player takes over fullscreen videos whose stream it can play. */
     var sofaPlayer by boolean("sofa_player", true)
-    /** The player picked in Android's chooser for "Play in…" (a flattened component name), or "" before the first. */
+    /**
+     * The player for "Play in…" (a flattened component name): picked in Android's chooser the first time ("" until
+     * then) or in Settings; [ASK_EVERY_TIME] keeps the chooser.
+     */
     var videoPlayer by string("video_player", "")
+    /** Watch hands fullscreen videos to the "Play in…" app instead of Sofa Player. Experimental, off by default. */
+    var forceExternalPlayer by boolean("force_external_player", false)
     var textZoom by int("text_zoom", 100)
     var cursorSpeed by int("cursor_speed", 2) // 1 slow .. 3 fast
     /** How often the game pad card was shown. */
@@ -152,6 +157,8 @@ class Prefs(context: Context) {
 
     companion object {
         val UA_MODES = listOf("desktop", "mobile", "webview", "ipad", "tv", "custom")
+        /** [videoPlayer] when the user wants Android's chooser every time. */
+        const val ASK_EVERY_TIME = "ask"
 
         /**
          * The first-start choices, in alphabetical order. Templates come from each engine's OpenSearch
