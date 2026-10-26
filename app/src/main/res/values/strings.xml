@@ -153,7 +153,7 @@
     <string name="video_info_size">Video: %1$d × %2$d</string>
     <string name="video_info_frames">Frames shown: %1$d, dropped: %2$d</string>
     <string name="video_info_hardware">Hardware decoding available for: %s</string>
-    <string name="video_info_software">Software only: %s</string>
+    <string name="video_info_software">Software only, in WebView\'s own decoder: %s</string>
     <string name="video_info_none">none of H.264, VP9, AV1, HEVC</string>
     <string name="video_info_note">An indication from the TV, not proof of what this video uses.</string>
     <string name="video_info_display">Display: window %1$d × %2$d, panel %3$d × %4$d</string>

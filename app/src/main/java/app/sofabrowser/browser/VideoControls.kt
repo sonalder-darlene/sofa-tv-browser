@@ -552,7 +552,7 @@ class VideoBar(context: Context, private val actions: Actions) : LinearLayout(co
     var pipShown: Boolean
         get() = pip.visibility == VISIBLE
         set(v) { pip.visibility = if (v) VISIBLE else GONE }
-    private var rateIndex = 1
+    private var rateIndex = RATES.indexOfFirst { it == 1.0 }
     private val hide = Runnable { visibility = GONE }
 
     init {
@@ -754,7 +754,7 @@ class VideoBar(context: Context, private val actions: Actions) : LinearLayout(co
     }
 
     companion object {
-        val RATES = doubleArrayOf(0.5, 1.0, 1.25, 1.5, 1.75, 2.0)
+        val RATES = doubleArrayOf(0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0)
         private const val RESUME_OFFER_MS = 15_000L
 
         fun rateLabel(r: Double) = (if (r % 1.0 == 0.0) r.toInt().toString() else r.toString()) + "x"
