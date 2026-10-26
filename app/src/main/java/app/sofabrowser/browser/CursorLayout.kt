@@ -21,7 +21,8 @@ import kotlin.math.min
  * Holding a direction accelerates the pointer (0.05 px/frame gained per ms held, scaled to a 1920 px wide
  * screen, capped at width/25 px per 60 Hz frame); releasing stops it at once. Near an edge, the page is scrolled
  * at the pointer's speed through a synthetic finger drag, which also moves inner scrollers and iframes. OK taps at
- * the pointer, OK held while moving drags, and OK held still for a second switches to scroll mode. The pointer
+ * the pointer, OK held while moving drags, and OK held still for a second opens the menu of a link or image under
+ * the pointer ([Listener.onHold]), or else switches to scroll mode. The pointer
  * hides after five seconds without use; the first OK after that only reveals it.
  *
  * A game pad's left stick moves the pointer at a speed set by how far it is pushed ([GamePad.stick]), and its
@@ -31,6 +32,9 @@ class CursorLayout(context: Context) : FrameLayout(context) {
 
     interface Listener {
         fun onScrollModeChanged(active: Boolean)
+
+        /** OK was held still on a spot WebView just hit-tested: true when that opened a menu for a link or image there. */
+        fun onHold(): Boolean
     }
 
     var listener: Listener? = null
@@ -184,8 +188,17 @@ class CursorLayout(context: Context) : FrameLayout(context) {
         if (okHeld && !touchDown) {
             okHeld = false
             okRevealOnly = true // swallow the key-up
-            setScrollMode(true)
+            // A short touch makes WebView hit-test the spot. It is cancelled once the answer is in, well before the
+            // page's own long press (half a second), so nothing is clicked.
+            touch(MotionEvent.ACTION_DOWN)
+            postDelayed(holdResult, HIT_TEST_WAIT_MS)
         }
+    }
+
+    /** A link or image under the pointer gets its menu; anywhere else, holding OK switches to scroll mode. */
+    private val holdResult = Runnable {
+        if (touchDown) touch(MotionEvent.ACTION_CANCEL)
+        if (listener?.onHold() != true) setScrollMode(true)
     }
 
     /**
@@ -318,6 +331,7 @@ class CursorLayout(context: Context) : FrameLayout(context) {
 
     private fun cancelGestures() {
         removeCallbacks(holdCheck)
+        removeCallbacks(holdResult)
         endDrag()
         if (touchDown) touch(MotionEvent.ACTION_CANCEL)
         okHeld = false
@@ -389,6 +403,8 @@ class CursorLayout(context: Context) : FrameLayout(context) {
     companion object {
         const val HIDE_AFTER_MS = 5000L
         const val HOLD_FOR_SCROLL_MS = 1000L
+        /** WebView answers a hit test from the page's renderer, a moment after the touch. */
+        private const val HIT_TEST_WAIT_MS = 150L
         private const val NUDGE = 6f
         /** A stick pushed all the way moves the pointer at this share of the D-pad's top speed. */
         private const val STICK_SPEED = 0.8f

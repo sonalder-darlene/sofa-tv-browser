@@ -36,6 +36,11 @@
   go back, forward and page up and down. In fullscreen video they play, seek and switch subtitles. Settings → Game
   controller shows every button.
 
+**Links and images**
+
+- **Hold OK on a link or an image** for its menu: open it in another app, copy or share its address, or download
+  it (links to files and pictures). Anywhere else, holding OK still switches to scroll mode.
+
 **Better ad blocking**
 
 - **Filter lists** in the formats of uBlock Origin, Adblock Plus and hosts files: Sofa now understands rules for
