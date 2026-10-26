@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+**Sofa Player**
+
+- **Sofa's own video player:** in fullscreen, Sofa now plays the site's stream in its own player when it can: 4K at
+  full resolution on 4K TVs, HDR when the stream and the TV have it, and a choice of quality, sound and subtitles on
+  the bar. It takes over at the same moment, without a jump, and "Site's player" on the bar goes back. Protected
+  videos and videos under a minute stay with the site's player. Settings → Sofa Player turns it off.
+- At the end of a video, the site's player plays the last moment, so the site moves on as usual (its next episode
+  or end screen).
+- **HDR stays HDR:** when a stream offers HDR and SDR versions, Auto keeps to the HDR ones on HDR TVs (and to SDR on
+  others), so a film doesn't change look halfway.
+- **Quality:** pick one by hand and it stays for that site until Sofa closes.
+- **Subtitles** follow the TV's caption setting. When the stream has none of its own, the page's subtitle files are
+  used, and the ones the site was showing stay on.
+- If Sofa Player only gets a software decoder while the TV has a hardware one, it pauses the site's video and tries
+  once more.
+- Match frame rate uses the stream's own frame rate, and Video info shows the stream's format, the decoder and the
+  frames shown and dropped.
+
+**Play in another app**
+
+- **Works on many more sites:** Sofa now hands over the whole stream the site's player uses, not just one part of
+  it, with the page's subtitle files and the position, and with what the site expects from a player. Sites that
+  only let the browser read their stream get a private copy that VLC and Just Player can open.
+- **Settings → Play in…** chooses the app, or "Ask every time" to pick on each press.
+- **Always play in another app (experimental, off by default)** sends fullscreen videos straight to that app.
+- When a video can't be handed over (protected, only inside the page, or no player installed), fullscreen says why.
+
+**Game pads**
+
+- Xbox, PlayStation, 8BitDo and other pads work like in a console browser: the left stick moves the pointer, the
+  right stick scrolls, A selects, B goes back, X watches the page's video, Y searches, and the bumpers and triggers
+  go back, forward and page up and down. In fullscreen video they play, seek and switch subtitles. Settings → Game
+  controller shows every button.
+
 **Better ad blocking**
 
 - **Filter lists** in the formats of uBlock Origin, Adblock Plus and hosts files: Sofa now understands rules for
@@ -23,6 +57,14 @@
 - A press on a link can't also open an ad, and a page can't send itself to an ad site as it opens a window.
 - The pop-up rules of filter lists now count too.
 - Ads with a broken security certificate no longer interrupt the page with a warning; only the page itself can.
+- Buttons that open another site's window on purpose (some "Sign in with…" or payment buttons) are blocked like
+  pop-ups too: "Allow once" in the menu opens them.
+
+**Smaller things**
+
+- **0.75x** playback speed.
+- "Continue from" no longer turns up on another video or page.
+- **Fixed:** after changing a setting, the focus went back to the top of Settings; it now stays on that setting.
 
 ## 1.1.0 (2026-10-20)
 
