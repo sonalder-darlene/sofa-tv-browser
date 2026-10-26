@@ -284,7 +284,7 @@
     <string name="cleared">Browsing data cleared</string>
     <string name="about">About Sofa</string>
     <string name="about_engine">Web engine: Chrome %s</string>
-    <string name="about_video">Video is decoded by the web engine, with the TV\'s hardware where the format allows. On 4K TVs the engine shows it through Sofa\'s HD window, and the TV upscales it.</string>
+    <string name="about_video">Video is decoded with the TV\'s hardware where the format allows. Sofa Player shows the streams it plays at full resolution, up to 4K. Video left to the site\'s player goes through Sofa\'s HD window, and 4K TVs upscale it.</string>
     <string name="old_webview_title">Your TV\'s web engine is out of date</string>
     <string name="old_webview_message">Sofa shows pages with the web engine that comes with your TV (Android System WebView). This one is quite old. Sofa can\'t update it, but your TV can: check its app store, or the TV maker\'s updates. Older versions may be missing security fixes, and some sites may not work properly. You can keep browsing in the meantime.</string>
     <string name="keep_browsing">Keep browsing</string>
