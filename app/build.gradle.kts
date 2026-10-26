@@ -48,8 +48,8 @@ android {
         minSdk = 24
         targetSdk = 36
         // MAJOR * 10000 + MINOR * 100 + PATCH, so 1.2.3 is 10203. Keep both literal: F-Droid reads them from here.
-        versionCode = 10100
-        versionName = "1.1.0"
+        versionCode = 10200
+        versionName = "1.2.0"
     }
 
     buildFeatures {

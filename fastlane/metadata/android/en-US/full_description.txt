@@ -3,9 +3,11 @@ Sofa is a lightweight web browser made for the TV remote, with a mouse pointer, 
 Remote-control browsing
 • The D-pad moves a mouse pointer that speeds up while held and stops dead on release. A quick tap nudges it a few pixels.
 • OK clicks, holding OK while moving drags, and hover works, so hover menus open.
+• Hold OK on a link or an image to open it in another app, copy or share its address, or download it.
 • Pushing the pointer against a screen edge scrolls the page, or whatever is under the pointer.
 • Scroll mode, and a D-pad mode for sites built for keyboard navigation.
 • The Back key opens a menu: address, Watch, navigation, find in page, bookmarks, history, ad blocking per site, "Browse as" (desktop, mobile, iPad, Smart TV or your own user agent), zoom and settings.
+• Game pads (Xbox, PlayStation, 8BitDo and others) work like in a console browser. Settings → Game controller shows every button.
 
 Home screen
 • Your own quick-access tiles, which you can add, edit and reorder.
@@ -13,10 +15,10 @@ Home screen
 
 Video
 • Watch: one press of Play (or Watch in the menu) finds the page's main video, even inside an embedded player, and plays it fullscreen.
-• Fullscreen video gets a control bar, even for videos embedded from other sites: back and forward 10 seconds, play/pause, a scrub bar, playback speed, subtitles where the video has them, Video info and picture-in-picture on TVs that offer it.
-• Play in another app: send the video to VLC, mpv, MX Player or another player. Android asks once and Sofa remembers; hold OK on the button to choose again.
-• In fullscreen, sites see your TV's real resolution, so on a 4K TV they can send their 4K stream.
-• Match frame rate (experimental, off by default): on TVs that offer several refresh rates, the TV switches to the video's frame rate in fullscreen, such as 24 per second for films, for smoother motion.
+• Sofa Player: in fullscreen, Sofa plays the site's stream in its own player when it can, with 4K at full resolution, HDR, and a choice of quality, sound and subtitles. Otherwise the site's player carries on.
+• Fullscreen video gets a control bar, even for videos embedded from other sites: back and forward 10 seconds, play/pause, a scrub bar, playback speed, subtitles, Video info and picture-in-picture on TVs that offer it.
+• Play in another app: send the stream, its subtitles and the position to VLC, Just Player or another player. Choose the app in Settings, or have Sofa ask every time.
+• Match frame rate (experimental, off by default): the TV switches to the video's frame rate in fullscreen, such as 24 per second for films.
 • The screen stays on while a video plays, and long films offer to continue where you stopped.
 
 Search
@@ -28,8 +30,9 @@ Downloads
 • Up to three at once, with pause and resume, automatic retries, and downloads that carry on in the background.
 
 Privacy
-• Ads, trackers and pop-ups are blocked on the TV itself, using the StevenBlack hosts list and HaGeZi's Pop-Up Ads list. Third-party cookies are blocked.
-• Few browsers send Do Not Track, and desktop Chrome is the most common browser, so Sofa never sends Do Not Track and shows a desktop Chrome user agent by default. Both help it blend in.
+• Ads and trackers are blocked on the TV itself with filter lists in uBlock Origin, Adblock Plus or hosts format, which also hide the empty boxes ads leave. Sofa comes with the StevenBlack and HaGeZi Pop-Up Ads lists; one switch adds EasyList and EasyPrivacy.
+• Pop-ups are blocked even from ad networks no list knows yet. "Allow once" in the menu opens one you wanted.
+• Third-party cookies are blocked, and Sofa sends no Do Not Track and a desktop Chrome user agent by default, so it blends in with the most common browser.
 • Private browsing runs in a separate WebView profile where the TV's WebView supports it.
 • Pages never get the camera, microphone, location or your files.
 • You choose how long history is kept (7, 30 or 90 days, always or never) and whether protected (DRM) video asks first, always plays or never plays.
