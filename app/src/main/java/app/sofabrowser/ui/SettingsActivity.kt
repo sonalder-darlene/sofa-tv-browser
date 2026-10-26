@@ -73,6 +73,8 @@ class SettingsActivity : Activity() {
     }
 
     private fun build() {
+        // Rebuilt after a choice: focus stays on the row that was changed, not the first one.
+        val focused = list.indexOfChild(list.focusedChild)
         list.removeAllViews()
         list.addView(Ui.text(this, 56, Ui.p.textMid, bold = true).apply {
             text = getString(R.string.settings)
@@ -139,7 +141,7 @@ class SettingsActivity : Activity() {
         section(R.string.section_about)
         nav(R.string.about, getString(R.string.version, BuildConfig.VERSION_NAME)) { about() }
 
-        list.getChildAt(2)?.requestFocus()
+        (list.getChildAt(focused)?.takeIf { it.isFocusable } ?: list.getChildAt(2))?.requestFocus()
     }
 
     private fun section(title: Int) {
