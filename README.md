@@ -71,7 +71,12 @@ Everything is matched on the TV; nothing about your browsing leaves it.
 - **Pop-ups:** with one view and no tabs, a pop-up would replace the page you were on. Sofa blocks windows a page
   opens without a press, windows to listed ad sites, windows a script opens to another site when you didn't press a
   link to it, and the invisible links pop-under networks lay over a page. Pages that send you to a listed ad site
-  on their own are stopped too. The menu's "Allow once" opens the last thing blocked.
+  on their own are stopped too. The menu's "Allow once" opens the last thing blocked. This also stops buttons
+  (not links) that open another site's window on purpose, such as some "Sign in with…", payment or "Watch on
+  YouTube" buttons: press the button, then "Allow once".
+- **Certificate warnings:** only the page you are on, or the one it is taking you to, can ask whether to go on
+  despite a broken security certificate. Anything else on the page with one, often an ad in a frame, is refused
+  without a warning, as Chrome does.
 - **Updates:** lists are downloaded when you add or update them, without cookies. Sofa can also update them every
   few days by itself; it asks at first start, and EasyList and EasyPrivacy, which change every few days, are best
   kept that way.
