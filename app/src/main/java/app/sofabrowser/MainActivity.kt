@@ -894,17 +894,27 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
 
     private var choosePlayer = false
 
+    /**
+     * When the press of "Play in…" still being worked on began, or 0. It lasts until Sofa is back in front, or a
+     * refusal is shown: finding the stream can take seconds, and the player or chooser takes a moment to open.
+     */
+    private var playInSince = 0L
+
     /** [choose]: show Android's chooser even when a player was remembered (a long press on the button). */
     override fun playIn(choose: Boolean) {
+        // A second press before the first one's player is up would open the player (or the chooser) twice.
+        val now = SystemClock.uptimeMillis()
+        if (playInSince != 0L && now - playInSince < PLAY_IN_BUSY_MS) return
+        playInSince = now
         choosePlayer = choose
-        collectSources(::playInChosen)
+        if (!collectSources(::playInChosen)) playInSince = 0L
     }
 
     private var sourcesWanted: ((VideoSource?) -> Unit)? = null
 
-    /** Asks every frame for its main video, then gives [then] the largest, or null. */
-    private fun collectSources(then: (VideoSource?) -> Unit) {
-        if (web == null || sourcesWanted != null) return
+    /** Asks every frame for its main video, then gives [then] the largest, or null; false when it can't ask now. */
+    private fun collectSources(then: (VideoSource?) -> Unit): Boolean {
+        if (web == null || sourcesWanted != null) return false
         sources.clear()
         sourcesWanted = then
         VideoRelay.send(web, "source")
@@ -913,6 +923,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             sourcesWanted = null
             done(sources.maxByOrNull { it.area })
         }, 300)
+        return true
     }
 
     override fun onVideoSource(source: VideoSource) {
@@ -920,7 +931,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     }
 
     private fun playInChosen(found: VideoSource?) {
-        val w = web ?: return
+        val w = web ?: run { playInSince = 0L; return }
         // From Sofa Player, the other player starts where Sofa Player was.
         val video = if (nativeOn) found?.copy(position = sofaPlayer.positionSeconds) else found
         val userAgent = w.settings.userAgentString.orEmpty()
@@ -939,6 +950,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
 
     /** Why "Play in…" opened nothing: over the video when it is fullscreen, where a toast goes unseen. */
     private fun playInMessage(res: Int) {
+        playInSince = 0L
         streamLog("Play in: ${getString(res)}")
         if (fullscreen.visibility == View.VISIBLE) fullscreen.notice(getString(res)) else toast(res)
     }
@@ -1438,6 +1450,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
 
     override fun onResume() {
         super.onResume()
+        playInSince = 0L
         // A theme change in Settings rebuilds the screen (and the WebView, whose pages follow the theme).
         if (Ui.paletteFor(this, prefs.theme) !== palette) { recreate(); return }
         browser.applySettings()
@@ -1551,6 +1564,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         private const val PAGE_FETCH_MS = 2500L
         /** Seconds of the end the page's video plays itself after Sofa Player finished, so the site sees the end. */
         private const val END_FOR_PAGE_S = 0.5
+        /** Longest a press of "Play in…" keeps a second one out, should its stream search never answer (ms). */
+        private const val PLAY_IN_BUSY_MS = 10_000L
         /** How far ahead of the page's video Sofa Player gets ready: about what it takes to start (ms). */
         private const val TAKEOVER_LEAD_MS = 4000L
         /** How far the page's video may have passed Sofa Player's first picture and it still swaps in there (ms). */
