@@ -782,11 +782,31 @@ class FullscreenLayer(context: Context, val bar: VideoBar) : FrameLayout(context
         visibility = GONE
     }
 
+    /** A short message about the video, top centre, for a few seconds: a toast is easy to miss over a video. */
+    private val notice: TextView = Ui.text(context, 26, Color.WHITE).apply {
+        background = Ui.rounded(0xE6000000.toInt(), 16)
+        setPadding(40.px, 24.px, 40.px, 24.px)
+        gravity = Gravity.CENTER
+        visibility = GONE
+    }
+    private val hideNotice = Runnable { notice.visibility = GONE }
+
+    /** Shows [text] over the video for a few seconds. */
+    fun notice(text: String) {
+        notice.text = text
+        notice.visibility = VISIBLE
+        notice.removeCallbacks(hideNotice)
+        notice.postDelayed(hideNotice, NOTICE_MS)
+    }
+
     init {
         setBackgroundColor(Color.BLACK)
         addView(pointer, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         addView(info, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.START).apply {
             setMargins(48.px, 48.px, 48.px, 0)
+        })
+        addView(notice, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
+            setMargins(96.px, 96.px, 96.px, 0)
         })
         addView(bar, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
         visibility = GONE
@@ -836,8 +856,14 @@ class FullscreenLayer(context: Context, val bar: VideoBar) : FrameLayout(context
         bar.hideNow()
         bar.clearResume()
         info.visibility = GONE
+        notice.removeCallbacks(hideNotice)
+        notice.visibility = GONE
         pointer.cursorEnabled = false
         pointer.removeAllViews()
         visibility = GONE
+    }
+
+    private companion object {
+        const val NOTICE_MS = 5000L
     }
 }

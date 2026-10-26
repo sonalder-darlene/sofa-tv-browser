@@ -83,7 +83,7 @@
     <string name="watch">Watch</string>
     <string name="play_in">Play in…</string>
     <string name="handover_in_page">This video can\'t be sent to another player. Sofa will play it itself.</string>
-    <string name="handover_drm">This video is protected, so only Sofa\'s player can show it.</string>
+    <string name="handover_drm">This video is protected: it can only play here, in the site\'s own player.</string>
     <string name="player_gone">That player isn\'t installed any more. Choose another one.</string>
     <string name="no_player">No other video player is installed.</string>
     <string name="no_video">No video found on this page.</string>

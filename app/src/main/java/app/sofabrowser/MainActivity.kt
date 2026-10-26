@@ -937,6 +937,12 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         }
     }
 
+    /** Why "Play in…" opened nothing: over the video when it is fullscreen, where a toast goes unseen. */
+    private fun playInMessage(res: Int) {
+        streamLog("Play in: ${getString(res)}")
+        if (fullscreen.visibility == View.VISIBLE) fullscreen.notice(getString(res)) else toast(res)
+    }
+
     /** What Sofa read to find a page's stream, in the log of test builds. */
     private fun streamLog(message: String) {
         if (BuildConfig.DEBUG) android.util.Log.d("SofaStream", message)
@@ -952,9 +958,9 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         val request = PlayerRequest.build(video?.src, web?.title, video?.position ?: 0.0, video?.protected == true, headers,
             resolved?.url, video?.subtitles.orEmpty(), Locale.getDefault().language)
         var launch = when (request) {
-            PlayerRequest.Refusal.NO_VIDEO -> { toast(R.string.no_video); return }
-            PlayerRequest.Refusal.IN_PAGE -> { toast(R.string.handover_in_page); return }
-            PlayerRequest.Refusal.PROTECTED -> { toast(R.string.handover_drm); return }
+            PlayerRequest.Refusal.NO_VIDEO -> { playInMessage(R.string.no_video); return }
+            PlayerRequest.Refusal.IN_PAGE -> { playInMessage(R.string.handover_in_page); return }
+            PlayerRequest.Refusal.PROTECTED -> { playInMessage(R.string.handover_drm); return }
             is PlayerRequest.Launch -> request
         }
         // A master playlist the site gives only to its own page: hand over Sofa's copy, whose addresses point at the
@@ -973,11 +979,11 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         val remembered = prefs.videoPlayer.takeUnless { choosePlayer || it.isEmpty() }
         val player = remembered?.let { ExternalPlayer.installed(this, it) ?: run {
             prefs.videoPlayer = ""
-            toast(R.string.player_gone)
+            playInMessage(R.string.player_gone)
             null
         } }
         if (ExternalPlayer.open(this, launch, player, getString(R.string.play_in))) command("pause")
-        else toast(R.string.no_player)
+        else playInMessage(R.string.no_player)
     }
 
     // Sofa Player: once the page's video plays fullscreen and its stream is known, Sofa Player gets ready unseen under
