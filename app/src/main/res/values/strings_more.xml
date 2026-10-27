@@ -91,7 +91,13 @@
     <string name="forget_player_choices">Forget my player choices</string>
     <string name="forget_player_choices_sub">Sofa Player keeps the quality, subtitles and sound you pick for the next videos. This goes back to Auto and the TV\'s own settings.</string>
     <string name="player_choices_forgotten">Player choices forgotten</string>
-    <string name="sofa_player_failed">Sofa Player couldn\'t go on: back to the site\'s player</string>
+    <!-- Why Watch stays with the site's player: over the video (a failure every time, the rest once per site while Sofa runs) and in Video info. %1$s: Media3's error, e.g. "decoder init failed". -->
+    <string name="sofa_player_failed">Sofa Player couldn\'t play this (%1$s). The site\'s player plays it.</string>
+    <string name="sofa_player_why_short">Sofa Player: not used for videos under a minute.</string>
+    <string name="sofa_player_why_no_video">Sofa Player couldn\'t find this video on the page. The site\'s player plays it.</string>
+    <string name="sofa_player_why_protected">Protected video (DRM): only the site\'s player can play it.</string>
+    <string name="sofa_player_why_no_stream">Sofa Player found no stream it can open on this page. The site\'s player plays it.</string>
+    <string name="sofa_player_why_unreadable">Sofa Player couldn\'t read this video\'s stream. The site\'s player plays it.</string>
     <string name="play_in_setting_sub">The app "Play in…" sends videos to. Holding OK on the button also asks again.</string>
     <string name="ask_every_time">Ask every time</string>
     <string name="ask_first_time">Not chosen yet</string>

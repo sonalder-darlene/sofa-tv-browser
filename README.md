@@ -103,6 +103,8 @@ Everything is matched on the TV; nothing about your browsing leaves it.
   TV's own settings.
 - **Starts sharp:** with an HLS stream, Sofa Player starts at the quality the site's player was showing, then
   adapts to the connection as usual.
+- **Says why:** when Watch leaves a video with the site's player (protected, no stream Sofa Player can open, or one
+  it can't read or play), a short note in fullscreen says why, and Video info keeps the reason.
 - **Back to the site's player:** the bar's "Site's player" button switches back at the same position, and so does
   Sofa if its player can't go on. Settings → Sofa Player turns it off.
 - **Another app instead:** Settings → "Always play in another app" (experimental, off by default) sends fullscreen

@@ -774,6 +774,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         playerRateMatched = false
         nativeTried = false
         nativeTries = 0
+        notForPlayerWhy = null
         nativeRetryAt = 0L
         hardwareRetried = false
         pausedForDecoder = false
@@ -883,6 +884,9 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         val software = info.codecs.filter { it.supported && !it.efficient }
         // The panel's own mode can be 4K while apps are drawn at 1080p; the 4K investigation needs both (displayInfo).
         fullscreen.info.text = listOfNotNull(
+            // Why this is the site's player and not Sofa Player, for a report.
+            (notForPlayerWhy ?: videoState?.takeIf(::short)?.let { getString(R.string.sofa_player_why_short) })
+                ?.takeIf { prefs.sofaPlayer && !prefs.forceExternalPlayer },
             getString(R.string.video_info_size, info.width, info.height),
             if (info.total >= 0) getString(R.string.video_info_frames, info.total, info.dropped) else null,
             when {
@@ -1098,11 +1102,30 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     private var hardwareRetried = false
     /** The page's video was paused by Sofa for that try, not by the user: Sofa Player takes over playing. */
     private var pausedForDecoder = false
+    /** Why Sofa Player doesn't play this fullscreen's video, for Video info; null while it does, or still may. */
+    private var notForPlayerWhy: String? = null
+    /** Sites whose reason was shown over the video while Sofa runs: once each, then only in Video info. */
+    private val notForPlayerShown = HashSet<String>()
+
+    /**
+     * Watch stays with the site's player: says [why] over the video ([once] per site, so YouTube doesn't say it at every
+     * video; a failure every time), and keeps it for Video info.
+     */
+    private fun notForPlayer(why: String, once: Boolean = true) {
+        if (why == notForPlayerWhy) return
+        notForPlayerWhy = why
+        streamLog("Sofa Player not used: $why")
+        val site = Browser.hostOf(web?.url).orEmpty()
+        if (fullscreen.visibility == View.VISIBLE && (!once || notForPlayerShown.add(site))) fullscreen.notice(why)
+    }
+
+    /** Too short for Sofa Player: often an ad, over before it would be ready. */
+    private fun short(state: VideoState) = state.duration > 0 && state.duration < SHORT_FOR_PLAYER
 
     private fun maybeSofaPlayer(state: VideoState) {
         val external = prefs.forceExternalPlayer
         if (!(prefs.sofaPlayer || external) || nativeTried || sofaPlayer.active || fullscreen.visibility != View.VISIBLE || inPip) return
-        if (state.paused || state.position < 1 || (state.duration > 0 && state.duration < SHORT_FOR_PLAYER)) return
+        if (state.paused || state.position < 1 || short(state)) return
         if (SystemClock.uptimeMillis() < nativeRetryAt) return
         nativeTried = true
         // "Always play in another app" (experimental): the "Play in…" app gets it, once per fullscreen; short videos
@@ -1121,8 +1144,9 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
 
     private fun sofaPlayerFor(video: VideoSource?) {
         val w = web ?: return
-        if (video == null || video.protected || fullscreen.visibility != View.VISIBLE) {
-            streamLog("Sofa Player not tried: " + if (video == null) "no video answered" else if (video.protected) "protected" else "left fullscreen")
+        if (fullscreen.visibility != View.VISIBLE) { streamLog("Sofa Player not tried: left fullscreen"); return }
+        if (video == null || video.protected) {
+            notForPlayer(getString(if (video == null) R.string.sofa_player_why_no_video else R.string.sofa_player_why_protected))
             return
         }
         val userAgent = w.settings.userAgentString.orEmpty()
@@ -1137,6 +1161,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             // The page may fetch its stream a moment after it starts; look again a few times.
             if (++nativeTries < 4) { nativeTried = false; nativeRetryAt = SystemClock.uptimeMillis() + 2000 }
             streamLog("Sofa Player: no manifest caught yet (look $nativeTries)")
+            if (nativeTried) notForPlayer(getString(R.string.sofa_player_why_no_stream)) // that was the last look
             return
         }
         browser.fetchInPage(StreamResolver.manifestsToRead(candidates), PAGE_FETCH_MS) { fromPage ->
@@ -1148,7 +1173,11 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
                 runOnUiThread {
                     streamLog("Sofa Player: ${resolved?.kind} ${resolved?.url}")
                     // A file only the page's requests mention (not its video's own address) may be an ad.
-                    if (resolved == null || resolved.kind == StreamResolver.Kind.FILE || isDestroyed) return@runOnUiThread
+                    if (isDestroyed) return@runOnUiThread
+                    if (resolved == null || resolved.kind == StreamResolver.Kind.FILE) {
+                        notForPlayer(getString(if (resolved == null) R.string.sofa_player_why_unreadable else R.string.sofa_player_why_no_stream))
+                        return@runOnUiThread
+                    }
                     startSofaPlayer(SofaPlayer.Source(resolved.url, resolved.kind, resolved.frame, resolved.playlist, userAgent,
                         cookies::getCookie, media = false, video.subtitles, video.width, video.height), video)
                 }
@@ -1248,8 +1277,12 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
 
         override fun onError(reason: String, ready: Boolean) {
             streamLog("Sofa Player failed: $reason")
-            if (nativeOn) { backToPage(play = true); toast(R.string.sofa_player_failed) }
-            else {
+            // "ERROR_CODE_DECODER_INIT_FAILED" as "decoder init failed": enough for a report, over the video every time.
+            val why = getString(R.string.sofa_player_failed, reason.removePrefix("ERROR_CODE_").lowercase().replace('_', ' '))
+            val shown = nativeOn
+            if (shown) backToPage(play = true)
+            notForPlayer(why, once = false)
+            if (!shown) {
                 sofaPlayer.release(); fullscreen.removePlayer()
                 // The page's video was paused only for the second try: it plays on.
                 if (pausedForDecoder) { pausedForDecoder = false; VideoRelay.send(web, "play") }
