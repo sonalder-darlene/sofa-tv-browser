@@ -50,7 +50,7 @@ class VariantsTest {
         assertEquals("720p H.264", Variants.label(720, 25f, "H.264", null))
     }
 
-    // A quality picked by hand sticks for the site; a video without it gets the closest one below, or Auto.
+    // A quality picked by hand sticks for later videos; one without it gets the closest one below, or Auto.
 
     private fun q(height: Int, codec: String = "H.264", range: String? = null) = Quality(height, codec, range)
 

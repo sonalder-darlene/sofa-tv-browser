@@ -14,7 +14,8 @@ called Sofa.
 - **A home screen** with your own tiles, your most visited sites and your bookmarks.
 - **Watch**: one press of Play finds the page's main video and plays it fullscreen.
 - **Sofa Player**: in fullscreen, Sofa plays the site's stream in its own player when it can, with 4K at full
-  resolution, HDR, and a choice of quality, sound and subtitles. Otherwise the site's player carries on.
+  resolution, HDR, and a choice of quality, sound and subtitles that it keeps for the next videos. Otherwise the
+  site's player carries on.
 - **Controls for fullscreen video**: seek, pause, playback speed, subtitles, Video info, picture-in-picture, and
   Play in another app (Android asks once, Sofa remembers; hold OK on the button, or use Settings → Play in…, to
   choose again or to be asked every time).
@@ -96,6 +97,10 @@ Everything is matched on the TV; nothing about your browsing leaves it.
   pauses the site's video and tries once more before taking over. Its requests are the ones the page's
   player would make, with the same headers and cookies, and it keeps no cache. Protected (DRM) video, videos under
   a minute and streams a page builds itself (YouTube's, for one) stay with the site's player.
+- **Your choices stay:** the quality, sound and subtitles you pick on the bar stay for the next videos, on every
+  site: the same quality or the nearest lower one, and the same language for sound and subtitles. Private browsing
+  uses them but saves nothing new. Settings → Sofa Player → "Forget my player choices" goes back to Auto and the
+  TV's own settings.
 - **Back to the site's player:** the bar's "Site's player" button switches back at the same position, and so does
   Sofa if its player can't go on. Settings → Sofa Player turns it off.
 - **Another app instead:** Settings → "Always play in another app" (experimental, off by default) sends fullscreen

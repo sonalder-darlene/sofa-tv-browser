@@ -73,8 +73,8 @@ import app.sofabrowser.downloads.Download
 import app.sofabrowser.downloads.DownloadEngine
 import app.sofabrowser.downloads.Http
 import app.sofabrowser.downloads.Status as DownloadStatus
+import app.sofabrowser.player.PlayerChoices
 import app.sofabrowser.player.SofaPlayer
-import app.sofabrowser.player.Variants
 import app.sofabrowser.ui.BrowserMenu
 import app.sofabrowser.ui.DownloadsActivity
 import app.sofabrowser.ui.FindBar
@@ -656,6 +656,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         if (!entering && !wasIsolated) WebViews.clearBrowsingData(this, null)
         // Stream copies hold what was watched (signed stream addresses); none outlives either side of the switch.
         StreamCopyProvider.clear(this)
+        privateChoices = null
         prefs.privateMode = entering
         if (entering) {
             dialog().setTitle(R.string.private_mode)
@@ -1164,7 +1165,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         sofaStarted = source to video
         fullscreen.addPlayer(sofaPlayer.view)
         // Ahead of the page's video, which plays on while Sofa Player gets ready unseen (see onReady).
-        sofaPlayer.start(source, (pageNowMs() ?: (video.position * 1000).toLong()) + TAKEOVER_LEAD_MS, browser.pageHost?.let(qualityBySite::get))
+        sofaPlayer.start(source, (pageNowMs() ?: (video.position * 1000).toLong()) + TAKEOVER_LEAD_MS, playerChoices)
     }
 
     /** Where the page's video is now: its last report, moved on by the time since when it plays. */
@@ -1175,8 +1176,12 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     }
 
     private var pageStateAt = 0L
-    /** Qualities picked by hand in Sofa Player, by site, until Sofa closes. */
-    private val qualityBySite = HashMap<String, Variants.Quality>()
+    /**
+     * What was picked by hand in Sofa Player, for every later video. Private browsing reads the saved choices but keeps
+     * its own picks in memory only, until it ends.
+     */
+    private val playerChoices get() = privateChoices?.takeIf { browser.privateMode } ?: prefs.playerChoices
+    private var privateChoices: PlayerChoices? = null
     private var catchUps = 0
 
     /**
@@ -1273,9 +1278,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             if (nativeOn) matchPlayerRate()
         }
 
-        override fun onQualityPicked(quality: Variants.Quality?) {
-            val site = browser.pageHost ?: return
-            if (quality == null) qualityBySite.remove(site) else qualityBySite[site] = quality
+        override fun onChoicesChanged(choices: PlayerChoices) {
+            if (browser.privateMode) privateChoices = choices else prefs.playerChoices = choices
         }
     }
 

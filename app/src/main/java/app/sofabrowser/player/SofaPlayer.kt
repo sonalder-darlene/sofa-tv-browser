@@ -75,8 +75,8 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
         fun onMeasuredFrameRate(fps: Double?, belowTop: Boolean)
         /** The video played to its end. */
         fun onEnded()
-        /** A quality was picked in the menu (null: Auto). */
-        fun onQualityPicked(quality: Variants.Quality?)
+        /** A quality, subtitles or sound was picked in the menu: [choices] are all of them, for the next videos. */
+        fun onChoicesChanged(choices: PlayerChoices)
     }
 
     /**
@@ -94,18 +94,22 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
     private var readyWanted = false
     private var decoder: String? = null
     private val main = Handler(Looper.getMainLooper())
-    private var subsWanted = false
-    /** The master playlist's word on each picture, and the quality to pick once they are known. */
+    /** The master playlist's word on each picture. */
     private var variants: List<Variants.Variant> = emptyList()
+    /** What was picked by hand on earlier videos, and what of it still waits for the stream's tracks. */
+    private var choices = PlayerChoices()
     private var remembered: Variants.Quality? = null
+    private var subtitlesWanted: String? = null
 
     val active get() = player != null
 
-    /** [quality] is the one picked by hand on the site's last video, if any. */
-    fun start(source: Source, startMs: Long, quality: Variants.Quality? = null) {
+    /** [choices]: those picked by hand on earlier videos. */
+    fun start(source: Source, startMs: Long, choices: PlayerChoices = PlayerChoices()) {
         release()
         variants = source.playlist?.let(Variants::parse).orEmpty()
-        remembered = quality
+        this.choices = choices
+        remembered = choices.quality
+        subtitlesWanted = choices.subtitles?.takeIf { it != PlayerChoices.OFF }
         val sampler = FrameRate.Sampler()
         ready = false
         readyWanted = true
@@ -130,10 +134,12 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
             .setMediaSourceFactory(DefaultMediaSourceFactory(dataSources))
             .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
             .build()
-        // Subtitles as the TV's caption setting says; the language of the TV for sound when the stream has several.
+        // Subtitles as the TV's caption setting says, the TV's language for sound when the stream has several; unless
+        // picked by hand on an earlier video (a subtitle language is matched once the tracks are known, applySubtitles).
         p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
             .setPreferredTextLanguageAndRoleFlagsToCaptioningManagerSettings(context)
-            .setPreferredAudioLanguage(java.util.Locale.getDefault().language)
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, choices.subtitles == PlayerChoices.OFF)
+            .setPreferredAudioLanguages(*listOfNotNull(choices.audio, java.util.Locale.getDefault().language).toTypedArray())
             .build()
         p.setVideoSurfaceView(view.surface)
         p.addListener(events)
@@ -245,14 +251,14 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
     /**
      * "Auto", then each picture the stream offers, largest first, HDR and SDR versions apart. Sizes the TV's decoder
      * says are beyond it are offered too, marked [beyond]: some TVs undersell their decoders, and Auto never picks
-     * those. A pick is told to [Listener.onQualityPicked], so the site's next video can start with it.
+     * those. A pick is kept ([remember]), so the next videos start with it.
      */
     fun qualities(auto: String, beyond: String): List<Choice> {
         val p = player ?: return emptyList()
         val overridden = pickedByHand(p)
         val current = p.videoFormat
         val out = mutableListOf(Choice(auto + (current?.let { " (" + quality(it) + ")" } ?: ""), !overridden) {
-            listener.onQualityPicked(null)
+            remember(choices.copy(quality = null))
             // Auto, within what the panel shows (keepToPanel).
             set { clearOverridesOfType(C.TRACK_TYPE_VIDEO).apply { panelLimit?.let(::setOverrideForType) } }
         })
@@ -261,7 +267,7 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
             val f = g.getTrackFormat(i)
             val label = quality(f) + if (g.isTrackSupported(i)) "" else " ($beyond)"
             out += Choice(label, overridden && g.isTrackSelected(i)) {
-                listener.onQualityPicked(qualityOf(f))
+                remember(choices.copy(quality = qualityOf(f)))
                 set { setOverrideForType(TrackSelectionOverride(g.mediaTrackGroup, i)) }
             }
         }
@@ -273,7 +279,7 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
     /** What the menu says about [f]: size, rate, codec, and its range as the stream declares it. */
     private fun quality(f: Format) = Variants.label(f.height, f.frameRate, codecName(f), rangeOf(f))
 
-    private fun qualityOf(f: Format) = Variants.Quality(f.height, codecName(f), rangeOf(f))
+    private fun qualityOf(f: Format) = Variants.Quality(f.height, codecName(f), rangeOf(f), f.width)
 
     /** The stream's own word on [format]'s range (its master playlist), else what Media3 learnt once it loaded it. */
     private fun rangeOf(format: Format): String? {
@@ -292,18 +298,22 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
             ?: variants.singleOrNull { it.bandwidth == f.peakBitrate }
     }
 
-    /** A quality picked in the menu (or the site's remembered one); not Sofa's own limit to what the panel shows. */
+    /** A quality picked in the menu (or remembered from an earlier video); not Sofa's own limit to what the panel shows. */
     private fun pickedByHand(p: ExoPlayer) = p.trackSelectionParameters.overrides.any { (group, o) -> group.type == C.TRACK_TYPE_VIDEO && o != panelLimit }
 
     /**
-     * The quality picked by hand on the site's last video, once the stream's pictures are known: the same, or the
-     * closest below (Variants.closest), or Auto.
+     * The quality picked by hand on an earlier video, once the stream's pictures are known: the same, or the closest
+     * below (Variants.closest), or Auto. Only among those Auto may take, and within Sofa's limit to what the panel
+     * shows ([keepToPanel], which runs first): an HDR film stays HDR.
      */
     private fun applyRemembered(tracks: Tracks) {
         val wanted = remembered ?: return
         val p = player ?: return
-        val offered = tracks.groups.filter { it.type == C.TRACK_TYPE_VIDEO }
-            .flatMap { g -> (0 until g.length).filter { g.isTrackSupported(it) }.map { g to it } }
+        val limit = panelLimit
+        val offered = tracks.groups.filter { it.type == C.TRACK_TYPE_VIDEO }.flatMap { g ->
+            (0 until g.length).filter { g.isTrackSupported(it) && (limit == null || limit.mediaTrackGroup != g.mediaTrackGroup || it in limit.trackIndices) }
+                .map { g to it }
+        }
         if (offered.isEmpty()) return
         remembered = null
         val i = Variants.closest(wanted, offered.map { (g, i) -> qualityOf(g.getTrackFormat(i)) }) ?: return
@@ -311,11 +321,38 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
         p.trackSelectionParameters = p.trackSelectionParameters.buildUpon().setOverrideForType(TrackSelectionOverride(g.mediaTrackGroup, track)).build()
     }
 
+    /**
+     * The subtitle language picked by hand on an earlier video, once the stream's tracks are known (the page's own
+     * files among them). Without a track in that language, the TV's caption settings decide, as before.
+     */
+    private fun applySubtitles(tracks: Tracks) {
+        val language = subtitlesWanted ?: return
+        if (tracks.isEmpty) return
+        subtitlesWanted = null
+        val offered = tracks.groups.filter { it.type == C.TRACK_TYPE_TEXT }
+            .flatMap { g -> (0 until g.length).filter { g.isTrackSupported(it) }.map { g to it } }
+        val i = PlayerChoices.match(language, offered.map { (g, i) ->
+            val f = g.getTrackFormat(i)
+            PlayerChoices.Track(f.language, forced = f.selectionFlags and C.SELECTION_FLAG_FORCED != 0, commentary = f.roleFlags and C.ROLE_FLAG_COMMENTARY != 0)
+        }) ?: return
+        val (g, track) = offered[i]
+        set { setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).setOverrideForType(TrackSelectionOverride(g.mediaTrackGroup, track)) }
+    }
+
+    /** Keeps [picked] for the next videos; a track without a language leaves that choice to the TV again. */
+    private fun remember(picked: PlayerChoices) {
+        choices = picked
+        listener.onChoicesChanged(picked)
+    }
+
     fun audios(): List<Choice> = groups(C.TRACK_TYPE_AUDIO).flatMap { g ->
         (0 until g.length).filter(g::isTrackSupported).map { i ->
             val f = g.getTrackFormat(i)
             Choice(listOfNotNull(f.label, languageName(f.language)).distinct().joinToString(" · ").ifEmpty { "#${i + 1}" },
-                g.isTrackSelected(i)) { set { setOverrideForType(TrackSelectionOverride(g.mediaTrackGroup, i)) } }
+                g.isTrackSelected(i)) {
+                remember(choices.copy(audio = PlayerChoices.tag(f.language)))
+                set { setOverrideForType(TrackSelectionOverride(g.mediaTrackGroup, i)) }
+            }
         }
     }.distinctBy { it.label }
 
@@ -327,13 +364,16 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
             (0 until g.length).filter(g::isTrackSupported).map { i ->
                 val f = g.getTrackFormat(i)
                 Choice(f.label ?: languageName(f.language) ?: "#${i + 1}", !disabled && g.isTrackSelected(i)) {
-                    subsWanted = true
+                    remember(choices.copy(subtitles = PlayerChoices.tag(f.language)))
                     set { setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).setOverrideForType(TrackSelectionOverride(g.mediaTrackGroup, i)) }
                 }
             }
         }
         val anyOn = tracks.any { it.selected }
-        return listOf(Choice(off, !anyOn) { subsWanted = false; set { setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true) } }) + tracks
+        return listOf(Choice(off, !anyOn) {
+            remember(choices.copy(subtitles = PlayerChoices.OFF))
+            set { setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true) }
+        }) + tracks
     }
 
     private fun toggleSubtitles() {
@@ -422,8 +462,9 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
         }
 
         override fun onTracksChanged(tracks: Tracks) {
-            applyRemembered(tracks)
             keepToPanel(tracks)
+            applyRemembered(tracks)
+            applySubtitles(tracks)
             main.post(report)
         }
     }

@@ -36,6 +36,7 @@ import app.sofabrowser.browser.WebViews
 import app.sofabrowser.data.Db
 import app.sofabrowser.data.Favicons
 import app.sofabrowser.data.HistoryRetention
+import app.sofabrowser.player.PlayerChoices
 import app.sofabrowser.update.Updater
 
 /** One centred list of settings, styled like BrowsHere's: rows turn white with black text when focused. */
@@ -108,6 +109,10 @@ class SettingsActivity : Activity() {
         switch(R.string.javascript, R.string.javascript_sub, prefs::javascript)
         switch(R.string.autoplay, R.string.autoplay_sub, prefs::autoplay)
         switch(R.string.sofa_player, R.string.sofa_player_sub, prefs::sofaPlayer)
+        row(getString(R.string.forget_player_choices), getString(R.string.forget_player_choices_sub), null) {
+            prefs.playerChoices = PlayerChoices()
+            Toast.makeText(this, R.string.player_choices_forgotten, Toast.LENGTH_SHORT).show()
+        }
         row(getString(R.string.play_in), getString(R.string.play_in_setting_sub), valueText(playerLabel())) { pickPlayer() }
         switch(R.string.force_external_player, R.string.force_external_player_sub, prefs::forceExternalPlayer)
         // Only on TVs that offer another refresh rate at their resolution; many offer just one.

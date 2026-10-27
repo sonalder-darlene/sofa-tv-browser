@@ -6,6 +6,7 @@ import android.net.Uri
 import app.sofabrowser.browser.ProtectedMedia
 import app.sofabrowser.browser.ResumeStore
 import app.sofabrowser.data.HistoryRetention
+import app.sofabrowser.player.PlayerChoices
 
 data class SearchEngine(
     val id: String,
@@ -82,6 +83,12 @@ class Prefs(context: Context) {
     var videoPlayer by string("video_player", "")
     /** Watch hands fullscreen videos to the "Play in…" app instead of Sofa Player. Experimental, off by default. */
     var forceExternalPlayer by boolean("force_external_player", false)
+    /** The quality, subtitles and sound picked by hand in Sofa Player, for every later video (never from private browsing). */
+    var playerChoices: PlayerChoices
+        get() = PlayerChoices(PlayerChoices.decode(p.getString("player_quality", null)), p.getString("player_subtitles", null),
+            p.getString("player_audio", null))
+        set(v) = p.edit().putString("player_quality", PlayerChoices.encode(v.quality).ifEmpty { null }).putString("player_subtitles", v.subtitles)
+            .putString("player_audio", v.audio).apply()
     var textZoom by int("text_zoom", 100)
     var cursorSpeed by int("cursor_speed", 2) // 1 slow .. 3 fast
     /** How often the game pad card was shown. */

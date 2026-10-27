@@ -88,6 +88,9 @@
     <!-- Sofa Player -->
     <string name="sofa_player">Sofa Player</string>
     <string name="sofa_player_sub">In fullscreen, Sofa plays the site\'s video in its own player when it can: 4K at full resolution, HDR, and a choice of quality, sound and subtitles. It falls back to the site\'s player when it can\'t.</string>
+    <string name="forget_player_choices">Forget my player choices</string>
+    <string name="forget_player_choices_sub">Sofa Player keeps the quality, subtitles and sound you pick for the next videos. This goes back to Auto and the TV\'s own settings.</string>
+    <string name="player_choices_forgotten">Player choices forgotten</string>
     <string name="sofa_player_failed">Sofa Player couldn\'t go on: back to the site\'s player</string>
     <string name="play_in_setting_sub">The app "Play in…" sends videos to. Holding OK on the button also asks again.</string>
     <string name="ask_every_time">Ask every time</string>

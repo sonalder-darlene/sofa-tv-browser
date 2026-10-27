@@ -3,7 +3,7 @@ package app.sofabrowser.player
 /**
  * What an HLS master playlist says about each picture it offers, before anything loads: Media3 learns a variant's
  * colours only once it plays it, so HDR10 and SDR versions of one size would look the same in the quality menu.
- * Also the rule for a quality picked by hand on another video of the site. Plain Kotlin, so it is unit-tested.
+ * Also the rule for a quality picked by hand on an earlier video. Plain Kotlin, so it is unit-tested.
  */
 object Variants {
 
@@ -112,17 +112,25 @@ object Variants {
         codec, range,
     ).joinToString(" ").ifEmpty { "?" }
 
-    /** A picked quality, kept for the site: size, codec name and range name as the menu showed them. */
-    data class Quality(val height: Int, val codec: String?, val range: String?)
+    /**
+     * A picked quality, kept for later videos: size, codec name and range name as the menu showed them. [size] ranks
+     * pictures of any shape alike: 1920 × 804 and 1440 × 1080 are both 1080p-class, 2560 × 1088 is 1440p-class.
+     */
+    data class Quality(val height: Int, val codec: String?, val range: String?, val width: Int = 0) {
+        val size get() = maxOf(height, width * 9 / 16)
+    }
 
     /**
-     * Which of [offered] to pick for [wanted]: the same, else another of its size, else the largest below it.
-     * Null (Auto) when every one is larger.
+     * Which of [offered] to pick for [wanted]: the same, else another of its size (within 5 %, so 1088 counts as
+     * 1080), alike in codec and range if one is, else the largest below it. Null (Auto) when every one is larger.
      */
     fun closest(wanted: Quality, offered: List<Quality>): Int? {
         offered.indexOf(wanted).takeIf { it >= 0 }?.let { return it }
-        val same = offered.withIndex().filter { it.value.height == wanted.height }
-        (same.firstOrNull { it.value.range == wanted.range } ?: same.firstOrNull())?.let { return it.index }
-        return offered.withIndex().filter { it.value.height < wanted.height }.maxByOrNull { it.value.height }?.index
+        val same = offered.withIndex().filter { sameSize(it.value.size, wanted.size) }
+        (same.firstOrNull { it.value.range == wanted.range && it.value.codec == wanted.codec }
+            ?: same.firstOrNull { it.value.range == wanted.range } ?: same.firstOrNull())?.let { return it.index }
+        return offered.withIndex().filter { it.value.size < wanted.size }.maxByOrNull { it.value.size }?.index
     }
+
+    private fun sameSize(a: Int, b: Int) = kotlin.math.abs(a - b) * 20 <= maxOf(a, b)
 }
