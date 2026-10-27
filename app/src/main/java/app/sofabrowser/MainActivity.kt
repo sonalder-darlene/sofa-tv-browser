@@ -773,6 +773,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         frameTimesSeen = false
         playerRateMatched = false
         nativeTried = false
+        nativeTries = 0
         nativeRetryAt = 0L
         hardwareRetried = false
         pausedForDecoder = false
@@ -1089,6 +1090,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     /** Sofa Player was tried (or refused) for this fullscreen; a second try waits until [nativeRetryAt]. */
     private var nativeTried = false
     private var nativeRetryAt = 0L
+    /** Looks for a manifest in this fullscreen, 2 s apart; they start over with every fullscreen. */
     private var nativeTries = 0
     private var nativeFps = 0f
     /** What Sofa Player was last started on, for its one more try at a hardware decoder ([hardwareRetried]). */
