@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.2.1 (2026-10-27)
+
+**Sofa Player**
+
+- **Your choices stay:** the quality, sound and subtitles you pick on the bar now stay for the next videos, on every
+  site: the same quality or the nearest lower one, and the same language for sound and subtitles. Private browsing
+  uses them but saves nothing new. Settings → Sofa Player → "Forget my player choices" goes back to Auto and the
+  TV's own settings.
+- **Starts sharp:** with HLS streams, Sofa Player starts at the quality the site's player was showing, instead of a
+  lower one for the first seconds.
+- **Says why:** when Watch leaves a video with the site's player (protected, no stream Sofa Player can open, or one
+  it can't read or play), a short note in fullscreen says why, and Video info keeps the reason.
+- Fixed: after a video Sofa Player couldn't take over, later videos in the same session could stay with the site's
+  player, because Sofa looked for their stream only once.
+
 ## 1.2.0 (2026-10-26)
 
 **Sofa Player**

@@ -1,0 +1,1 @@
+Sofa Player keeps the quality, sound and subtitles you pick for the next videos, starts at the quality the site's player was showing, and says why when it leaves a video with the site's player. Fixed: after a video Sofa Player couldn't take over, later videos in the same session could stay with the site's player.
