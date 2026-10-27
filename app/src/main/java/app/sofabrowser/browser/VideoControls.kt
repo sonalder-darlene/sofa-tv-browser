@@ -295,7 +295,7 @@ object VideoRelay {
     if (!m || m.k !== K) return;
     switch (m.cmd) {
       // "Play in…" and Sofa Player: every frame reports its main video's address, where it is, how big, whether it
-      // uses DRM, the frame's own address, and the subtitle files the page gives the video.
+      // uses DRM, the frame's own address, the subtitle files the page gives the video, and the picture it shows.
       case 'source': {
         const v = watched || largest(), out = window[L];
         if (v && out) {
@@ -303,7 +303,7 @@ object VideoRelay {
           const tr = [...v.querySelectorAll('track')].filter((t) => t.src && (!t.kind || t.kind === 'subtitles' || t.kind === 'captions'))
             .map((t) => ({ u: t.src, l: t.label || '', g: t.srclang || '', o: !!t.track && t.track.mode === 'showing' }));
           out.postMessage(JSON.stringify({ src: { s: v.currentSrc || v.src || '', t: v.currentTime || 0,
-            a: r.width * r.height, drm: !!v.mediaKeys, pg: location.href, tr } }));
+            a: r.width * r.height, drm: !!v.mediaKeys, pg: location.href, tr, w: v.videoWidth || 0, h: v.videoHeight || 0 } }));
         }
         toChildren(m);
         return;
@@ -398,7 +398,7 @@ object VideoRelay {
                             val page = PageHeaders.frameFor(claimed, sender)
                             if (page != claimed && app.sofabrowser.BuildConfig.DEBUG) android.util.Log.d("SofaStream", "frame of $sender claimed $claimed")
                             onSource(VideoSource(it.optString("s"), it.optDouble("t", 0.0), it.optDouble("a", 0.0), it.optBoolean("drm"),
-                                page, tracks))
+                                page, tracks, it.optInt("w"), it.optInt("h")))
                         }
                         o.has("loc") -> o.getJSONObject("loc").let {
                             onCandidate(WatchTarget.Candidate(it.getString("fid"), it.optDouble("w", 0.0), it.optDouble("h", 0.0),
@@ -453,11 +453,12 @@ data class VideoState(
 
 /**
  * A frame's main video for "Play in…" and Sofa Player: its address, position in seconds, on-screen area, DRM use,
- * the frame's own address (or only its origin when it named another; [PageHeaders.frameFor]) and the page's subtitle
- * files for it.
+ * the frame's own address (or only its origin when it named another; [PageHeaders.frameFor]), the page's subtitle
+ * files for it, and the size of the picture it shows (0 before the first one).
  */
 data class VideoSource(val src: String, val position: Double, val area: Double, val protected: Boolean,
-                       val page: String? = null, val subtitles: List<PlayerRequest.Subtitle> = emptyList())
+                       val page: String? = null, val subtitles: List<PlayerRequest.Subtitle> = emptyList(),
+                       val width: Int = 0, val height: Int = 0)
 
 /** What "Video info" shows, as the page reports it: the decoded size, frames, codec support and page geometry. */
 data class VideoInfo(

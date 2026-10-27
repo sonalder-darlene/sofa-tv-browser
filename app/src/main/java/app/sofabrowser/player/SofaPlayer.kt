@@ -31,7 +31,10 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.trackselection.AdaptiveTrackSelection
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import androidx.media3.exoplayer.upstream.BandwidthMeter
+import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import app.sofabrowser.R
 import app.sofabrowser.browser.Decoders
 import app.sofabrowser.browser.FrameRate
@@ -80,12 +83,12 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
     }
 
     /**
-     * What to play: the page's stream, its frame (for the headers), the master playlist text when one was read, and the
-     * page's own subtitle files ([PageSubtitles]).
+     * What to play: the page's stream, its frame (for the headers), the master playlist text when one was read, the
+     * page's own subtitle files ([PageSubtitles]), and the size of the picture the site's player showed (0 unknown).
      */
     class Source(val url: String, val kind: StreamResolver.Kind, val frame: String?, val playlist: String?,
                  val userAgent: String, val cookie: (String) -> String?, val media: Boolean,
-                 val subtitles: List<PlayerRequest.Subtitle> = emptyList())
+                 val subtitles: List<PlayerRequest.Subtitle> = emptyList(), val pageWidth: Int = 0, val pageHeight: Int = 0)
 
     val view = PlayerSurface(context)
     private var player: ExoPlayer? = null
@@ -128,6 +131,7 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
         val selector = DefaultTrackSelector(context)
         val p = ExoPlayer.Builder(context, DefaultRenderersFactory(context).setEnableDecoderFallback(true))
             .setTrackSelector(selector)
+            .setBandwidthMeter(startMeter(Variants.startBandwidth(variants, source.pageWidth, source.pageHeight)))
             // Media3 sizes its buffer for video at about 130 MB; a 4K stream fills that on TVs with 2 or 3 GB of memory,
             // which then stop Sofa in the background. A cap in bytes keeps it to some 15 s at 4K, more at lower sizes.
             .setLoadControl(DefaultLoadControl.Builder().setTargetBufferBytes(BUFFER_BYTES).setPrioritizeTimeOverSizeThresholds(false).build())
@@ -175,6 +179,20 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
         p.playWhenReady = false
         p.prepare()
         player = p
+    }
+
+    /**
+     * Auto opens at the site's own picture ([bandwidth], from [Variants.startBandwidth]): the site's player has measured
+     * the network already, where Media3 would start from a guess, low, and climb only after some 15 s. Never below what
+     * Media3 learnt on earlier videos; that alone without a [bandwidth].
+     */
+    private fun startMeter(bandwidth: Int?): BandwidthMeter {
+        val shared = DefaultBandwidthMeter.getSingletonInstance(context)
+        // Auto takes the largest picture within this share of the estimate.
+        val wanted = (bandwidth ?: return shared) / AdaptiveTrackSelection.DEFAULT_BANDWIDTH_FRACTION.toDouble()
+        if (wanted <= shared.bitrateEstimate) return shared
+        if (app.sofabrowser.BuildConfig.DEBUG) android.util.Log.d("SofaStream", "Sofa Player starts at the site's picture: $bandwidth b/s")
+        return DefaultBandwidthMeter.Builder(context).setInitialBitrateEstimate(wanted.toLong() + 1).build()
     }
 
     /**

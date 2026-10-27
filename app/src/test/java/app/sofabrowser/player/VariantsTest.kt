@@ -153,4 +153,40 @@ class VariantsTest {
         assertNull(Variants.autoKeeps(listOf(pq, pq), sdrPanel))
         assertNull(Variants.autoKeeps(listOf(pq, variant(Range.UNKNOWN)), hdr10Panel))
     }
+
+    // A video site's 2.39:1 master: H.264 only, no CODECS, largest first.
+    private val wide = """
+        #EXTM3U
+        #EXT-X-STREAM-INF:BANDWIDTH=6402000,RESOLUTION=2560x1072
+        a.m3u8
+        #EXT-X-STREAM-INF:BANDWIDTH=4141000,RESOLUTION=1920x804
+        b.m3u8
+        #EXT-X-STREAM-INF:BANDWIDTH=2172000,RESOLUTION=1280x536
+        c.m3u8
+        #EXT-X-STREAM-INF:BANDWIDTH=711000,RESOLUTION=640x268
+        d.m3u8
+        #EXT-X-STREAM-INF:BANDWIDTH=223000,RESOLUTION=640x268
+        e.m3u8
+    """.trimIndent()
+
+    @Test
+    fun autoStartsAtTheSitesPicture() {
+        val v = Variants.parse(wide)
+        assertEquals(6402000, Variants.startBandwidth(v, 2560, 1072))
+        assertEquals(4141000, Variants.startBandwidth(v, 1920, 804))
+        // Two variants of one size: the larger, so Auto opens at that size.
+        assertEquals(711000, Variants.startBandwidth(v, 640, 268))
+        // The same class of size counts (2560 × 1088 is 1440p, as 2560 × 1072); else the largest below (1440 × 600).
+        assertEquals(6402000, Variants.startBandwidth(v, 2560, 1088))
+        assertEquals(2172000, Variants.startBandwidth(v, 1440, 600))
+    }
+
+    @Test
+    fun noStartWhenTheSiteSaysNoSizeOrEverythingIsLarger() {
+        val v = Variants.parse(wide)
+        assertNull(Variants.startBandwidth(v, 0, 0))
+        assertNull(Variants.startBandwidth(v, 320, 134))
+        assertNull(Variants.startBandwidth(emptyList(), 1920, 1080))
+        assertNull(Variants.startBandwidth(Variants.parse("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=900000\nx.m3u8"), 1920, 1080))
+    }
 }

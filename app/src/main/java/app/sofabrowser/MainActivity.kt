@@ -1150,7 +1150,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
                     // A file only the page's requests mention (not its video's own address) may be an ad.
                     if (resolved == null || resolved.kind == StreamResolver.Kind.FILE || isDestroyed) return@runOnUiThread
                     startSofaPlayer(SofaPlayer.Source(resolved.url, resolved.kind, resolved.frame, resolved.playlist, userAgent,
-                        cookies::getCookie, media = false, video.subtitles), video)
+                        cookies::getCookie, media = false, video.subtitles, video.width, video.height), video)
                 }
             }
         }

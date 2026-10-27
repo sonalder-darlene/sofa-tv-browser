@@ -132,5 +132,18 @@ object Variants {
         return offered.withIndex().filter { it.value.size < wanted.size }.maxByOrNull { it.value.size }?.index
     }
 
+    /**
+     * The bandwidth Auto should start from to open at the site's picture ([width] × [height], what its player showed):
+     * the largest BANDWIDTH among the variants of that size, else among the largest below it. Null when the size is
+     * unknown, or every variant is larger or says no size.
+     */
+    fun startBandwidth(variants: List<Variant>, width: Int, height: Int): Int? {
+        if (width <= 0 || height <= 0) return null
+        val page = Quality(height, null, null, width).size
+        val sized = variants.filter { it.height > 0 && it.bandwidth > 0 }.groupBy { Quality(it.height, null, null, it.width).size }
+        val size = sized.keys.firstOrNull { sameSize(it, page) } ?: sized.keys.filter { it < page }.maxOrNull() ?: return null
+        return sized.getValue(size).maxOf { it.bandwidth }
+    }
+
     private fun sameSize(a: Int, b: Int) = kotlin.math.abs(a - b) * 20 <= maxOf(a, b)
 }
