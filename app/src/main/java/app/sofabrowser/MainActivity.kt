@@ -947,6 +947,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     private val candidates = ArrayList<WatchTarget.Candidate>()
     private var watching = false
     private var revealedOnce = false
+    /** When Watch last tapped a video: the page reports that start too, and Watch is already on it. */
+    private var watchTapAt = 0L
 
     private fun watch() {
         if (web == null || watching) return
@@ -979,8 +981,20 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             return
         }
         watching = false
+        watchTapAt = SystemClock.uptimeMillis()
         cursor.tapAt(best.tapX.toFloat(), best.tapY.toFloat())
         cursor.postDelayed({ VideoRelay.send(web, "go", frame = best.frame) }, 150)
+    }
+
+    /**
+     * "Open videos in Sofa Player": the user started a video on the page (with sound, a minute or more, the size of a
+     * player). It goes fullscreen at once, while their press still counts, and the usual takeover follows.
+     */
+    override fun onVideoStarted(frame: String) {
+        if (!prefs.openInPlayer || !(prefs.sofaPlayer || prefs.forceExternalPlayer) || !started || homeShown || inPip) return
+        if (watching || fullscreen.visibility == View.VISIBLE || SystemClock.uptimeMillis() - watchTapAt < WATCH_TAP_MS) return
+        streamLog("Open in Sofa Player: video started in $frame")
+        VideoRelay.send(web, "start", frame = frame)
     }
 
     // Play in…: ask every frame for its main video, hand the largest to the chosen player, pause it here.
@@ -1749,6 +1763,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         private const val TAKEOVER_LEAD_MS = 4000L
         /** How long after Sofa Player takes over the page goes to rest; its video's pause is through by then (ms). */
         private const val PAGE_REST_MS = 500L
+        /** How long after Watch's tap a video's start counts as Watch's own (ms). */
+        private const val WATCH_TAP_MS = 2000L
         /** How far the page's video may have passed Sofa Player's first picture and it still swaps in there (ms). */
         private const val SWAP_SLACK_MS = 150L
         /** How many times Sofa Player moves further ahead, unseen, before it takes over with a seek. */

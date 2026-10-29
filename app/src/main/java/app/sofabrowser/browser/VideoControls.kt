@@ -178,10 +178,27 @@ object VideoRelay {
     wasPlaying = now;
     out.postMessage(JSON.stringify({ f: F, on: now }));
   };
+  // "Open videos in Sofa Player": a video the user just started (their press gave this frame its activation), with
+  // sound, a minute or more (or live) and about the size of the page's player: not a muted preview, a hero video
+  // playing on load, or a short ad. Once per video, so going back to the page doesn't start it over; a site that
+  // plays the next video in the same element gives it a new source, and that one is offered again.
+  const offered = new WeakMap();
+  let started = null;
+  const offerStart = (v) => {
+    const out = window[L], src = v.currentSrc || v.src || '';
+    if (!out || offered.get(v) === src || fsEl() || !(navigator.userActivation && navigator.userActivation.isActive)) return;
+    if (v.muted || v.volume === 0 || v.mediaKeys || !(v.duration >= 60)) return;
+    const r = v.getBoundingClientRect();
+    if (r.width * r.height < innerWidth * innerHeight * 0.2) return;
+    offered.set(v, src);
+    started = v;
+    out.postMessage(JSON.stringify({ st: F }));
+  };
   const onMedia = (e) => {
     if (!(e.target instanceof HTMLVideoElement)) return;
     if (e.type === 'play' || e.type === 'playing') playing.add(e.target); else playing.delete(e.target);
     sendPlaying();
+    if (e.type === 'playing') offerStart(e.target);
   };
   ['play', 'playing', 'pause', 'ended', 'emptied'].forEach((t) => document.addEventListener(t, onMedia, true));
   window.addEventListener('pagehide', () => { playing.clear(); sendPlaying(); });
@@ -357,10 +374,12 @@ object VideoRelay {
         return;
       }
       case 'revealed': { const f = childFrame(e.source); if (f) f.scrollIntoView({ block: 'center', inline: 'center' }); revealed(); return; }
-      // Runs right after the app's tap, while this frame still has the tap's user activation.
-      case 'go': {
-        const v = m.fid === F && largest();
-        if (!v) { toChildren(m); return; }
+      // Runs right after the app's tap, while this frame still has the tap's user activation; "start" for the video
+      // the user just started here (offerStart), whose press still counts.
+      case 'go': case 'start': {
+        const v = m.fid === F && (m.cmd === 'go' ? largest() : started);
+        if (!v) { if (m.fid !== F) toChildren(m); return; }
+        if (m.cmd === 'start' && fsEl()) return;
         v.play().catch(() => {});
         chosen = v;
         // The player box, as the site's own fullscreen button does: many players choose their quality from their
@@ -396,13 +415,14 @@ object VideoRelay {
      * and whether any video plays in it; [onInfo] answers the "info" command, and [onCandidate] and [onSource] the
      * "locate" and "source" ones, once per frame with a video. [onFrameTimes] gets the media times of the watched
      * video's frames, once per watch. [onFetched] answers [fetch]: the address asked for, and the final address and
-     * text, or nulls when the frame couldn't fetch it, then the origin of the frame that answered. All are called on
-     * WebView's message thread.
+     * text, or nulls when the frame couldn't fetch it, then the origin of the frame that answered. [onStarted] gets the
+     * id of a frame where the user just started a video worth opening in Sofa Player; "start" to that frame puts it in
+     * fullscreen. All are called on WebView's message thread.
      */
     fun install(web: WebView, key: PageKey, panelScale: Double, onState: (VideoState) -> Unit,
                 onPlaying: (String, Boolean) -> Unit, onInfo: (VideoInfo) -> Unit, onCandidate: (WatchTarget.Candidate) -> Unit,
                 onSource: (VideoSource) -> Unit, onFrameTimes: (List<Double>) -> Unit,
-                onFetched: (String, String?, String?, String) -> Unit) {
+                onFetched: (String, String?, String?, String) -> Unit, onStarted: (String) -> Unit) {
         keys[web] = key
         WebViews.addDocumentStartScript(web, script(key, panelScale))
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
@@ -413,6 +433,7 @@ object VideoRelay {
                     val o = JSONObject(message.data ?: return@runCatching)
                     when {
                         o.has("f") -> onPlaying(o.getString("f"), o.optBoolean("on"))
+                        o.has("st") -> onStarted(o.getString("st"))
                         o.has("i") -> onInfo(VideoInfo.from(o.getJSONObject("i")))
                         o.has("fr") -> o.getJSONArray("fr").let { a -> onFrameTimes((0 until a.length()).map(a::getDouble)) }
                         o.has("mf") -> o.getJSONObject("mf").let {

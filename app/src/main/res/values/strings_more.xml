@@ -88,6 +88,8 @@
     <!-- Sofa Player -->
     <string name="sofa_player">Sofa Player</string>
     <string name="sofa_player_sub">In fullscreen, Sofa plays the site\'s video in its own player when it can: 4K at full resolution, HDR, and a choice of quality, sound and subtitles. It falls back to the site\'s player when it can\'t.</string>
+    <string name="open_in_player">Open videos in Sofa Player</string>
+    <string name="open_in_player_sub">When you start a video on a page, it goes fullscreen and Sofa Player takes over. Muted videos and videos under a minute stay on the page.</string>
     <string name="forget_player_choices">Forget my player choices</string>
     <string name="forget_player_choices_sub">Sofa Player keeps the quality, subtitles and sound you pick for the next videos. This goes back to Auto and the TV\'s own settings.</string>
     <string name="player_choices_forgotten">Player choices forgotten</string>

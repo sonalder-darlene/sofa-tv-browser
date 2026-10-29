@@ -76,6 +76,8 @@ class Prefs(context: Context) {
     var matchFrameRate by boolean("match_frame_rate", false)
     /** Sofa Player takes over fullscreen videos whose stream it can play. */
     var sofaPlayer by boolean("sofa_player", true)
+    /** A video the user starts on a page goes fullscreen by itself, so Sofa Player (or the "Play in…" app) takes it. */
+    var openInPlayer by boolean("open_in_player", true)
     /**
      * The player for "Play in…" (a flattened component name): picked in Android's chooser the first time ("" until
      * then) or in Settings; [ASK_EVERY_TIME] keeps the chooser.

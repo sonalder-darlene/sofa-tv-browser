@@ -109,6 +109,7 @@ class SettingsActivity : Activity() {
         switch(R.string.javascript, R.string.javascript_sub, prefs::javascript)
         switch(R.string.autoplay, R.string.autoplay_sub, prefs::autoplay)
         switch(R.string.sofa_player, R.string.sofa_player_sub, prefs::sofaPlayer)
+        switch(R.string.open_in_player, R.string.open_in_player_sub, prefs::openInPlayer)
         row(getString(R.string.forget_player_choices), getString(R.string.forget_player_choices_sub), null) {
             prefs.playerChoices = PlayerChoices()
             Toast.makeText(this, R.string.player_choices_forgotten, Toast.LENGTH_SHORT).show()

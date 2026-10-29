@@ -109,6 +109,10 @@ Everything is matched on the TV; nothing about your browsing leaves it.
   TV's own settings.
 - **Starts sharp:** with an HLS stream, Sofa Player starts at the quality the site's player was showing, then
   adapts to the connection as usual.
+- **Straight from the page:** a video you start on the page yourself (with the pointer, on the site's play button)
+  goes fullscreen at once, so Sofa Player takes over without Watch. Only videos you start, with sound, a minute or
+  longer and about the size of the page's player: muted previews, videos that start on their own and short ads stay
+  on the page. Settings → "Open videos in Sofa Player" turns it off.
 - **Says why:** when Watch leaves a video with the site's player (protected, no stream Sofa Player can open, or one
   it can't read or play), a short note in fullscreen says why, and Video info keeps the reason.
 - **Back to the site's player:** the bar's "Site's player" button switches back at the same position, and so does

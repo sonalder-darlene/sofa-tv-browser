@@ -55,6 +55,8 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
         fun onVideoSource(source: VideoSource)
         /** The media times of the frames the watched video showed, for "Match frame rate". */
         fun onVideoFrameTimes(times: List<Double>)
+        /** The user just started a video in [frame] that "Open videos in Sofa Player" may take ([VideoRelay]'s offerStart). */
+        fun onVideoStarted(frame: String)
         fun onSslError(handler: SslErrorHandler, error: SslError)
         fun onProtectedMediaRequest(origin: String, grant: (Boolean) -> Unit)
         fun onDownload(url: String, userAgent: String?, contentDisposition: String?, mimeType: String?, length: Long)
@@ -125,7 +127,8 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
             onCandidate = { c -> view.post { host.onVideoCandidate(c) } },
             onSource = { s -> view.post { host.onVideoSource(s) } },
             onFrameTimes = { t -> view.post { host.onVideoFrameTimes(t) } },
-            onFetched = { url, final, body, sender -> view.post { fetched(url, final, body, sender) } })
+            onFetched = { url, final, body, sender -> view.post { fetched(url, final, body, sender) } },
+            onStarted = { frame -> view.post { host.onVideoStarted(frame) } })
         // Every press that reaches the page (the pointer's taps, a real mouse, OK in keys-to-page mode) may open one
         // window. Both listeners only watch.
         view.setOnTouchListener { _, e -> if (e.actionMasked == MotionEvent.ACTION_DOWN) guard.onInput(); false }
