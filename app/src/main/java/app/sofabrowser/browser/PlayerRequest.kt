@@ -8,9 +8,13 @@ object PlayerRequest {
 
     sealed interface Result
 
-    /** Open [uri] as [mime]; the rest are extras players read when they know them. */
+    /**
+     * Open [uri] as [mime]; the rest are extras players read when they know them. [siteUri] is the site's own address
+     * when [uri] is Sofa's copy of it (StreamCopyProvider), for players that can't read the copy ([forPlayer]).
+     */
     data class Launch(val uri: String, val mime: String, val title: String?, val positionMs: Int?,
-                      val headers: Map<String, String>, val subtitles: List<Subtitle> = emptyList()) : Result
+                      val headers: Map<String, String>, val subtitles: List<Subtitle> = emptyList(),
+                      val siteUri: String? = null) : Result
 
     /** A subtitle file the page gives its video (a <track>): address, label, language, and whether the page shows it. */
     data class Subtitle(val url: String, val label: String, val language: String, val showing: Boolean = false)
@@ -65,6 +69,21 @@ object PlayerRequest {
         val genericFirst = !mime.startsWith("video/") && (packageName == null || packageName == VLC)
         return (if (genericFirst) listOf("video/*") + own else own + "video/*").distinct()
     }
+
+    /**
+     * [launch] as [packageName] gets it: the site's own address in place of Sofa's copy for a player that can't read
+     * the copy ([NO_COPY]), with the page's headers; such players fetch the playlist with their own client.
+     */
+    fun forPlayer(launch: Launch, packageName: String?): Launch {
+        val site = launch.siteUri ?: return launch
+        return if (packageName in NO_COPY) launch.copy(uri = site, mime = mimeOf(site), siteUri = null) else launch
+    }
+
+    /**
+     * Players that open Sofa's copy of a playlist and fail on it, though they play the site's own address: C Media
+     * Player reads the copy through a file descriptor and its FFmpeg can't take a playlist that way.
+     */
+    val NO_COPY = setOf("com.sdk.cmp")
 
     /** Whether [packageName] reads the "position" extra (ms) as a Long: VLC does and drops anything else; others an Int. */
     fun positionIsLong(packageName: String?) = packageName == VLC

@@ -1073,7 +1073,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
                 fun codecs(p: String) = Regex("""#EXT-X-STREAM-INF:.*CODECS="([^"]*)"""").findAll(p).map { it.groupValues[1] }.toList()
                 streamLog("copy for another player keeps ${codecs(copy)} of ${codecs(resolved.playlist)}")
             }
-            launch = launch.copy(uri = StreamCopyProvider.put(this, copy).toString(), mime = PlayerRequest.HLS)
+            launch = launch.copy(uri = StreamCopyProvider.put(this, copy).toString(), mime = PlayerRequest.HLS, siteUri = launch.uri)
         }
         // The player picked last time, unless the user asked to choose (again, or every time) or it was uninstalled since.
         val remembered = prefs.videoPlayer.takeUnless { choosePlayer || it.isEmpty() || it == Prefs.ASK_EVERY_TIME }

@@ -93,6 +93,25 @@ class PlayerRequestTest {
     }
 
     @Test
+    fun playersThatCantReadTheCopyGetTheSitesAddress() {
+        val copy = Launch("content://app.sofabrowser.streams/k/master.m3u8", PlayerRequest.HLS, "A film", 60_000,
+            mapOf("Referer" to "https://site.test/"), siteUri = "https://cdn.test/master.m3u8?sec=1")
+        val cmp = PlayerRequest.forPlayer(copy, "com.sdk.cmp")
+        assertEquals("https://cdn.test/master.m3u8?sec=1", cmp.uri)
+        assertEquals("video/*", cmp.mime)
+        assertEquals(null, cmp.siteUri)
+        assertEquals(copy.headers, cmp.headers)
+        assertEquals(60_000, cmp.positionMs)
+        // VLC and Just Player read the copy (the site turns their own requests away), as does the chooser's list.
+        assertEquals(copy, PlayerRequest.forPlayer(copy, PlayerRequest.VLC))
+        assertEquals(copy, PlayerRequest.forPlayer(copy, "com.brouken.player"))
+        assertEquals(copy, PlayerRequest.forPlayer(copy, null))
+        // Without a copy there is nothing to swap.
+        val direct = copy.copy(uri = "https://cdn.test/a.mp4", siteUri = null)
+        assertEquals(direct, PlayerRequest.forPlayer(direct, "com.sdk.cmp"))
+    }
+
+    @Test
     fun vlcAndTheChooserGetTheGenericVideoTypeFirst() {
         // VLC's StartActivity hands only video/* intents, extras and all, to its player; others play from 0:00.
         assertEquals(listOf("video/*", "application/x-mpegURL", "application/vnd.apple.mpegurl", "application/x-mpegurl"),

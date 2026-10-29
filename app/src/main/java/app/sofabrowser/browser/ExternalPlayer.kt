@@ -66,10 +66,23 @@ object ExternalPlayer {
      * [launch] for [player], under the first of the stream's types ([PlayerRequest.types]) the player declares
      * (Android requires an explicit intent to match the target's filters). Null when it takes none.
      */
-    private fun intentFor(context: Context, launch: PlayerRequest.Launch, player: ComponentName): Intent? =
-        PlayerRequest.types(launch.mime, player.packageName).map { intent(launch, it, player.packageName) }
+    private fun intentFor(context: Context, request: PlayerRequest.Launch, player: ComponentName): Intent? {
+        val launch = PlayerRequest.forPlayer(request, player.packageName)
+        return PlayerRequest.types(launch.mime, player.packageName).map { intent(launch, it, player.packageName) }
             .firstOrNull { i -> handlers(context, i).any { it.activityInfo.packageName == player.packageName && it.activityInfo.name == player.className } }
             ?.setComponent(player)
+    }
+
+    /**
+     * For the chooser, players that can't read Sofa's copy ([PlayerRequest.NO_COPY]) are listed with an intent of their
+     * own, for the site's address; they are left out of the copy's list, so each shows once.
+     */
+    private fun ownIntents(context: Context, launch: PlayerRequest.Launch): List<Intent> {
+        if (launch.siteUri == null) return emptyList()
+        return chooserIntents(context, launch).flatMap { handlers(context, it) }.map { it.activityInfo }
+            .filter { it.packageName in PlayerRequest.NO_COPY }.distinctBy { it.packageName to it.name }
+            .mapNotNull { intentFor(context, launch, ComponentName(it.packageName, it.name)) }
+    }
 
     /** For the chooser: [launch] under each of its types some player takes, in [PlayerRequest.types] order. */
     private fun chooserIntents(context: Context, launch: PlayerRequest.Launch): List<Intent> =
@@ -111,6 +124,11 @@ object ExternalPlayer {
                 // Players that take only the stream's own type (HLS) are listed too; each app is listed once, with the
                 // first intent it takes.
                 if (intents.size > 1) chooser.putExtra(Intent.EXTRA_ALTERNATE_INTENTS, intents.drop(1).toTypedArray())
+                val own = ownIntents(context, launch)
+                if (own.isNotEmpty()) {
+                    chooser.putExtra(Intent.EXTRA_INITIAL_INTENTS, own.toTypedArray<Parcelable>())
+                    chooser.putExtra(Intent.EXTRA_EXCLUDE_COMPONENTS, own.mapNotNull { it.component }.toTypedArray<Parcelable>())
+                }
                 // VLC reads the position only as a Long, whichever intent it gets.
                 launch.positionMs?.let { ms ->
                     chooser.putExtra(Intent.EXTRA_REPLACEMENT_EXTRAS, Bundle().apply {
