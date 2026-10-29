@@ -772,6 +772,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         fullscreenCallback = callback
         resumeOffered = false
         videoState = null
+        watchedFrame = null
         videoFps = null
         frameTimesSeen = false
         playerRateMatched = false
@@ -817,6 +818,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     }
 
     override fun onVideoState(state: VideoState) {
+        state.frame?.let { watchedFrame = it }
         // The page's video is paused while Sofa Player plays; the bar follows the player.
         if (nativeOn) return
         maybeSofaPlayer(state)
@@ -851,6 +853,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
 
     private val refreshMatch by lazy { RefreshRateMatch(this) }
     private var videoState: VideoState? = null
+    /** The page frame of the watched video, so Back from Sofa Player reaches it and not another frame's video. */
+    private var watchedFrame: String? = null
     private var videoFps: Double? = null
     private var frameTimesSeen = false
 
@@ -1405,13 +1409,13 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         if (!wasOn) {
             // Sofa Player was still unseen: the page may rest for its second try (onSoftwareDecoder).
             if (rested) web?.onResume()
-            if (play && paused) VideoRelay.send(web, "play")
+            if (play && paused) VideoRelay.send(web, "play", frame = watchedFrame)
             return
         }
         // Awake again (it rested while Sofa Player played, see swapIn), so its video can play on.
         web?.onResume()
-        VideoRelay.send(web, "seekTo", at)
-        if (play) VideoRelay.send(web, "play")
+        VideoRelay.send(web, "seekTo", at, frame = watchedFrame)
+        if (play) VideoRelay.send(web, "play", frame = watchedFrame)
     }
 
     override fun sitePlayer() {

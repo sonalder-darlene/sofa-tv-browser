@@ -71,6 +71,8 @@ object VideoRelay {
       }
       if (inner) return inner;
     }
+    // Fullscreen just ended (Back from Sofa Player): its video carries on, not a muted one playing elsewhere on the page.
+    if (watched && watched.isConnected) return watched;
     let best = null, bestScore = 0;
     for (const v of document.querySelectorAll('video')) {
       const r = v.getBoundingClientRect();
@@ -88,7 +90,7 @@ object VideoRelay {
     last = now;
     const tracks = textTracks(v);
     out.postMessage(JSON.stringify({ t: v.currentTime || 0, d: isFinite(v.duration) ? v.duration : 0, p: v.paused, r: v.playbackRate,
-      tt: tracks.length, ts: tracks.some((t) => t.mode === 'showing') }));
+      tt: tracks.length, ts: tracks.some((t) => t.mode === 'showing'), w: F }));
   };
   // Subtitles Sofa can switch: the video's own text tracks. Players that draw subtitles themselves aren't reachable.
   const textTracks = (v) => [...(v.textTracks || [])].filter((t) => t.kind === 'subtitles' || t.kind === 'captions');
@@ -369,6 +371,8 @@ object VideoRelay {
       }
     }
     if (m.cmd === 'unwatch') { unwatch(); forward(m); return; }
+    // Addressed to the frame of the watched video (Back from Sofa Player): another frame's own video doesn't take it.
+    if (m.fid && m.fid !== F) { forward(m); return; }
     const v = pick();
     if (!v) { forward(m); return; }
     switch (m.cmd) {
@@ -430,7 +434,7 @@ object VideoRelay {
                                 it.optDouble("tx", -1.0), it.optDouble("ty", -1.0)))
                         }
                         else -> onState(VideoState(o.optDouble("t"), o.optDouble("d"), o.optBoolean("p", true), o.optDouble("r", 1.0),
-                            o.optInt("tt"), o.optBoolean("ts")))
+                            o.optInt("tt"), o.optBoolean("ts"), o.optString("w").takeIf { it.isNotEmpty() }))
                     }
                 }
             }
@@ -474,6 +478,8 @@ data class VideoState(
     val position: Double, val duration: Double, val paused: Boolean, val rate: Double,
     /** Subtitle tracks Sofa can switch, and whether one is showing. */
     val subtitleTracks: Int = 0, val subtitlesOn: Boolean = false,
+    /** The id of the page frame whose video this is; null for Sofa Player's own state. */
+    val frame: String? = null,
 )
 
 /**
