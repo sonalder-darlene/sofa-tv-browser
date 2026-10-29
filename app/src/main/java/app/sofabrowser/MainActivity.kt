@@ -188,6 +188,9 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             Intent.ACTION_SEND -> intent.getStringExtra(Intent.EXTRA_TEXT)?.let { UrlInput.resolve(it, prefs.searchEngine) }
             else -> null
         } ?: return false
+        // A link from another app (or a phone remote) may come while the menu is open: the page it opens gets the keys.
+        menu?.dismiss()
+        if (findBar.showing) closeFind()
         openUrl(url)
         return true
     }
