@@ -3,8 +3,10 @@ package app.sofabrowser.player
 import app.sofabrowser.player.Variants.Quality
 import app.sofabrowser.player.Variants.Range
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class VariantsTest {
@@ -188,5 +190,41 @@ class VariantsTest {
         assertNull(Variants.startBandwidth(v, 320, 134))
         assertNull(Variants.startBandwidth(emptyList(), 1920, 1080))
         assertNull(Variants.startBandwidth(Variants.parse("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=900000\nx.m3u8"), 1920, 1080))
+    }
+
+    // A wide 4K stream whose AV1 top picture doesn't decode on a TV; its H.264 pictures do, one as large.
+    private val av1Top = listOf(Quality(1632, "AV1", null, 3840), Quality(1080, "H.264", null, 2560),
+        Quality(816, "H.264", null, 1920), Quality(544, "H.264", null, 1280), Quality(1632, "H.264", null, 3840))
+
+    @Test
+    fun autoGoesOnWithEveryPictureThatIsLeft() {
+        assertEquals(Variants.Fallback(listOf(1, 2, 3, 4), byHand = false), Variants.afterFailure(av1Top, setOf(0), picked = null))
+        assertEquals(Variants.Fallback(listOf(1, 2, 3), byHand = false), Variants.afterFailure(av1Top, setOf(0, 4), picked = null))
+    }
+
+    @Test
+    fun aPictureByHandStepsToTheClosestBelow() {
+        // 3840 × 1632 AV1 picked: the other 3840 × 1632 (H.264) is the same size, not below; 2560 × 1080 is next.
+        assertEquals(Variants.Fallback(listOf(1), byHand = true), Variants.afterFailure(av1Top, setOf(0), picked = 0))
+        assertEquals(Variants.Fallback(listOf(3), byHand = true), Variants.afterFailure(av1Top, setOf(0, 2), picked = 2))
+        // Nothing below the smallest: Auto with the rest.
+        assertEquals(Variants.Fallback(listOf(0, 1, 2, 4), byHand = false), Variants.afterFailure(av1Top, setOf(3), picked = 3))
+    }
+
+    @Test
+    fun nothingLeftHandsBackToThePage() {
+        assertNull(Variants.afterFailure(av1Top, setOf(0, 1, 2, 3, 4), picked = null))
+        assertNull(Variants.afterFailure(emptyList(), emptySet(), picked = null))
+    }
+
+    @Test
+    fun softwareKeepsTo1080pAt30() {
+        assertTrue(Variants.fitsSoftware(Quality(1080, "H.264", null, 1920), 30f))
+        assertTrue(Variants.fitsSoftware(Quality(1088, "H.264", null, 1920), 29.97f))
+        assertTrue(Variants.fitsSoftware(Quality(804, "H.264", null, 1920), 0f))
+        assertTrue(Variants.fitsSoftware(Quality(720, "H.264", null, 1280), 25f))
+        assertFalse(Variants.fitsSoftware(Quality(1080, "H.264", null, 1920), 60f))
+        assertFalse(Variants.fitsSoftware(Quality(1088, "AV1", null, 2560), 25f))
+        assertFalse(Variants.fitsSoftware(Quality(2160, "HEVC", null, 3840), 30f))
     }
 }

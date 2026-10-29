@@ -28,8 +28,11 @@ import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.TransferListener
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.ExoPlaybackException
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.mediacodec.MediaCodecAdapter
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.AdaptiveTrackSelection
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
@@ -59,11 +62,19 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
         fun onReady()
         fun onState(state: VideoState)
         fun onPlaying(playing: Boolean)
-        /** Playback failed; [ready] tells whether [onReady] had come. */
-        fun onError(reason: String, ready: Boolean)
+        /**
+         * Playback failed: [reason] is Media3's error name, [detail] the picture and decoder when a decoder failed;
+         * [ready] tells whether [onReady] had come.
+         */
+        fun onError(reason: String, detail: String?, ready: Boolean)
+        /**
+         * Sofa Player left a picture ([failed], as "AV1 3840 × 1632") and goes on with [now]: it didn't decode on this
+         * TV, or would have played in software ([why]).
+         */
+        fun onSteppedDown(failed: String, now: String, why: Step)
         /**
          * The video got a software decoder though the TV has a hardware one for its format: often the page's video,
-         * still playing, holds it. Once per [start].
+         * still playing, holds it. Once per [start]; after a second try, [keepToSoftware] says whether it plays on.
          */
         fun onSoftwareDecoder()
         /**
@@ -110,6 +121,10 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
     fun start(source: Source, startMs: Long, choices: PlayerChoices = PlayerChoices()) {
         release()
         variants = source.playlist?.let(Variants::parse).orEmpty()
+        failed.clear()
+        knownTracks = Tracks.EMPTY
+        initRetried = false
+        steppedFrom = null
         this.choices = choices
         remembered = choices.quality
         subtitlesWanted = choices.subtitles?.takeIf { it != PlayerChoices.OFF }
@@ -129,7 +144,7 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
         val master = source.playlist?.toByteArray()
         val dataSources = if (master == null) withHeaders else DataSource.Factory { PageCopyDataSource(Uri.parse(source.url), master, withHeaders.createDataSource()) }
         val selector = DefaultTrackSelector(context)
-        val p = ExoPlayer.Builder(context, DefaultRenderersFactory(context).setEnableDecoderFallback(true))
+        val p = ExoPlayer.Builder(context, renderers().setEnableDecoderFallback(true))
             .setTrackSelector(selector)
             .setBandwidthMeter(startMeter(Variants.startBandwidth(variants, source.pageWidth, source.pageHeight)))
             // Media3 sizes its buffer for video at about 130 MB; a 4K stream fills that on TVs with 2 or 3 GB of memory,
@@ -281,7 +296,7 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
             set { clearOverridesOfType(C.TRACK_TYPE_VIDEO).apply { panelLimit?.let(::setOverrideForType) } }
         })
         for (g in groups(C.TRACK_TYPE_VIDEO)) for (i in 0 until g.length) {
-            if (!g.isTrackSupported(i, true)) continue
+            if (!g.isTrackSupported(i, true) || g.mediaTrackGroup to i in failed) continue
             val f = g.getTrackFormat(i)
             val label = quality(f) + if (g.isTrackSupported(i)) "" else " ($beyond)"
             out += Choice(label, overridden && g.isTrackSelected(i)) {
@@ -471,7 +486,9 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
             main.post(report)
         }
 
-        override fun onPlayerError(error: PlaybackException) = listener.onError(error.errorCodeName, ready)
+        override fun onPlayerError(error: PlaybackException) {
+            if (!stepDown(error)) listener.onError(error.errorCodeName, failureDetail(error), ready)
+        }
 
         override fun onVideoSizeChanged(size: VideoSize) = view.setVideoSize(size.width, size.height, size.pixelWidthHeightRatio)
 
@@ -480,6 +497,7 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
         }
 
         override fun onTracksChanged(tracks: Tracks) {
+            if (!tracks.isEmpty) knownTracks = tracks
             keepToPanel(tracks)
             applyRemembered(tracks)
             applySubtitles(tracks)
@@ -497,6 +515,8 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
         override fun onVideoInputFormatChanged(eventTime: AnalyticsListener.EventTime, format: Format,
                                                decoderReuseEvaluation: androidx.media3.exoplayer.DecoderReuseEvaluation?) {
             videoMime = format.sampleMimeType
+            steppedFrom?.let { (from, why) -> listener.onSteppedDown(from, describe(format), why) }
+            steppedFrom = null
             checkDecoder()
             listener.onFrameRate(maxOf(format.frameRate, variants.maxOfOrNull { it.frameRate } ?: 0f).takeIf { it > 0 } ?: 0f)
         }
@@ -518,7 +538,163 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
         }
     }
 
-    /** Sofa's own limit on Auto from [keepToPanel], which the menu doesn't count as a pick. */
+    // Decoders that fail: a TV may list a codec or size its decoder can't play (such as a stream's 4K AV1 picture),
+    // or the last video's decoder may not be free yet. Sofa Player goes on with the stream's other pictures, and
+    // hands back to the page only when none is left.
+
+    /** The pictures that didn't decode in this video; not kept for the next one, which may play. */
+    private val failed = HashSet<Pair<androidx.media3.common.TrackGroup, Int>>()
+    private var initRetried = false
+    /** The picture that didn't decode, said once the next one plays ([Listener.onSteppedDown]). */
+    private var steppedFrom: Pair<String, Step>? = null
+    /** The stream's tracks as last listed. */
+    private var knownTracks = Tracks.EMPTY
+
+    /** Whether [error] was a video decoder's and Sofa Player goes on, with the same picture again or another one. */
+    private fun stepDown(error: PlaybackException): Boolean {
+        val p = player ?: return false
+        if (error.errorCode !in DECODER_ERRORS) return false
+        val format = (error as? ExoPlaybackException)?.rendererFormat?.takeIf { MimeTypes.isVideo(it.sampleMimeType) } ?: return false
+        // Right after a video, its decoder may still be busy: once, the same picture again a moment later.
+        if (error.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED && !initRetried) {
+            initRetried = true
+            log("Sofa Player: decoder init failed for ${describe(format)}, trying it again")
+            main.postDelayed({ if (player === p) p.prepare() }, INIT_RETRY_MS)
+            return true
+        }
+        val tracks = videoTracks()
+        val formats = tracks.map { (g, i) -> g.getTrackFormat(i) }
+        val at = trackOf(format, formats)
+            ?: return false.also { log("Sofa Player: ${describe(format)} (${format.id}) isn't among the pictures ${formats.map { "${it.id} ${it.width}x${it.height} ${it.codecs}" }}") }
+        // A decoder that can't do a codec at one size won't do it larger: those go too, so Auto doesn't stall on each.
+        val area = formats[at].width * formats[at].height
+        formats.indices.filter { it == at || codecName(formats[it]) == codecName(formats[at]) && formats[it].width * formats[it].height >= area }
+            .forEach { failed += tracks[it].let { (g, i) -> g.mediaTrackGroup to i } }
+        val gone = tracks.indices.filter { (tracks[it].first.mediaTrackGroup to tracks[it].second) in failed }.toSet()
+        if (!goOnWithout(tracks, gone, describe(format), Step.FAILED)) return false
+        log("Sofa Player: ${describe(format)} didn't decode (${error.errorCodeName}), going on without it")
+        p.prepare()
+        return true
+    }
+
+    /** Why a picture was left ([Listener.onSteppedDown]). */
+    enum class Step { FAILED, SOFTWARE }
+
+    /**
+     * After the retry for a hardware decoder got software again: Sofa Player keeps to pictures a TV's processor can
+     * decode in time (Variants.fitsSoftware), going down from the one playing if it is larger. False when the stream
+     * has none: then software would stutter, and the page's player (which had the hardware decoder) is better.
+     */
+    fun keepToSoftware(): Boolean {
+        val p = player ?: return false
+        val tracks = videoTracks()
+        val formats = tracks.map { (g, i) -> g.getTrackFormat(i) }
+        val gone = formats.indices.filter { !Variants.fitsSoftware(qualityOf(formats[it]), formats[it].frameRate) }.toSet()
+        if (gone.isEmpty()) return true
+        val now = p.videoFormat?.takeIf { f -> !Variants.fitsSoftware(qualityOf(f), f.frameRate) }
+        if (!goOnWithout(tracks, gone, now?.let(::describe), Step.SOFTWARE)) return false
+        log("Sofa Player: software decoder, keeping to ${tracks.size - gone.size} of ${tracks.size} pictures")
+        return true
+    }
+
+    /** The video pictures this TV may play, as last listed: after an error none are listed until prepared again. */
+    private fun videoTracks() = knownTracks.groups.filter { it.type == C.TRACK_TYPE_VIDEO }
+        .flatMap { g -> (0 until g.length).filter { g.isTrackSupported(it, true) }.map { g to it } }
+
+    /**
+     * Sofa Player goes on with the pictures of [tracks] not at [gone], from now on (Sofa's own limit on Auto, and a
+     * pick by hand moves to the closest below); [from], the picture left, is said once the next one plays. False
+     * when none is left.
+     */
+    private fun goOnWithout(tracks: List<Pair<Tracks.Group, Int>>, gone: Set<Int>, from: String?, why: Step): Boolean {
+        val p = player ?: return false
+        val formats = tracks.map { (g, i) -> g.getTrackFormat(i) }
+        // Auto keeps to what it may take anyway: no "may stutter" pictures, and within the panel's range while one is left.
+        val beyond = tracks.indices.filter { !tracks[it].first.isTrackSupported(tracks[it].second) }
+        val limit = panelLimit
+        val outside = if (limit == null) emptyList() else tracks.indices.filter { tracks[it].let { (g, i) -> limit.mediaTrackGroup != g.mediaTrackGroup || i !in limit.trackIndices } }
+        val qualities = formats.map(::qualityOf)
+        fun next(picked: Int?) = Variants.afterFailure(qualities, gone + beyond + outside, picked) ?: Variants.afterFailure(qualities, gone + beyond, picked)
+        val handPick = p.trackSelectionParameters.overrides.entries.firstOrNull { (g, o) -> g.type == C.TRACK_TYPE_VIDEO && o != limit }?.value
+        val picked = handPick?.let { o -> tracks.indexOfFirst { (g, i) -> g.mediaTrackGroup == o.mediaTrackGroup && i == o.trackIndices.firstOrNull() } }?.takeIf { it >= 0 }
+        val auto = next(null) ?: return false.also { log("Sofa Player: no picture left without ${gone.size} of ${tracks.size}") }
+        val chosen = if (picked != null) next(picked) ?: return false else auto
+        // One group per override: the one holding the largest picture left (DASH may give each codec its own group).
+        fun override(keep: List<Int>): TrackSelectionOverride {
+            val group = keep.maxBy { formats[it].height }.let { tracks[it].first }
+            return TrackSelectionOverride(group.mediaTrackGroup, keep.filter { tracks[it].first === group }.map { tracks[it].second })
+        }
+        // Sofa's own limit from now on, so Auto (also chosen later in the menu) never comes back to a failed picture.
+        panelLimit = override(auto.keep)
+        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon().setOverrideForType(if (chosen.byHand) override(chosen.keep) else panelLimit!!).build()
+        steppedFrom = from?.let { it to why }
+        return true
+    }
+
+    /**
+     * Which of [formats] (the stream's) a decoder got as [format]: by id or bitrate, else by codec and width at the
+     * nearest height, since a decoder may report the coded size (1280 × 544 for a 1280 × 536 picture).
+     */
+    private fun trackOf(format: Format, formats: List<Format>): Int? {
+        formats.indexOfFirst { format.id != null && it.id == format.id }.takeIf { it >= 0 }?.let { return it }
+        formats.indexOfFirst { format.bitrate > 0 && it.bitrate == format.bitrate }.takeIf { it >= 0 }?.let { return it }
+        return formats.withIndex().filter { it.value.width == format.width && codecName(it.value) == codecName(format) }
+            .minByOrNull { kotlin.math.abs(it.value.height - format.height) }?.index
+    }
+
+    /** For a failed decoder: its picture and its name, for the notice. */
+    private fun failureDetail(error: PlaybackException): String? {
+        if (error.errorCode !in DECODER_ERRORS) return null
+        val format = (error as? ExoPlaybackException)?.rendererFormat
+        val name = when (val cause = error.cause) {
+            is androidx.media3.exoplayer.mediacodec.MediaCodecRenderer.DecoderInitializationException -> cause.codecInfo?.name
+            is androidx.media3.exoplayer.mediacodec.MediaCodecDecoderException -> cause.codecInfo?.name
+            else -> null
+        }
+        return listOfNotNull(format?.let(::describe), name).joinToString(", ").ifEmpty { null }
+    }
+
+    /** "H.264 1920 × 1080", with the rate above 30 fps ("… 60 fps"), where a step down may keep the size. */
+    private fun describe(f: Format) = listOfNotNull(codecName(f) ?: f.sampleMimeType, if (f.width > 0) "${f.width} × ${f.height}" else null,
+        f.frameRate.takeIf { it > 30.5f }?.let { "%.0f fps".format(java.util.Locale.ROOT, it) }).joinToString(" ")
+
+    private fun log(message: String) {
+        if (app.sofabrowser.BuildConfig.DEBUG) android.util.Log.d("SofaStream", message)
+    }
+
+    /**
+     * Media3's renderers. Test builds can make tall pictures fail as a TV's decoder might: a height in the file
+     * "fail-video" of the app's files (`echo 1600 > files/fail-video` through run-as), for the step down above. And
+     * they can get software decoders first, as when the page's video holds the hardware one: "once" in the file
+     * "soft-video" for the next start only (the second try then gets hardware), "always" for every start
+     * ([keepToSoftware]).
+     */
+    private fun renderers(): DefaultRenderersFactory {
+        val failAt = if (app.sofabrowser.BuildConfig.DEBUG) runCatching { java.io.File(context.filesDir, "fail-video").readText().trim().toInt() }.getOrNull() else null
+        val factory = if (failAt == null) DefaultRenderersFactory(context) else object : DefaultRenderersFactory(context) {
+            override fun getCodecAdapterFactory(): MediaCodecAdapter.Factory {
+                val real = super.getCodecAdapterFactory()
+                return MediaCodecAdapter.Factory { c ->
+                    if (MimeTypes.isVideo(c.format.sampleMimeType) && c.format.height >= failAt) throw java.io.IOException("test build: fail-video $failAt")
+                    real.createAdapter(c)
+                }
+            }
+        }
+        if (app.sofabrowser.BuildConfig.DEBUG) softwareFirst(factory)
+        return factory
+    }
+
+    private fun softwareFirst(factory: DefaultRenderersFactory) {
+        val file = java.io.File(context.filesDir, "soft-video")
+        val mode = runCatching { file.readText().trim() }.getOrNull() ?: return
+        if (mode == "once") file.delete()
+        log("Sofa Player: test build, software decoders first ($mode)")
+        factory.setMediaCodecSelector { mime, secure, tunneling ->
+            MediaCodecSelector.DEFAULT.getDecoderInfos(mime, secure, tunneling).sortedBy { it.hardwareAccelerated }
+        }
+    }
+
+    /** Sofa's own limit on Auto ([keepToPanel], and pictures that failed: [stepDown]), which the menu doesn't count as a pick. */
     private var panelLimit: TrackSelectionOverride? = null
 
     /**
@@ -561,6 +737,11 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
         private const val TIMEOUT_MS = 10_000
         private const val BUFFER_BYTES = 40 * 1024 * 1024
         private const val COUNTERS_MS = 5000L
+        /** How long a decoder that failed to start gets to be free before Sofa Player asks again (ms). */
+        private const val INIT_RETRY_MS = 500L
+        private val DECODER_ERRORS = setOf(PlaybackException.ERROR_CODE_DECODER_INIT_FAILED, PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
+            PlaybackException.ERROR_CODE_DECODING_FAILED, PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
+            PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED)
 
         fun codecName(f: Format): String? {
             val c = (f.codecs ?: f.sampleMimeType ?: return null).lowercase()

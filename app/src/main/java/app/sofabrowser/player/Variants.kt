@@ -132,6 +132,30 @@ object Variants {
         return offered.withIndex().filter { it.value.size < wanted.size }.maxByOrNull { it.value.size }?.index
     }
 
+    /** What Sofa Player goes on with after a picture didn't decode: [keep], indices of the offered ones; [byHand] keeps one. */
+    data class Fallback(val keep: List<Int>, val byHand: Boolean)
+
+    /**
+     * After the pictures at [failed] would not decode on this TV, which of [offered] Sofa Player goes on with: for one
+     * [picked] by hand (its index), the closest below it, as for a remembered one ([closest]); for Auto, or when nothing
+     * is below, every one left. Null when none is left.
+     */
+    fun afterFailure(offered: List<Quality>, failed: Set<Int>, picked: Int?): Fallback? {
+        val left = offered.indices.filter { it !in failed }
+        if (left.isEmpty()) return null
+        val below = picked?.let { p ->
+            left.filter { offered[it].size < offered[p].size || offered[it].height < offered[p].height }
+                .takeIf { it.isNotEmpty() }?.let { b -> closest(offered[p], b.map(offered::get))?.let(b::get) }
+        }
+        return if (below != null) Fallback(listOf(below), byHand = true) else Fallback(left, byHand = false)
+    }
+
+    /**
+     * Whether a TV's processor decodes [q] at [frameRate] in time, for a video that got a software decoder: up to
+     * 1080p-class at 30 fps (an unknown rate, 0, counts as fitting).
+     */
+    fun fitsSoftware(q: Quality, frameRate: Float): Boolean = (q.size <= 1080 || sameSize(q.size, 1080)) && frameRate <= 30.5f
+
     /**
      * The bandwidth Auto should start from to open at the site's picture ([width] × [height], what its player showed):
      * the largest BANDWIDTH among the variants of that size, else among the largest below it. Null when the size is

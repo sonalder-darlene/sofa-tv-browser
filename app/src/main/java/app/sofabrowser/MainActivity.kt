@@ -933,7 +933,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             rateMeasured -> getString(R.string.video_info_rate_unknown)
             else -> getString(R.string.video_info_rate_waiting)
         }
-        val text = (listOf(getString(R.string.sofa_player)) + lines.zip(labels).mapNotNull { (line, label) -> line?.let { getString(label, it) } } +
+        val text = (listOfNotNull(getString(R.string.sofa_player), steppedDown) + lines.zip(labels).mapNotNull { (line, label) -> line?.let { getString(label, it) } } +
             rate + "" + displayInfo(player = true)).joinToString("\n")
         fullscreen.info.text = text
     }
@@ -1109,6 +1109,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     private var pausedForDecoder = false
     /** The page rests ([restPage]) so its video lets go of its decoder; [backToPage] wakes it. */
     private var pageRested = false
+    /** Which picture didn't decode on this TV and what plays instead, for Video info; null when none failed. */
+    private var steppedDown: String? = null
     /** Why Sofa Player doesn't play this fullscreen's video, for Video info; null while it does, or still may. */
     private var notForPlayerWhy: String? = null
     /** Sites whose reason was shown over the video while Sofa runs: once each, then only in Video info. */
@@ -1197,6 +1199,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         nativeFps = 0f
         measuredFps = null
         measuredBelowTop = false
+        steppedDown = null
         rateMeasured = false
         catchUps = 0
         swapToken++
@@ -1291,10 +1294,12 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             if (nativeOn) backToPage(play = true, before = END_FOR_PAGE_S)
         }
 
-        override fun onError(reason: String, ready: Boolean) {
-            streamLog("Sofa Player failed: $reason")
-            // "ERROR_CODE_DECODER_INIT_FAILED" as "decoder init failed": enough for a report, over the video every time.
-            val why = getString(R.string.sofa_player_failed, reason.removePrefix("ERROR_CODE_").lowercase().replace('_', ' '))
+        override fun onError(reason: String, detail: String?, ready: Boolean) {
+            streamLog("Sofa Player failed: $reason ${detail.orEmpty()}")
+            // "ERROR_CODE_DECODER_INIT_FAILED" as "decoder init failed", with the picture and decoder when one failed
+            // ("AV1 3840 × 2160" and the decoder's name): enough for a report, over the video every time.
+            val name = reason.removePrefix("ERROR_CODE_").lowercase().replace('_', ' ')
+            val why = getString(R.string.sofa_player_failed, detail?.let { "$name: $it" } ?: name)
             val shown = nativeOn
             if (shown) backToPage(play = true)
             notForPlayer(why, once = false)
@@ -1302,12 +1307,30 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             if (!shown) backToPage(play = pausedForDecoder)
         }
 
+        override fun onSteppedDown(failed: String, now: String, why: SofaPlayer.Step) {
+            // Over the video once per video (the next step down replaces it), and kept in Video info.
+            val text = getString(if (why == SofaPlayer.Step.SOFTWARE) R.string.sofa_player_stepped_down_software else R.string.sofa_player_stepped_down, failed, now)
+            steppedDown = text
+            streamLog(text)
+            if (fullscreen.visibility == View.VISIBLE) fullscreen.notice(text)
+        }
+
         override fun onSoftwareDecoder() {
             // Still unseen: the page's video stops and the page rests, which is when its video lets go of the hardware
             // decoder (a paused one keeps it), then Sofa Player tries for it once more. If it gets software again, it
-            // plays on with it (the page's video is paused at the same point).
+            // plays on with it up to 1080p 30 fps, which a TV's processor keeps up with (the page's video is paused
+            // at the same point); for a video with nothing that small, the page's player is better.
             val (source, video) = sofaStarted ?: return
-            if (hardwareRetried || nativeOn || fullscreen.visibility != View.VISIBLE) return
+            if (fullscreen.visibility != View.VISIBLE) return
+            if (hardwareRetried) {
+                if (!sofaPlayer.keepToSoftware()) {
+                    streamLog("Sofa Player: software decoder again, nothing small enough, back to the page")
+                    backToPage(play = nativeOn || pausedForDecoder)
+                    notForPlayer(getString(R.string.sofa_player_why_software), once = false)
+                }
+                return
+            }
+            if (nativeOn) return
             hardwareRetried = true
             pausedForDecoder = true
             streamLog("Sofa Player: software decoder, pausing the page's video and trying again")

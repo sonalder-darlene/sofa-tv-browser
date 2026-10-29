@@ -94,9 +94,15 @@ Everything is matched on the TV; nothing about your browsing leaves it.
   stream offers, and Video info shows the decoder and the frames dropped. When the stream has no subtitles of its
   own, the page's subtitle files are offered instead, and the one the site was showing stays on. If Sofa Player only
   gets a software decoder while the TV has a hardware one for the video (the site's player may still hold it), it
-  pauses the site's video and tries once more before taking over. Its requests are the ones the page's
-  player would make, with the same headers and cookies, and it keeps no cache. Protected (DRM) video, videos under
-  a minute and streams a page builds itself (YouTube's, for one) stay with the site's player.
+  pauses the site's video and tries once more before taking over. If it gets a software decoder again, it keeps to
+  pictures up to 1080p at 30 fps, which the TV's processor keeps up with, or leaves the video to the site's player.
+  Its requests are the ones the page's player would make, with the same headers and cookies, and it keeps no cache.
+  Protected (DRM) video, videos under a minute and streams a page builds itself (YouTube's, for one) stay with the
+  site's player.
+- **Steps down:** when the TV can't decode one of the stream's pictures, though it lists the codec or size, Sofa
+  Player goes on from the same point with another one: the same codec smaller, or another codec. A quality picked by
+  hand steps to the closest one below. A note over the video and Video info say which picture didn't play and which
+  one plays now.
 - **Your choices stay:** the quality, sound and subtitles you pick on the bar stay for the next videos, on every
   site: the same quality or the nearest lower one, and the same language for sound and subtitles. Private browsing
   uses them but saves nothing new. Settings → Sofa Player → "Forget my player choices" goes back to Auto and the
