@@ -87,6 +87,7 @@
     <string name="player_gone">That player isn\'t installed any more. Choose another one.</string>
     <string name="no_player">No other video player is installed.</string>
     <string name="no_video">No video found on this page.</string>
+    <string name="video_covered">Something on the page covers the video. Select it once with the pointer, then try Watch again.</string>
     <string name="find_in_page">Find in page</string>
     <string name="find_hint">Find in page</string>
     <string name="find_previous">Previous match</string>

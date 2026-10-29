@@ -241,13 +241,38 @@ object VideoRelay {
     }
     return box;
   };
+  // A layer nobody can see (nearly transparent, with its parents), such as an ad link laid over the whole page to
+  // catch the first tap. Watch lets taps through it for a few seconds after its press, long enough for its own tap
+  // to reach the video; then the layer takes taps again, as the site made it. A layer one can see is left alone.
+  const unseen = (el) => {
+    let o = 1;
+    for (let e = el; e && e.nodeType === 1; e = e.parentElement) { o *= +getComputedStyle(e).opacity; if (o < 0.1) return true; }
+    return false;
+  };
+  const passed = [];
+  let passedTimer = 0;
+  const restorePassed = () => {
+    for (const [el, value, priority] of passed.splice(0)) {
+      if (value) el.style.setProperty('pointer-events', value, priority); else el.style.removeProperty('pointer-events');
+    }
+  };
+  const hitThrough = (x, y, wanted) => {
+    let el = document.elementFromPoint(x, y);
+    for (let i = 0; i < 8 && el && !wanted(el) && unseen(el); i++) {
+      passed.push([el, el.style.getPropertyValue('pointer-events'), el.style.getPropertyPriority('pointer-events')]);
+      el.style.setProperty('pointer-events', 'none', 'important');
+      el = document.elementFromPoint(x, y);
+    }
+    if (passed.length) { clearTimeout(passedTimer); passedTimer = setTimeout(restorePassed, 3000); }
+    return el;
+  };
   // A point where a tap reaches the video or its player box, not something laid over it, such as an ad.
   const tapPoint = (v) => {
     const r = v.getBoundingClientRect(), box = playerBox(v);
     for (const [fx, fy] of [[0.5, 0.5], [0.3, 0.3], [0.7, 0.3], [0.3, 0.7], [0.7, 0.7]]) {
       const x = r.left + r.width * fx, y = r.top + r.height * fy;
       if (x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) continue;
-      const el = document.elementFromPoint(x, y);
+      const el = hitThrough(x, y, (e) => box.contains(e));
       if (el && box.contains(el)) return [x, y];
     }
     return null;
@@ -282,7 +307,7 @@ object VideoRelay {
     const moved = { fid: String(c.fid), x: c.x + dx, y: c.y + dy, w: Math.min(+c.w || 0, r.width), h: Math.min(+c.h || 0, r.height), tx: -1, ty: -1 };
     if (c.tx >= 0) {
       const tx = c.tx + dx, ty = c.ty + dy;
-      if (tx >= r.left && tx < r.right && ty >= r.top && ty < r.bottom && document.elementFromPoint(tx, ty) === f) {
+      if (tx >= r.left && tx < r.right && ty >= r.top && ty < r.bottom && hitThrough(tx, ty, (e) => e === f) === f) {
         moved.tx = tx; moved.ty = ty;
       }
     }

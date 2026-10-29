@@ -961,9 +961,11 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
 
     private fun watchChosen() {
         val best = WatchTarget.choose(candidates)
+        streamLog("Watch: ${candidates.size} videos, chosen $best")
         if (best == null) { watching = false; toast(R.string.no_video); return }
         if (!best.tappable(cursor.width, cursor.height)) {
-            if (revealedOnce) { watching = false; toast(R.string.no_video); return }
+            // Found, but a layer the page shows over it takes every tap (the ones nobody can see are let through).
+            if (revealedOnce) { watching = false; toast(R.string.video_covered); return }
             revealedOnce = true
             VideoRelay.send(web, "reveal", frame = best.frame)
             cursor.postDelayed(::locate, 700)
