@@ -790,8 +790,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
 
     override fun onExitFullscreen() {
         if (fullscreen.visibility != View.VISIBLE) return
-        // Leaving Sofa Player: the page's video carries on from where it was.
-        if (sofaPlayer.active) backToPage(play = nativeOn && sofaPlayer.playing)
+        // Leaving Sofa Player: the page's video carries on from where it was, also when Sofa paused it for a second try.
+        if (sofaPlayer.active || pausedForDecoder) backToPage(play = if (nativeOn) sofaPlayer.playing else pausedForDecoder)
         VideoRelay.send(web, "unwatch")
         refreshMatch.reset()
         fullscreen.detach()
@@ -1107,6 +1107,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     private var hardwareRetried = false
     /** The page's video was paused by Sofa for that try, not by the user: Sofa Player takes over playing. */
     private var pausedForDecoder = false
+    /** The page rests ([restPage]) so its video lets go of its decoder; [backToPage] wakes it. */
+    private var pageRested = false
     /** Why Sofa Player doesn't play this fullscreen's video, for Video info; null while it does, or still may. */
     private var notForPlayerWhy: String? = null
     /** Sites whose reason was shown over the video while Sofa runs: once each, then only in Video info. */
@@ -1251,8 +1253,17 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         nativeOn = true
         fullscreen.showPlayer(true)
         sofaPlayer.takeOver(seekMs, play = state?.paused != true || pausedForDecoder, rate = state?.rate ?: 1.0)
+        // The page's paused video still holds a hardware decoder (measured on a TV: two while Sofa Player plays), and
+        // TVs have few: the page rests meanwhile, which lets it go, once its pause is through. backToPage wakes it.
+        val token = swapToken
+        fullscreen.postDelayed({ if (nativeOn && token == swapToken) restPage() }, PAGE_REST_MS)
         fullscreen.bar.show()
         matchPlayerRate()
+    }
+
+    private fun restPage() {
+        pageRested = true
+        web?.onPause()
     }
 
     private val playerEvents: SofaPlayer.Listener = object : SofaPlayer.Listener {
@@ -1287,23 +1298,27 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             val shown = nativeOn
             if (shown) backToPage(play = true)
             notForPlayer(why, once = false)
-            if (!shown) {
-                sofaPlayer.release(); fullscreen.removePlayer()
-                // The page's video was paused only for the second try: it plays on.
-                if (pausedForDecoder) { pausedForDecoder = false; VideoRelay.send(web, "play") }
-            }
+            // Unseen: the page wakes, and its video plays on if Sofa paused it for the second try.
+            if (!shown) backToPage(play = pausedForDecoder)
         }
 
         override fun onSoftwareDecoder() {
-            // Still unseen: the page's video stops so Sofa Player can try for the hardware decoder once more. If it
-            // gets software again, it plays on with it (the page's video is paused at the same point).
+            // Still unseen: the page's video stops and the page rests, which is when its video lets go of the hardware
+            // decoder (a paused one keeps it), then Sofa Player tries for it once more. If it gets software again, it
+            // plays on with it (the page's video is paused at the same point).
             val (source, video) = sofaStarted ?: return
             if (hardwareRetried || nativeOn || fullscreen.visibility != View.VISIBLE) return
             hardwareRetried = true
             pausedForDecoder = true
             streamLog("Sofa Player: software decoder, pausing the page's video and trying again")
             VideoRelay.send(web, "pause")
-            startSofaPlayer(source, video)
+            sofaPlayer.release()
+            val token = ++swapToken
+            fullscreen.postDelayed({
+                if (token != swapToken) return@postDelayed
+                restPage()
+                fullscreen.postDelayed({ if (token == swapToken && fullscreen.visibility == View.VISIBLE) startSofaPlayer(source, video) }, PAGE_REST_MS)
+            }, PAGE_REST_MS)
         }
 
         override fun onFrameRate(fps: Float) {
@@ -1360,7 +1375,18 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         sofaPlayer.release()
         fullscreen.removePlayer()
         applyKeepAwake()
-        if (!wasOn) return
+        val rested = pageRested
+        pageRested = false
+        val paused = pausedForDecoder
+        pausedForDecoder = false
+        if (!wasOn) {
+            // Sofa Player was still unseen: the page may rest for its second try (onSoftwareDecoder).
+            if (rested) web?.onResume()
+            if (play && paused) VideoRelay.send(web, "play")
+            return
+        }
+        // Awake again (it rested while Sofa Player played, see swapIn), so its video can play on.
+        web?.onResume()
         VideoRelay.send(web, "seekTo", at)
         if (play) VideoRelay.send(web, "play")
     }
@@ -1561,8 +1587,10 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         if (inPip) { VideoRelay.send(web, "pause"); web?.onPause() }
         // Out of sight (picture-in-picture keeps the activity started), Sofa Player lets go of its buffer and decoder:
         // the page's video holds the place, and Sofa Player may take over again once it plays.
-        if (sofaPlayer.active) {
+        if (sofaPlayer.active || pausedForDecoder) {
             backToPage(play = false)
+            // backToPage woke the page, which onPause, or the closed picture-in-picture above, had just put to rest.
+            web?.onPause()
             nativeTried = false
             nativeTries = 0
         }
@@ -1581,8 +1609,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         cursor.speedLevel = prefs.cursorSpeed
         // Cheap when nothing is due: it checks at most every few hours.
         browser.adBlocker.refreshIfDue(prefs.autoUpdateLists)
-        if (!homeShown) web?.onResume()
-        else home.refresh(prefs.privateMode, prefs.adBlock)
+        // While Sofa Player plays, the page stays at rest (swapIn), past a chooser or another screen.
+        if (homeShown) home.refresh(prefs.privateMode, prefs.adBlock) else if (!nativeOn && !pageRested) web?.onResume()
     }
 
     override fun onPause() {
@@ -1692,6 +1720,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         private const val PLAY_IN_BUSY_MS = 10_000L
         /** How far ahead of the page's video Sofa Player gets ready: about what it takes to start (ms). */
         private const val TAKEOVER_LEAD_MS = 4000L
+        /** How long after Sofa Player takes over the page goes to rest; its video's pause is through by then (ms). */
+        private const val PAGE_REST_MS = 500L
         /** How far the page's video may have passed Sofa Player's first picture and it still swaps in there (ms). */
         private const val SWAP_SLACK_MS = 150L
         /** How many times Sofa Player moves further ahead, unseen, before it takes over with a seek. */
