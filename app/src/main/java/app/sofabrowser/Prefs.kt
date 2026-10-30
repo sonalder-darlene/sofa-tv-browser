@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.net.Uri
 import app.sofabrowser.browser.ProtectedMedia
 import app.sofabrowser.browser.ResumeStore
+import app.sofabrowser.browser.WatchTarget
 import app.sofabrowser.data.HistoryRetention
 import app.sofabrowser.player.PlayerChoices
 
@@ -126,6 +127,15 @@ class Prefs(context: Context) {
     /** Sites driven with D-pad keys sent to the page instead of the pointer (e.g. TV-style web apps). */
     fun keysToPage(host: String) = host in p.getStringSet("keys_to_page", emptySet())!!
     fun setKeysToPage(host: String, on: Boolean) = editSet("keys_to_page", host, on)
+
+    /** "Watch by itself": after a page loads, Watch runs on its own; off by default. */
+    var autoWatch: WatchTarget.Auto
+        get() = WatchTarget.Auto.entries.firstOrNull { it.name == p.getString("auto_watch", null) } ?: WatchTarget.Auto.OFF
+        set(value) = p.edit().putString("auto_watch", value.name).apply()
+    /** The sites "Watch by itself" runs on when [autoWatch] is SITES, chosen from the menu (never from private browsing). */
+    val autoWatchSites: Set<String> get() = p.getStringSet("auto_watch_sites", emptySet())!!
+    fun setAutoWatchSite(host: String, on: Boolean) = editSet("auto_watch_sites", host, on)
+    fun forgetAutoWatchSites() = p.edit().remove("auto_watch_sites").apply()
 
     /** "Protected content (DRM)": one of ProtectedMedia's ASK, ALLOW and BLOCK. */
     var drmMode by string("drm_mode", ProtectedMedia.ASK)

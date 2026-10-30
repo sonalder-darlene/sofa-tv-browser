@@ -13,10 +13,20 @@ class NavigationGuard {
     private var inputWithWindow = -1L
     private var inputAskingWindow = -1L
     private var inputWithNavigation = -1L
+    private var inputUnattended = -1L
 
     /** The user pressed something: a tap, a click or a key sent to the page. */
     fun onInput() {
         input++
+    }
+
+    /**
+     * Sofa tapped the page on its own, with nobody pressing anything ("Watch by itself" starting a video). The page
+     * sees a press, but it opens no window and the navigation it starts is not the user's.
+     */
+    fun onUnattendedInput() {
+        input++
+        inputUnattended = input
     }
 
     /** The page asked for a window (before its address is known), on the current press if [gesture]. */
@@ -37,7 +47,8 @@ class NavigationGuard {
         val extra = inputWithWindow == input
         inputWithWindow = input
         val alsoNavigated = inputWithNavigation == input
-        return if (listed || extra || alsoNavigated || !fromLink && !sameSite) Verdict.BLOCK else Verdict.ALLOW
+        val unattended = inputUnattended == input
+        return if (listed || extra || alsoNavigated || unattended || !fromLink && !sameSite) Verdict.BLOCK else Verdict.ALLOW
     }
 
     /** Whether the user started the main-frame navigation now under way, redirects included. */
@@ -62,7 +73,7 @@ class NavigationGuard {
         if (!redirect) {
             inputWithNavigation = input
             val tabUnder = gesture && !fromLink && crossSite && inputAskingWindow == input
-            userChain = gesture && (fromLink || !listed) && !tabUnder
+            userChain = gesture && inputUnattended != input && (fromLink || !listed) && !tabUnder
             if (blocking && tabUnder) return Verdict.BLOCK
         }
         return if (blocking && listed && !userChain) Verdict.BLOCK else Verdict.ALLOW

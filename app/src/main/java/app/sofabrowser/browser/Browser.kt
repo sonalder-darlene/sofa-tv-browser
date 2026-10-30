@@ -93,6 +93,8 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
 
     val adBlocker = AdBlocker.get(context)
     private val guard = NavigationGuard()
+    /** Set while Sofa taps the page on its own ([unattended]), so the guard doesn't take that tap for the user's. */
+    private var tappingAlone = false
     private val frames = PlaybackFrames()
 
     /** Video streams the current page fetched, for Sofa Player and "Play in…". */
@@ -131,7 +133,10 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
             onStarted = { frame -> view.post { host.onVideoStarted(frame) } })
         // Every press that reaches the page (the pointer's taps, a real mouse, OK in keys-to-page mode) may open one
         // window. Both listeners only watch.
-        view.setOnTouchListener { _, e -> if (e.actionMasked == MotionEvent.ACTION_DOWN) guard.onInput(); false }
+        view.setOnTouchListener { _, e ->
+            if (e.actionMasked == MotionEvent.ACTION_DOWN) { if (tappingAlone) guard.onUnattendedInput() else guard.onInput() }
+            false
+        }
         view.setOnKeyListener { _, code, e ->
             if (e.action == KeyEvent.ACTION_DOWN && e.repeatCount == 0 && code in PRESS_KEYS) guard.onInput()
             false
@@ -443,6 +448,12 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
 
     /** Sofa is about to load an address itself; its redirects then count as the user's. */
     fun userNavigation() = guard.userNavigation()
+
+    /** Runs [tap], a tap Sofa makes on the page with nobody pressing anything ("Watch by itself"). */
+    fun unattended(tap: () -> Unit) {
+        tappingAlone = true
+        try { tap() } finally { tappingAlone = false }
+    }
 
     // History moves and reloads are the user's own navigations too.
     fun goBack() { guard.userNavigation(); web?.goBack() }

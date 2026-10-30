@@ -246,6 +246,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     // manifest opts out of predictive back (enableOnBackInvokedCallback="false") to keep receiving it.
     @SuppressLint("GestureBackNavigation")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN) stopAutoWatch()
         if (padKey(event)) return true
         if (fullscreen.visibility == View.VISIBLE) return fullscreenKey(event) || super.dispatchKeyEvent(event)
         if (findBar.showing && !homeShown) {
@@ -533,6 +534,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             zoomPercent = (100 * 1.25.pow(zoomStep)).roundToInt(),
             privateMode = browser.privateMode,
             allowPending = browser.pendingAllow() != null,
+            autoWatchHere = WatchTarget.autoWatches(prefs.autoWatch, host, prefs.autoWatchSites),
         )
     }
 
@@ -564,6 +566,15 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             BrowserMenu.Action.FORWARD -> if (w.canGoForward()) browser.goForward()
             BrowserMenu.Action.RELOAD -> { if (loading) w.stopLoading() else browser.reload(); menu?.dismiss() }
             BrowserMenu.Action.WATCH -> watch()
+            BrowserMenu.Action.AUTO_WATCH -> if (host != null && !browser.privateMode) {
+                if (prefs.autoWatch == WatchTarget.Auto.ALWAYS) { toast(R.string.auto_watch_every_site); return }
+                // Chosen while off: the setting turns to "Chosen sites only", with this one.
+                val on = prefs.autoWatch == WatchTarget.Auto.OFF || host !in prefs.autoWatchSites
+                prefs.setAutoWatchSite(host, on)
+                if (on) prefs.autoWatch = WatchTarget.Auto.SITES
+                toast(if (on) R.string.auto_watch_site_added else R.string.auto_watch_site_removed)
+                menu?.dismiss()
+            }
             BrowserMenu.Action.FIND -> { menu?.dismiss(); findBar.open(voice = prefs.voiceSearch && voiceInput.available) }
             BrowserMenu.Action.BOOKMARK -> if (Browser.isWebUrl(url)) {
                 if (db.isBookmarked(url)) db.removeBookmark(url) else db.addBookmark(w.title.orEmpty(), url)
@@ -739,6 +750,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         val host = Browser.hostOf(url)
         cursor.cursorEnabled = host == null || !prefs.keysToPage(host)
         if (cursor.scrollMode) cursor.setScrollMode(false)
+        if (url != autoWatchUrl) { stopAutoWatch(); autoWatchUrl = null }
         menu?.takeIf { it.isShowing }?.update(menuState())
     }
 
@@ -748,6 +760,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         progress.visibility = View.GONE
         progress.scaleX = 0f
         menu?.takeIf { it.isShowing }?.update(menuState())
+        if (Browser.isWebUrl(url)) maybeAutoWatch(url)
     }
 
     override fun onProgress(percent: Int) {
@@ -949,8 +962,11 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     private var revealedOnce = false
     /** When Watch last tapped a video: the page reports that start too, and Watch is already on it. */
     private var watchTapAt = 0L
+    private val locateNext = Runnable { locate() }
+    private val chooseNext = Runnable { watchChosen() }
 
     private fun watch() {
+        stopAutoWatch()
         if (web == null || watching) return
         menu?.dismiss()
         watching = true
@@ -961,7 +977,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     private fun locate() {
         candidates.clear()
         command("locate")
-        cursor.postDelayed(::watchChosen, 400)
+        cursor.postDelayed(chooseNext, 400)
     }
 
     override fun onVideoCandidate(candidate: WatchTarget.Candidate) {
@@ -969,21 +985,68 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     }
 
     private fun watchChosen() {
-        val best = WatchTarget.choose(candidates)
-        streamLog("Watch: ${candidates.size} videos, chosen $best")
-        if (best == null) { watching = false; toast(R.string.no_video); return }
+        if (!watching) return
+        val auto = autoWatching
+        val best = if (auto) WatchTarget.chooseAlone(prefs.autoWatch, candidates) else WatchTarget.choose(candidates)
+        streamLog("${if (auto) "Watch by itself" else "Watch"}: ${candidates.size} videos, chosen $best")
+        if (best == null) { watching = false; if (auto) autoWatchAgain() else toast(R.string.no_video); return }
         if (!best.tappable(cursor.width, cursor.height)) {
             // Found, but a layer the page shows over it takes every tap (the ones nobody can see are let through).
-            if (revealedOnce) { watching = false; toast(R.string.video_covered); return }
+            if (revealedOnce) { watching = false; if (auto) autoWatchAgain() else toast(R.string.video_covered); return }
             revealedOnce = true
             VideoRelay.send(web, "reveal", frame = best.frame)
-            cursor.postDelayed(::locate, 700)
+            cursor.postDelayed(locateNext, 700)
             return
         }
         watching = false
+        autoWatching = false
         watchTapAt = SystemClock.uptimeMillis()
-        cursor.tapAt(best.tapX.toFloat(), best.tapY.toFloat())
+        if (auto) browser.unattended { cursor.tapAt(best.tapX.toFloat(), best.tapY.toFloat()) }
+        else cursor.tapAt(best.tapX.toFloat(), best.tapY.toFloat())
         cursor.postDelayed({ VideoRelay.send(web, "go", frame = best.frame) }, 150)
+    }
+
+    // Watch by itself: once a page the setting covers has loaded, Watch runs on it once, without a word, and looks
+    // again a few times while the page builds its player. Any key the user presses leaves the page to them.
+
+    /** The page Watch by itself ran (or runs) on: once per page, so Back from its video doesn't start it again. */
+    private var autoWatchUrl: String? = null
+    private var autoWatchTries = 0
+    /** The Watch that runs is Watch by itself's: no notices, and another look when nothing is found. */
+    private var autoWatching = false
+    private val autoWatchNext = Runnable { autoWatchTry() }
+
+    private fun maybeAutoWatch(url: String) {
+        if (url == autoWatchUrl || !WatchTarget.autoWatches(prefs.autoWatch, Browser.hostOf(url), prefs.autoWatchSites)) return
+        autoWatchUrl = url
+        autoWatchTries = 0
+        cursor.postDelayed(autoWatchNext, AUTO_WATCH_SETTLE_MS)
+    }
+
+    private fun autoWatchTry() {
+        if (!started || homeShown || inPip || watching || menu?.isShowing == true || fullscreen.visibility == View.VISIBLE) return
+        if (web?.url != autoWatchUrl) return
+        autoWatching = true
+        watching = true
+        revealedOnce = false
+        locate()
+    }
+
+    /** No video to watch yet: the player may still be on its way. */
+    private fun autoWatchAgain() {
+        autoWatching = false
+        if (++autoWatchTries < AUTO_WATCH_TRIES) cursor.postDelayed(autoWatchNext, AUTO_WATCH_AGAIN_MS)
+        else streamLog("Watch by itself: no video to watch, page left alone")
+    }
+
+    /** The user is doing something else (a key, Watch, another page, another app): Watch by itself stops here. */
+    private fun stopAutoWatch() {
+        cursor.removeCallbacks(autoWatchNext)
+        if (!autoWatching) return
+        autoWatching = false
+        watching = false
+        cursor.removeCallbacks(locateNext)
+        cursor.removeCallbacks(chooseNext)
     }
 
     /**
@@ -1636,6 +1699,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             nativeTries = 0
         }
         started = false
+        stopAutoWatch()
         applyKeepAwake()
         DownloadEngine.removeListener(downloadsListener)
         super.onStop()
@@ -1765,6 +1829,11 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         private const val PAGE_REST_MS = 500L
         /** How long after Watch's tap a video's start counts as Watch's own (ms). */
         private const val WATCH_TAP_MS = 2000L
+        /** How long Watch by itself waits after a page has loaded, for its player to settle (ms). */
+        private const val AUTO_WATCH_SETTLE_MS = 1500L
+        /** How many looks Watch by itself takes for a video, [AUTO_WATCH_AGAIN_MS] apart: about 10 s in all. */
+        private const val AUTO_WATCH_TRIES = 6
+        private const val AUTO_WATCH_AGAIN_MS = 1500L
         /** How far the page's video may have passed Sofa Player's first picture and it still swaps in there (ms). */
         private const val SWAP_SLACK_MS = 150L
         /** How many times Sofa Player moves further ahead, unseen, before it takes over with a seek. */

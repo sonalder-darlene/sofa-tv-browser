@@ -21,7 +21,7 @@ import app.sofabrowser.R
  */
 class BrowserMenu(context: Context, private val actions: Actions) : Dialog(context, android.R.style.Theme_Translucent_NoTitleBar) {
 
-    enum class Action { HOME, WATCH, BACK, FORWARD, RELOAD, FIND, BOOKMARK, PIN, HISTORY, BOOKMARKS, DOWNLOADS, ADBLOCK, ALLOW_ONCE, USER_AGENT, SCROLL, POINTER, ZOOM_OUT, ZOOM_IN, SETTINGS }
+    enum class Action { HOME, WATCH, AUTO_WATCH, BACK, FORWARD, RELOAD, FIND, BOOKMARK, PIN, HISTORY, BOOKMARKS, DOWNLOADS, ADBLOCK, ALLOW_ONCE, USER_AGENT, SCROLL, POINTER, ZOOM_OUT, ZOOM_IN, SETTINGS }
 
     interface Actions {
         fun onAddress()
@@ -43,6 +43,8 @@ class BrowserMenu(context: Context, private val actions: Actions) : Dialog(conte
         val privateMode: Boolean,
         /** A pop-up or redirect was just blocked and can still be opened once. */
         val allowPending: Boolean,
+        /** "Watch by itself" runs on this site (on every site, or this one is chosen). */
+        val autoWatchHere: Boolean,
     )
 
     private val buttons = LinkedHashMap<Action, LabeledIconButton>()
@@ -118,6 +120,8 @@ class BrowserMenu(context: Context, private val actions: Actions) : Dialog(conte
         add(Action.ADBLOCK, R.drawable.ic_shield, R.string.adblock_site)
         // Shown only after a block, next to the shield it belongs with; the menu then opens with it focused.
         add(Action.ALLOW_ONCE, R.drawable.ic_open_in_new, R.string.allow_once)
+        // With the other choices kept per site; not in private browsing, which saves none.
+        add(Action.AUTO_WATCH, R.drawable.ic_autoplay, R.string.auto_watch)
         add(Action.USER_AGENT, R.drawable.ic_desktop_windows, R.string.user_agent)
         add(Action.SCROLL, R.drawable.ic_swap_vert, R.string.scroll_mode)
         add(Action.POINTER, R.drawable.ic_mouse, R.string.pointer)
@@ -160,6 +164,10 @@ class BrowserMenu(context: Context, private val actions: Actions) : Dialog(conte
                 s.blocked > 0 -> context.resources.getQuantityString(R.plurals.adblock_site_on_count, s.blocked, s.blocked)
                 else -> context.getString(R.string.adblock_site_on)
             })
+        buttons[Action.AUTO_WATCH]?.let { b ->
+            b.visibility = if (s.privateMode) android.view.View.GONE else android.view.View.VISIBLE
+            b.set(R.drawable.ic_autoplay, context.getString(if (s.autoWatchHere) R.string.auto_watch_on else R.string.auto_watch_off))
+        }
         buttons[Action.USER_AGENT]?.set(if (s.desktop) R.drawable.ic_desktop_windows else R.drawable.ic_smartphone,
             context.getString(R.string.user_agent))
         buttons[Action.POINTER]?.set(if (s.pointer) R.drawable.ic_mouse else R.drawable.ic_keyboard,

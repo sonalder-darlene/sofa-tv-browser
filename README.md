@@ -113,6 +113,11 @@ Everything is matched on the TV; nothing about your browsing leaves it.
   goes fullscreen at once, so Sofa Player takes over without Watch. Only videos you start, with sound, a minute or
   longer and about the size of the page's player: muted previews, videos that start on their own and short ads stay
   on the page. Settings → "Open videos in Sofa Player" turns it off.
+- **Watch by itself:** Settings → "Watch by itself" (off by default) runs Watch on its own once a page has loaded,
+  on every site or only on the sites chosen with "Watch by itself" in the menu. It runs once per page, looks again
+  for about ten seconds while the site builds its player, says nothing when it finds no video, and stops as soon as
+  you press a key. On every site, muted previews, looping videos and videos under a minute are left alone. Private
+  browsing never adds a site.
 - **Says why:** when Watch leaves a video with the site's player (protected, no stream Sofa Player can open, or one
   it can't read or play), a short note in fullscreen says why, and Video info keeps the reason.
 - **Back to the site's player:** the bar's "Site's player" button switches back at the same position, and so does

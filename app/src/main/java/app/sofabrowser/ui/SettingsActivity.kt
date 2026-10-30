@@ -32,6 +32,7 @@ import app.sofabrowser.browser.ExternalPlayer
 import app.sofabrowser.browser.ProtectedMedia
 import app.sofabrowser.browser.RefreshRateMatch
 import app.sofabrowser.browser.StreamCopyProvider
+import app.sofabrowser.browser.WatchTarget
 import app.sofabrowser.browser.WebViews
 import app.sofabrowser.data.Db
 import app.sofabrowser.data.Favicons
@@ -110,6 +111,15 @@ class SettingsActivity : Activity() {
         switch(R.string.autoplay, R.string.autoplay_sub, prefs::autoplay)
         switch(R.string.sofa_player, R.string.sofa_player_sub, prefs::sofaPlayer)
         switch(R.string.open_in_player, R.string.open_in_player_sub, prefs::openInPlayer)
+        row(getString(R.string.auto_watch), getString(R.string.auto_watch_sub),
+            valueText(resources.getStringArray(R.array.auto_watch_modes)[prefs.autoWatch.ordinal])) { pickAutoWatch() }
+        prefs.autoWatchSites.size.takeIf { it > 0 }?.let { n ->
+            row(getString(R.string.forget_auto_watch_sites), resources.getQuantityString(R.plurals.auto_watch_sites_count, n, n), null) {
+                prefs.forgetAutoWatchSites()
+                Toast.makeText(this, R.string.auto_watch_sites_forgotten, Toast.LENGTH_SHORT).show()
+                build()
+            }
+        }
         row(getString(R.string.forget_player_choices), getString(R.string.forget_player_choices_sub), null) {
             prefs.playerChoices = PlayerChoices()
             Toast.makeText(this, R.string.player_choices_forgotten, Toast.LENGTH_SHORT).show()
@@ -341,6 +351,13 @@ class SettingsActivity : Activity() {
         dialog().setTitle(R.string.cursor_speed)
             .setSingleChoiceItems(R.array.cursor_speeds, prefs.cursorSpeed - 1) { d, which ->
                 prefs.cursorSpeed = which + 1; d.dismiss(); build()
+            }.show()
+    }
+
+    private fun pickAutoWatch() {
+        dialog().setTitle(R.string.auto_watch)
+            .setSingleChoiceItems(R.array.auto_watch_modes, prefs.autoWatch.ordinal) { d, which ->
+                prefs.autoWatch = WatchTarget.Auto.entries[which]; d.dismiss(); build()
             }.show()
     }
 

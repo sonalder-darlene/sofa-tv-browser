@@ -165,6 +165,25 @@ class NavigationGuardTest {
     }
 
     @Test
+    fun aTapSofaMakesOnItsOwnOpensNoWindow() {
+        guard.onUnattendedInput()
+        assertEquals(Verdict.BLOCK, guard.newWindow(blocking = true, listed = false))
+        guard.onInput()
+        assertEquals(Verdict.ALLOW, guard.newWindow(blocking = true, listed = false))
+    }
+
+    @Test
+    fun aTapSofaMakesOnItsOwnCantSendThePageToAListedHost() {
+        guard.onUnattendedInput()
+        assertEquals(Verdict.BLOCK, guard.navigation(gesture = true, redirect = false, listed = true, blocking = true))
+        assertEquals(Verdict.ALLOW, guard.navigation(gesture = true, redirect = false, listed = false, blocking = true))
+        guard.onUnattendedInput()
+        guard.windowRequested(gesture = true)
+        assertEquals(Verdict.BLOCK, guard.navigation(gesture = true, redirect = false, listed = false, blocking = true,
+            fromLink = false, crossSite = true))
+    }
+
+    @Test
     fun siteSwitchOffAllowsScriptWindowsAndTabUnders() {
         guard.onInput()
         guard.windowRequested(gesture = true)

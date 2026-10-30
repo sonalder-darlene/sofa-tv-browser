@@ -90,6 +90,24 @@
     <string name="sofa_player_sub">In fullscreen, Sofa plays the site\'s video in its own player when it can: 4K at full resolution, HDR, and a choice of quality, sound and subtitles. It falls back to the site\'s player when it can\'t.</string>
     <string name="open_in_player">Open videos in Sofa Player</string>
     <string name="open_in_player_sub">When you start a video on a page, it goes fullscreen and Sofa Player takes over. Muted videos and videos under a minute stay on the page.</string>
+    <string name="auto_watch">Watch by itself</string>
+    <string name="auto_watch_sub">Once a page has loaded, Sofa finds its main video and plays it fullscreen, as Watch does. Choose sites in the menu on their pages. On every site, muted previews, looping videos and videos under a minute are left alone.</string>
+    <string-array name="auto_watch_modes">
+        <item>Off</item>
+        <item>On every site</item>
+        <item>Chosen sites only</item>
+    </string-array>
+    <string name="auto_watch_on">Watch by itself: on here</string>
+    <string name="auto_watch_off">Watch by itself: off here</string>
+    <string name="auto_watch_site_added">Videos on this site now play fullscreen by themselves once the page has loaded</string>
+    <string name="auto_watch_site_removed">Videos on this site no longer play by themselves</string>
+    <string name="auto_watch_every_site">Watch by itself is on for every site. Settings changes that.</string>
+    <string name="forget_auto_watch_sites">Forget the sites chosen for Watch by itself</string>
+    <plurals name="auto_watch_sites_count">
+        <item quantity="one">%d site chosen in the menu</item>
+        <item quantity="other">%d sites chosen in the menu</item>
+    </plurals>
+    <string name="auto_watch_sites_forgotten">Chosen sites forgotten</string>
     <string name="forget_player_choices">Forget my player choices</string>
     <string name="forget_player_choices_sub">Sofa Player keeps the quality, subtitles and sound you pick for the next videos. This goes back to Auto and the TV\'s own settings.</string>
     <string name="player_choices_forgotten">Player choices forgotten</string>

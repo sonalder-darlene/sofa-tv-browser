@@ -302,7 +302,7 @@ object VideoRelay {
     if (!out) return;
     const s = realRatio() * (vv ? vv.scale : 1), ox = vv ? vv.offsetLeft : 0, oy = vv ? vv.offsetTop : 0;
     out.postMessage(JSON.stringify({ loc: { fid: c.fid, w: c.w, h: c.h,
-      tx: c.tx >= 0 ? (c.tx - ox) * s : -1, ty: c.ty >= 0 ? (c.ty - oy) * s : -1 } }));
+      tx: c.tx >= 0 ? (c.tx - ox) * s : -1, ty: c.ty >= 0 ? (c.ty - oy) * s : -1, m: c.m, p: c.p, l: c.l, d: c.d } }));
   };
   const toChildren = (msg) => {
     for (let i = 0; i < window.frames.length; i++) { try { window.frames[i].postMessage(msg, '*'); } catch (e) {} }
@@ -313,7 +313,8 @@ object VideoRelay {
     const v = largest();
     if (v) {
       const r = v.getBoundingClientRect(), p = tapPoint(v);
-      offer({ fid: F, x: r.left, y: r.top, w: r.width, h: r.height, tx: p ? p[0] : -1, ty: p ? p[1] : -1 });
+      offer({ fid: F, x: r.left, y: r.top, w: r.width, h: r.height, tx: p ? p[0] : -1, ty: p ? p[1] : -1,
+        m: v.muted || v.volume === 0, p: !v.paused, l: v.loop, d: isFinite(v.duration) ? v.duration : v.duration === Infinity ? -1 : 0 });
     }
     toChildren({ k: K, cmd: 'locate' });
   };
@@ -323,7 +324,8 @@ object VideoRelay {
     const f = childFrame(source);
     if (!f) return;
     const r = f.getBoundingClientRect(), dx = r.left + f.clientLeft, dy = r.top + f.clientTop;
-    const moved = { fid: String(c.fid), x: c.x + dx, y: c.y + dy, w: Math.min(+c.w || 0, r.width), h: Math.min(+c.h || 0, r.height), tx: -1, ty: -1 };
+    const moved = { fid: String(c.fid), x: c.x + dx, y: c.y + dy, w: Math.min(+c.w || 0, r.width), h: Math.min(+c.h || 0, r.height), tx: -1, ty: -1,
+      m: !!c.m, p: !!c.p, l: !!c.l, d: +c.d || 0 };
     if (c.tx >= 0) {
       const tx = c.tx + dx, ty = c.ty + dy;
       if (tx >= r.left && tx < r.right && ty >= r.top && ty < r.bottom && hitThrough(tx, ty, (e) => e === f) === f) {
@@ -426,12 +428,15 @@ object VideoRelay {
         keys[web] = key
         WebViews.addDocumentStartScript(web, script(key, panelScale))
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
-            WebViewCompat.addWebMessageListener(web, key.video, setOf("*")) { _, message, sourceOrigin, _, _ ->
+            WebViewCompat.addWebMessageListener(web, key.video, setOf("*")) { _, message, sourceOrigin, isMainFrame, _ ->
                 // What a frame says about where it is counts only as far as WebView's own word on who sent it.
                 val sender = sourceOrigin.toString()
                 runCatching {
                     val o = JSONObject(message.data ?: return@runCatching)
                     when {
+                        // Watch's candidates come from the top frame only: a child's go through its parent, which clamps
+                        // them to the frame (fromChild). One sent straight from a frame could put Watch's tap anywhere.
+                        o.has("loc") && !isMainFrame -> Unit
                         o.has("f") -> onPlaying(o.getString("f"), o.optBoolean("on"))
                         o.has("st") -> onStarted(o.getString("st"))
                         o.has("i") -> onInfo(VideoInfo.from(o.getJSONObject("i")))
@@ -452,7 +457,8 @@ object VideoRelay {
                         }
                         o.has("loc") -> o.getJSONObject("loc").let {
                             onCandidate(WatchTarget.Candidate(it.getString("fid"), it.optDouble("w", 0.0), it.optDouble("h", 0.0),
-                                it.optDouble("tx", -1.0), it.optDouble("ty", -1.0)))
+                                it.optDouble("tx", -1.0), it.optDouble("ty", -1.0),
+                                it.optBoolean("m"), it.optBoolean("p"), it.optBoolean("l"), it.optDouble("d", 0.0)))
                         }
                         else -> onState(VideoState(o.optDouble("t"), o.optDouble("d"), o.optBoolean("p", true), o.optDouble("r", 1.0),
                             o.optInt("tt"), o.optBoolean("ts"), o.optString("w").takeIf { it.isNotEmpty() }))

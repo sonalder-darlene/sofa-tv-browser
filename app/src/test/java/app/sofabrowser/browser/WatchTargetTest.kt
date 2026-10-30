@@ -31,4 +31,31 @@ class WatchTargetTest {
         assertFalse(video("a", 960.0, 540.0, -1.0, -1.0).tappable(1920, 1080))
         assertFalse(video("a", 960.0, 540.0, 100.0, 1500.0).tappable(1920, 1080))
     }
+
+    @Test
+    fun watchByItselfRunsWhereTheSettingSays() {
+        val chosen = setOf("stream.example")
+        assertFalse(WatchTarget.autoWatches(WatchTarget.Auto.OFF, "stream.example", chosen))
+        assertTrue(WatchTarget.autoWatches(WatchTarget.Auto.ALWAYS, "news.example", chosen))
+        assertTrue(WatchTarget.autoWatches(WatchTarget.Auto.SITES, "stream.example", chosen))
+        assertFalse(WatchTarget.autoWatches(WatchTarget.Auto.SITES, "news.example", chosen))
+        assertFalse(WatchTarget.autoWatches(WatchTarget.Auto.ALWAYS, null, chosen))
+    }
+
+    @Test
+    fun onEverySiteWatchByItselfLeavesPreviewsLoopsAndClipsAlone() {
+        val film = video("film", 960.0, 540.0)
+        val hero = film.copy(muted = true, playing = true)
+        assertEquals(film, WatchTarget.chooseAlone(WatchTarget.Auto.ALWAYS, listOf(film)))
+        assertNull(WatchTarget.chooseAlone(WatchTarget.Auto.ALWAYS, listOf(hero)))
+        assertNull(WatchTarget.chooseAlone(WatchTarget.Auto.ALWAYS, listOf(film.copy(loop = true))))
+        assertNull(WatchTarget.chooseAlone(WatchTarget.Auto.ALWAYS, listOf(film.copy(duration = 30.0))))
+        // Muted but waiting for a press, live, or not loaded yet: a main video still.
+        assertEquals(film.copy(muted = true), WatchTarget.chooseAlone(WatchTarget.Auto.ALWAYS, listOf(film.copy(muted = true))))
+        assertEquals(film.copy(duration = -1.0), WatchTarget.chooseAlone(WatchTarget.Auto.ALWAYS, listOf(film.copy(duration = -1.0))))
+        // Behind a muted hero, a small video is no main video.
+        assertNull(WatchTarget.chooseAlone(WatchTarget.Auto.ALWAYS, listOf(hero, video("thumb", 320.0, 180.0))))
+        // On a chosen site, Watch's own choice.
+        assertEquals(hero, WatchTarget.chooseAlone(WatchTarget.Auto.SITES, listOf(hero)))
+    }
 }
