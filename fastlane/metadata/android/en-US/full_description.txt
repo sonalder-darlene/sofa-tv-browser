@@ -14,7 +14,7 @@ Home screen
 • Most visited sites, worked out on the TV from your history, and your recent bookmarks.
 
 Video
-• Watch: one press of Play (or Watch in the menu) finds the page's main video, even inside an embedded player, and plays it fullscreen.
+• Watch: one press of Play (or Watch in the menu) finds the page's main video, even inside an embedded player, and plays it fullscreen. Videos you start yourself go straight to Sofa Player, and Watch can run by itself on sites you choose.
 • Sofa Player: in fullscreen, Sofa plays the site's stream in its own player when it can, with 4K at full resolution, HDR, and a choice of quality, sound and subtitles. Otherwise the site's player carries on.
 • Fullscreen video gets a control bar, even for videos embedded from other sites: back and forward 10 seconds, play/pause, a scrub bar, playback speed, subtitles, Video info and picture-in-picture on TVs that offer it.
 • Play in another app: send the stream, its subtitles and the position to VLC, Just Player or another player. Choose the app in Settings, or have Sofa ask every time.

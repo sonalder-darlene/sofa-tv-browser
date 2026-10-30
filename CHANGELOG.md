@@ -1,5 +1,46 @@
 # Changelog
 
+## 1.2.2 (2026-10-30)
+
+**Sofa Player**
+
+- **4K and 60 fps on more TVs:** Auto now plays the stream's best picture, such as 4K or 1440p at 60 fps, when the
+  TV's hardware decoder says it plays it. Before, many TVs got a smaller picture, often at 30 fps, because of the
+  frame rates their maker listed. If such a picture drops frames, Auto moves to a smaller one and says so.
+- **Steps down instead of giving up:** when the TV can't decode one of the stream's pictures, Sofa Player goes on
+  from the same point with another one (smaller, or another codec), and says which over the video and in Video info.
+- **One decoder per video:** the page's own video now rests while Sofa Player plays, which frees its hardware
+  decoder and some memory, and helps a second 4K video in a row find one. When Sofa Player only gets a software
+  decoder, it keeps to 1080p at 30 fps, or hands the video back to the site's player.
+- **Open videos in Sofa Player straight from the page:** a video you start on the page yourself, with sound and a
+  minute or longer, goes fullscreen in Sofa Player at once, without Back and Watch. Muted previews and short ads
+  stay on the page. On by default; Settings → "Open videos in Sofa Player" turns it off.
+- Fixed: on Back from Sofa Player, a muted preview elsewhere on the page could get the position instead of the video
+  you watched.
+
+**Watch**
+
+- **Watch by itself** (Settings, off by default): runs Watch on its own once a page has loaded, on every site or only
+  on the sites you choose in the menu. It runs once per page and stops as soon as you press a key.
+- Watch now reaches a video under an invisible ad layer, and when a layer you can see covers the video, it says so
+  instead of "No video found".
+
+**Play in another app**
+
+- Players that can't open Sofa's copy of a stream, such as C Media Player, get the site's address instead.
+
+**Ad blocking**
+
+- Sofa offers Stronger ad blocking (EasyList and EasyPrivacy) once at start, with what it costs. Settings changes it
+  any time.
+- The bundled lists are refreshed: about 77,000 StevenBlack and 51,000 HaGeZi pop-up domains.
+
+**Other**
+
+- A link sent from another app or a phone remote while Sofa's menu is open now closes the menu and loads.
+- The old-WebView warning now starts below version 143.
+- `SECURITY.md` says how to report a security problem privately.
+
 ## 1.2.1 (2026-10-27)
 
 **Sofa Player**
