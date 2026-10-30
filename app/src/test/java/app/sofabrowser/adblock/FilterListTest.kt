@@ -86,6 +86,17 @@ class FilterListTest {
     }
 
     @Test
+    fun strongerCountsAsChosenWhenOnOrOnceDownloaded() {
+        val fresh = FilterList.defaults()
+        assertFalse(FilterList.strongerChosen(fresh))
+        fun with(change: (FilterList) -> FilterList) = fresh.map { if (it.id == FilterList.EASYLIST) change(it) else it }
+        assertTrue(FilterList.strongerChosen(with { it.copy(enabled = true) }))
+        assertTrue(FilterList.strongerChosen(with { it.copy(updated = 1_700_000_000_000) }))
+        assertTrue(FilterList.strongerChosen(with { it.copy(error = "timeout") }))
+        assertFalse(FilterList.strongerChosen(fresh.map { if (it.bundled) it.copy(updated = 1_700_000_000_000) else it }))
+    }
+
+    @Test
     fun sitesUseTheCommonCountryAndHostingSuffixes() {
         assertEquals("bbc.co.uk", Sites.of("www.news.bbc.co.uk"))
         assertEquals("co.uk", Sites.of("co.uk"))

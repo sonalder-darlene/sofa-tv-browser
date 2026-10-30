@@ -213,6 +213,9 @@
     <string name="auto_update_lists_sub">Every few days, for the lists that are on. Sofa downloads each from its address without cookies; those sites see your IP address.</string>
     <string name="auto_update_suggest_title">Keep them up to date?</string>
     <string name="auto_update_suggest">EasyList and EasyPrivacy change every few days, as ad networks move. Turn on automatic list updates so they keep up?</string>
+    <string name="stronger_offer_title">Block more ads?</string>
+    <string name="stronger_offer_text">Stronger ad blocking adds EasyList and EasyPrivacy: more ads, trackers and pop-ups blocked. Sofa downloads these two lists from easylist.to, which sees your IP address, and keeps them in memory: about 4 MB more.\n\nYou can change this any time in Settings.</string>
+    <string name="stronger_offer_no">Not now</string>
     <string name="best_with_auto_updates">Best with automatic updates</string>
     <string name="list_updates_title">Keep filter lists up to date?</string>
     <string name="list_updates_text">Sofa blocks ads and pop-ups with filter lists, and ad networks change their addresses all the time. Sofa can download the lists that are on again every few days, without cookies, from each list\'s address: GitHub for the built-in ones, easylist.to for EasyList and EasyPrivacy. Those sites see your IP address.\n\nYou can change this any time in Settings.</string>

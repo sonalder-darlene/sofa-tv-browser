@@ -106,6 +106,13 @@ data class FilterList(
 
         fun listToJson(lists: List<FilterList>): String = JSONArray().apply { lists.forEach { put(it.toJson()) } }.toString()
 
+        /**
+         * Whether the user already chose about "Stronger ad blocking" before Sofa asked: one of its lists is on, or was
+         * downloaded (or tried) once, so it was switched on at some point.
+         */
+        fun strongerChosen(lists: List<FilterList>): Boolean =
+            lists.any { it.stronger && (it.enabled || it.updated > 0 || it.error != null) }
+
         /** Reads [json]; a damaged entry is dropped, never fatal. */
         fun listFromJson(json: String): List<FilterList> {
             val a = runCatching { JSONArray(json) }.getOrNull() ?: return emptyList()

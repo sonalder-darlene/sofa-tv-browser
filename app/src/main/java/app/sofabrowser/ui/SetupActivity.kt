@@ -1,6 +1,7 @@
 package app.sofabrowser.ui
 
 import android.app.Activity
+import android.app.ActivityManager
 import android.os.Bundle
 import android.text.TextUtils
 import android.view.Gravity
@@ -16,14 +17,17 @@ import app.sofabrowser.update.Updater
 /**
  * First start: the user picks a search engine; Sofa doesn't pick one for them. Back leaves without choosing,
  * and the question comes back next time. Copies that no app store updates then ask whether to check for updates,
- * and every copy asks whether to keep its filter lists up to date. A question added in a later version (the list one,
- * after 1.1) is asked on its own the first time the new version starts.
+ * every copy offers "Stronger ad blocking" (unless it is on already) and asks whether to keep its filter lists up to
+ * date. A question added in a later version (the list one after 1.1, the stronger one after 1.2.1) is asked on its own
+ * the first time the new version starts.
  */
 class SetupActivity : Activity() {
 
     private lateinit var prefs: Prefs
     /** What Back answers on the question shown, or null while choosing the engine. */
     private var onBack: (() -> Unit)? = null
+    /** Stronger ad blocking was just turned on while list updates stay off (asked before): suggest them next. */
+    private var suggestListUpdates = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,6 +39,9 @@ class SetupActivity : Activity() {
     /** The next unanswered question, or back to browsing. */
     private fun next(): Unit = when {
         Updater.offered(this) && !prefs.updatesAsked -> askUpdates()
+        // Before the list question, which then covers the two new lists too.
+        offerStronger(this, prefs) -> askStronger()
+        suggestListUpdates -> askSuggestedListUpdates()
         !prefs.listUpdatesAsked -> askListUpdates()
         else -> finish()
     }
@@ -90,6 +97,25 @@ class SetupActivity : Activity() {
         prefs.autoUpdateLists = update
         prefs.listUpdatesAsked = true
         AdBlocker.get(this).refreshIfDue(update)
+    }
+
+    /**
+     * "Stronger ad blocking", offered once: what it costs (two downloads, more memory) and that Settings changes it.
+     * Turning it on is the focused choice, except on TVs Android calls low on memory; Back means not now.
+     */
+    private fun askStronger() = ask(R.string.stronger_offer_title, R.string.stronger_offer_text, R.string.stronger_offer_no,
+        R.string.turn_on, focusYes = !(getSystemService(ACTIVITY_SERVICE) as ActivityManager).isLowRamDevice) { on ->
+        prefs.strongerAsked = true
+        if (on) AdBlocker.get(this).setStronger(true)
+        suggestListUpdates = on && prefs.listUpdatesAsked && !prefs.autoUpdateLists
+    }
+
+    /** As Settings does after turning Stronger ad blocking on: these lists change every few days. */
+    private fun askSuggestedListUpdates() = ask(R.string.auto_update_suggest_title, R.string.auto_update_suggest,
+        R.string.list_updates_no, R.string.turn_on, focusYes = true) { update ->
+        suggestListUpdates = false
+        prefs.autoUpdateLists = update
+        if (update) AdBlocker.get(this).refreshIfDue(true)
     }
 
     /** A yes-or-no page; [answer] runs once, then the next question follows. */
@@ -179,7 +205,11 @@ class SetupActivity : Activity() {
     companion object {
         /** Whether a question is still unanswered, so Sofa opens this screen when it starts. */
         fun needed(context: android.content.Context, prefs: Prefs) =
-            !prefs.setupDone || Updater.offered(context) && !prefs.updatesAsked || !prefs.listUpdatesAsked
+            !prefs.setupDone || Updater.offered(context) && !prefs.updatesAsked || offerStronger(context, prefs) || !prefs.listUpdatesAsked
+
+        /** Never offered, and never switched on in Settings in an earlier version (on now, or downloaded once). */
+        private fun offerStronger(context: android.content.Context, prefs: Prefs) =
+            !prefs.strongerAsked && !AdBlocker.strongerChosen(context)
 
         private const val COLUMNS = 4
         private const val CARD_WIDTH = 400

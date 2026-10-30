@@ -377,6 +377,8 @@ class SettingsActivity : Activity() {
         row(getString(R.string.stronger_adblock), getString(R.string.stronger_adblock_sub), toggle) {
             val on = !toggle.on
             toggle.on = on
+            // Chosen here either way: setup never offers it again.
+            prefs.strongerAsked = true
             if (on) Toast.makeText(this, R.string.stronger_adblock_downloading, Toast.LENGTH_LONG).show()
             blocker.setStronger(on) {
                 if (isFinishing) return@setStronger
@@ -450,7 +452,10 @@ class SettingsActivity : Activity() {
     /** What can be done with one list: switch it, download it again, go back to the built-in copy, remove it. */
     private fun listActions(l: FilterList) {
         val actions = mutableListOf<Pair<Int, () -> Unit>>()
-        actions += (if (l.enabled) R.string.turn_off else R.string.turn_on) to { blocker.setEnabled(l.id, !l.enabled) { if (!isFinishing) buildLists() } }
+        actions += (if (l.enabled) R.string.turn_off else R.string.turn_on) to {
+            if (l.stronger) prefs.strongerAsked = true
+            blocker.setEnabled(l.id, !l.enabled) { if (!isFinishing) buildLists() }
+        }
         if (l.url != null) actions += R.string.update to {
             Toast.makeText(this, R.string.list_adding, Toast.LENGTH_SHORT).show()
             blocker.update(l.id) { result ->

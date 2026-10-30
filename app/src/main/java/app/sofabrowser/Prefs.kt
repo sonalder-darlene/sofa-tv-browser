@@ -59,6 +59,8 @@ class Prefs(context: Context) {
     var autoUpdateLists by boolean("auto_update_lists", false)
     /** The question about automatic list updates was answered (in setup, or once after updating from 1.1). */
     var listUpdatesAsked by boolean("list_updates_asked", false)
+    /** "Stronger ad blocking" was offered (once, in setup) or switched in Settings either way: never offered again. */
+    var strongerAsked by boolean("stronger_asked", false)
     var cookies by boolean("cookies", true)
     var blockThirdPartyCookies by boolean("block_3p_cookies", true)
     /**

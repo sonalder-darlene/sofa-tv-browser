@@ -49,7 +49,7 @@ class AdBlocker private constructor(private val context: Context) {
 
     private val worker = Executors.newSingleThreadExecutor { r -> Thread(r, "filter-lists").apply { priority = Thread.MIN_PRIORITY } }
     private val main = Handler(Looper.getMainLooper())
-    private val store = context.getSharedPreferences("filter_lists", Context.MODE_PRIVATE)
+    private val store = context.getSharedPreferences(STORE, Context.MODE_PRIVATE)
     private val dir = File(context.filesDir, "filters")
 
     private val blocked = AtomicInteger()
@@ -399,6 +399,7 @@ class AdBlocker private constructor(private val context: Context) {
     companion object {
         const val BUNDLED_ASSET = "blocklist-hosts.txt.gz"
         const val POPUP_ASSET = "blocklist-popups.txt.gz"
+        private const val STORE = "filter_lists"
         private const val KEY_LISTS = "lists"
         private const val KEY_LAST_CHECK = "last_auto_check"
         private const val CHECK_EVERY_MS = 6 * 60 * 60 * 1000L
@@ -415,6 +416,15 @@ class AdBlocker private constructor(private val context: Context) {
         }
 
         fun hostOf(url: String?): String? = url?.let { runCatching { Uri.parse(it).host }.getOrNull() }
+
+        /**
+         * Whether "Stronger ad blocking" was switched on before, as last saved ([FilterList.strongerChosen]): for the
+         * questions at start, which can't wait for the worker to load the lists ([stronger] reads none before [ready]).
+         */
+        fun strongerChosen(context: Context): Boolean = runCatching {
+            val json = context.getSharedPreferences(STORE, Context.MODE_PRIVATE).getString(KEY_LISTS, null) ?: return false
+            FilterList.strongerChosen(FilterList.listFromJson(json))
+        }.getOrDefault(false)
     }
 }
 
