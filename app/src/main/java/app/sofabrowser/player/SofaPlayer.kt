@@ -122,6 +122,8 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
         release()
         variants = source.playlist?.let(Variants::parse).orEmpty()
         failed.clear()
+        stuttered.clear()
+        admitted.clear()
         knownTracks = Tracks.EMPTY
         initRetried = false
         steppedFrom = null
@@ -243,6 +245,8 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
     fun release() {
         main.removeCallbacks(report)
         main.removeCallbacks(counters)
+        main.removeCallbacks(stutterCheck)
+        watched = null
         player?.let {
             it.removeListener(events)
             it.release()
@@ -518,6 +522,7 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
             steppedFrom?.let { (from, why) -> listener.onSteppedDown(from, describe(format), why) }
             steppedFrom = null
             checkDecoder()
+            watch(format)
             listener.onFrameRate(maxOf(format.frameRate, variants.maxOfOrNull { it.frameRate } ?: 0f).takeIf { it > 0 } ?: 0f)
         }
     }
@@ -570,7 +575,7 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
         val area = formats[at].width * formats[at].height
         formats.indices.filter { it == at || codecName(formats[it]) == codecName(formats[at]) && formats[it].width * formats[it].height >= area }
             .forEach { failed += tracks[it].let { (g, i) -> g.mediaTrackGroup to i } }
-        val gone = tracks.indices.filter { (tracks[it].first.mediaTrackGroup to tracks[it].second) in failed }.toSet()
+        val gone = tracks.indices.filter { (tracks[it].first.mediaTrackGroup to tracks[it].second).let { t -> t in failed || t in stuttered } }.toSet()
         if (!goOnWithout(tracks, gone, describe(format), Step.FAILED)) return false
         log("Sofa Player: ${describe(format)} didn't decode (${error.errorCodeName}), going on without it")
         p.prepare()
@@ -578,7 +583,7 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
     }
 
     /** Why a picture was left ([Listener.onSteppedDown]). */
-    enum class Step { FAILED, SOFTWARE }
+    enum class Step { FAILED, SOFTWARE, STUTTER }
 
     /**
      * After the retry for a hardware decoder got software again: Sofa Player keeps to pictures a TV's processor can
@@ -595,6 +600,61 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
         if (!goOnWithout(tracks, gone, now?.let(::describe), Step.SOFTWARE)) return false
         log("Sofa Player: software decoder, keeping to ${tracks.size - gone.size} of ${tracks.size} pictures")
         return true
+    }
+
+    // Stutter guard: a picture only TvVideoRenderer let Auto take is watched over its first seconds of playing; if it
+    // drops frames as a decoder that can't keep up does, Auto leaves it and the pictures like it but larger or faster
+    // (the menu still offers them). A picture picked by hand is left alone.
+
+    /** The pictures TvVideoRenderer admitted for this video (written on Media3's thread). */
+    private val admitted = java.util.concurrent.CopyOnWriteArrayList<Format>()
+    /** The pictures that stuttered in this video. */
+    private val stuttered = HashSet<Pair<androidx.media3.common.TrackGroup, Int>>()
+    private var watched: Format? = null
+    private var watchedSeconds = 0
+    private var watchedFrom: Pair<Int, Int>? = null
+
+    private fun watch(format: Format) {
+        main.removeCallbacks(stutterCheck)
+        watched = format.takeIf { f -> admitted.any { TvVideoRenderer.same(it, f) } } ?: return
+        watchedSeconds = 0
+        watchedFrom = null
+        log("Sofa Player: watching ${describe(format)} for stutter (beyond what the decoder lists)")
+        main.postDelayed(stutterCheck, 1000)
+    }
+
+    private val stutterCheck: Runnable = object : Runnable {
+        override fun run() {
+            val p = player ?: return
+            val format = watched ?: return
+            main.postDelayed(this, 1000)
+            if (!p.isPlaying) return
+            val c = p.videoDecoderCounters ?: return
+            val now = c.renderedOutputBufferCount to c.droppedBufferCount
+            watchedSeconds++
+            // The first seconds may drop a burst (a takeover, a switch of picture): counted from then on.
+            if (watchedSeconds == STUTTER_GRACE_S) watchedFrom = now
+            val from = watchedFrom ?: return
+            if (watchedSeconds < STUTTER_GRACE_S + STUTTER_WATCH_S) return
+            main.removeCallbacks(this)
+            watched = null
+            val shown = now.first - from.first
+            val dropped = now.second - from.second
+            val forced = app.sofabrowser.BuildConfig.DEBUG && java.io.File(context.filesDir, "stutter-video").exists()
+            log("Sofa Player: ${describe(format)} shown $shown, dropped $dropped${if (forced) " (test build: stutter-video)" else ""}")
+            if ((forced || TvVideoRenderer.stutters(shown, dropped)) && !pickedByHand(p)) leaveStuttering(format)
+        }
+    }
+
+    private fun leaveStuttering(format: Format) {
+        val tracks = videoTracks()
+        val formats = tracks.map { (g, i) -> g.getTrackFormat(i) }
+        val at = trackOf(format, formats) ?: return
+        val area = formats[at].width * formats[at].height
+        formats.indices.filter { it == at || codecName(formats[it]) == codecName(formats[at]) && formats[it].width * formats[it].height >= area &&
+            formats[it].frameRate >= formats[at].frameRate }.forEach { stuttered += tracks[it].let { (g, i) -> g.mediaTrackGroup to i } }
+        val gone = tracks.indices.filter { (tracks[it].first.mediaTrackGroup to tracks[it].second).let { t -> t in failed || t in stuttered } }.toSet()
+        if (goOnWithout(tracks, gone, describe(format), Step.STUTTER)) log("Sofa Player: ${describe(format)} stuttered, going on without it")
     }
 
     /** The video pictures this TV may play, as last listed: after an error none are listed until prepared again. */
@@ -667,17 +727,37 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
      * "fail-video" of the app's files (`echo 1600 > files/fail-video` through run-as), for the step down above. And
      * they can get software decoders first, as when the page's video holds the hardware one: "once" in the file
      * "soft-video" for the next start only (the second try then gets hardware), "always" for every start
-     * ([keepToSoftware]).
+     * ([keepToSoftware]). The video renderer is [TvVideoRenderer]; test builds can make it undersell tall pictures as
+     * some TVs do: a height in "undersell-video", then "strict" for Media3's own rule.
      */
     private fun renderers(): DefaultRenderersFactory {
-        val failAt = if (app.sofabrowser.BuildConfig.DEBUG) runCatching { java.io.File(context.filesDir, "fail-video").readText().trim().toInt() }.getOrNull() else null
-        val factory = if (failAt == null) DefaultRenderersFactory(context) else object : DefaultRenderersFactory(context) {
+        val debug = app.sofabrowser.BuildConfig.DEBUG
+        val failAt = if (debug) runCatching { java.io.File(context.filesDir, "fail-video").readText().trim().toInt() }.getOrNull() else null
+        val undersell = if (debug) runCatching { java.io.File(context.filesDir, "undersell-video").readText().trim().split(' ') }.getOrNull() else null
+        val factory = object : DefaultRenderersFactory(context) {
             override fun getCodecAdapterFactory(): MediaCodecAdapter.Factory {
                 val real = super.getCodecAdapterFactory()
+                failAt ?: return real
                 return MediaCodecAdapter.Factory { c ->
                     if (MimeTypes.isVideo(c.format.sampleMimeType) && c.format.height >= failAt) throw java.io.IOException("test build: fail-video $failAt")
                     real.createAdapter(c)
                 }
+            }
+
+            // As Media3 builds it (DefaultRenderersFactory.buildVideoRenderers: no extension decoders in Sofa).
+            override fun buildVideoRenderers(context: Context, extensionRendererMode: Int, mediaCodecSelector: MediaCodecSelector,
+                                             enableDecoderFallback: Boolean, eventHandler: android.os.Handler,
+                                             eventListener: androidx.media3.exoplayer.video.VideoRendererEventListener,
+                                             allowedVideoJoiningTimeMs: Long, out: java.util.ArrayList<androidx.media3.exoplayer.Renderer>) {
+                val builder = androidx.media3.exoplayer.video.MediaCodecVideoRenderer.Builder(context)
+                    .setCodecAdapterFactory(codecAdapterFactory)
+                    .setMediaCodecSelector(mediaCodecSelector)
+                    .setAllowedJoiningTimeMs(allowedVideoJoiningTimeMs)
+                    .setEnableDecoderFallback(enableDecoderFallback)
+                    .setEventHandler(eventHandler)
+                    .setEventListener(eventListener)
+                    .setMaxDroppedFramesToNotify(MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY)
+                out += TvVideoRenderer(builder, context, admitted, undersell?.firstOrNull()?.toIntOrNull(), strict = undersell?.getOrNull(1) == "strict")
             }
         }
         if (app.sofabrowser.BuildConfig.DEBUG) softwareFirst(factory)
@@ -739,6 +819,9 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
         private const val COUNTERS_MS = 5000L
         /** How long a decoder that failed to start gets to be free before Sofa Player asks again (ms). */
         private const val INIT_RETRY_MS = 500L
+        /** The stutter guard: seconds of playing left out at first, then watched. */
+        private const val STUTTER_GRACE_S = 2
+        private const val STUTTER_WATCH_S = 8
         private val DECODER_ERRORS = setOf(PlaybackException.ERROR_CODE_DECODER_INIT_FAILED, PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
             PlaybackException.ERROR_CODE_DECODING_FAILED, PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
             PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED)

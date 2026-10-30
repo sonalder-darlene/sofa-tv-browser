@@ -104,6 +104,10 @@ Everything is matched on the TV; nothing about your browsing leaves it.
   Player goes on from the same point with another one: the same codec smaller, or another codec. A quality picked by
   hand steps to the closest one below. A note over the video and Video info say which picture didn't play and which
   one plays now.
+- **4K and 60 fps:** Auto plays the stream's 4K and 1440p pictures at 60 fps when the TV's hardware decoder says it
+  plays them, also on TVs that list low frame rates for it. If such a picture then drops frames over its first
+  seconds, Auto takes a smaller one and says so over the video and in Video info. A quality picked by hand is left
+  alone.
 - **Your choices stay:** the quality, sound and subtitles you pick on the bar stay for the next videos, on every
   site: the same quality or the nearest lower one, and the same language for sound and subtitles. Private browsing
   uses them but saves nothing new. Settings → Sofa Player → "Forget my player choices" goes back to Auto and the

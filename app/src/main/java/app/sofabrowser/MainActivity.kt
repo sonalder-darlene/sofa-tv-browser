@@ -1390,7 +1390,11 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
 
         override fun onSteppedDown(failed: String, now: String, why: SofaPlayer.Step) {
             // Over the video once per video (the next step down replaces it), and kept in Video info.
-            val text = getString(if (why == SofaPlayer.Step.SOFTWARE) R.string.sofa_player_stepped_down_software else R.string.sofa_player_stepped_down, failed, now)
+            val text = getString(when (why) {
+                SofaPlayer.Step.FAILED -> R.string.sofa_player_stepped_down
+                SofaPlayer.Step.SOFTWARE -> R.string.sofa_player_stepped_down_software
+                SofaPlayer.Step.STUTTER -> R.string.sofa_player_stepped_down_stutter
+            }, failed, now)
             steppedDown = text
             streamLog(text)
             if (fullscreen.visibility == View.VISIBLE) fullscreen.notice(text)
