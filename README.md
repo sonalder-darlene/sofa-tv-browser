@@ -65,7 +65,7 @@ Copies installed by an app store or by Obtainium never offer this; the store kee
 
 Everything is matched on the TV; nothing about your browsing leaves it.
 
-- **Filter lists:** the StevenBlack hosts list (about 71,000 domains) and HaGeZi's Pop-Up Ads list (about 48,000) come
+- **Filter lists:** the StevenBlack hosts list (about 77,000 domains) and HaGeZi's Pop-Up Ads list (about 51,000) come
   with Sofa. **Stronger ad blocking** in Settings adds EasyList and EasyPrivacy, about 145,000 more rules, for TVs
   with a few MB of memory to spare; Sofa offers it once at start, never again once answered. Settings → Filter
   lists takes any other list by its address, in hosts, Adblock Plus or uBlock Origin format, and switches each list
