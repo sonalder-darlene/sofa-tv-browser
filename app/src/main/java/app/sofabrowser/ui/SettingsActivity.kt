@@ -56,6 +56,7 @@ class SettingsActivity : Activity() {
     private val onDnsPage get() = intent.getStringExtra(PAGE) == PAGE_DNS
     private val onDnsPickPage get() = intent.getStringExtra(PAGE) == PAGE_DNS_PICK
     private val onMenuPage get() = intent.getStringExtra(PAGE) == PAGE_MENU
+    private val onHomePage get() = intent.getStringExtra(PAGE) == PAGE_HOME
     /** The Filter lists row on the main page, whose rule count is refreshed on return. */
     private var listsRow: View? = null
     /** The Site filters row on the main page, whose value is refreshed on return. */
@@ -64,6 +65,10 @@ class SettingsActivity : Activity() {
     private var dnsRow: View? = null
     /** The Menu buttons row's value, refreshed on return. */
     private var menuRow: TextView? = null
+    /** The Start page row's value, refreshed on return. */
+    private var homeRow: TextView? = null
+    /** Most visited's switch, which the Start page page also flips. */
+    private var mostVisitedToggle: Toggle? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -75,13 +80,13 @@ class SettingsActivity : Activity() {
             setPadding(0, 72.px, 0, 96.px)
             clipChildren = false
         }
-        content = if (onMenuPage) MenuEditor(this, prefs) else FocusScrollView(this).apply {
+        content = if (onMenuPage) MenuEditor.create(this, prefs) else if (onHomePage) HomeEditor.create(this, prefs) else FocusScrollView(this).apply {
             isVerticalScrollBarEnabled = false
             clipChildren = false
             addView(list)
         }
         setContentView(FrameLayout(this).apply { background = Ui.background(false); addView(content) })
-        when { onMenuPage -> Unit; onListsPage -> buildLists(); onSitesPage -> buildSites(); onDnsPage -> buildDns(); onDnsPickPage -> buildDnsPick(); else -> build() }
+        when { onMenuPage || onHomePage -> Unit; onListsPage -> buildLists(); onSitesPage -> buildSites(); onDnsPage -> buildDns(); onDnsPickPage -> buildDnsPick(); else -> build() }
     }
 
     override fun onStart() {
@@ -96,12 +101,14 @@ class SettingsActivity : Activity() {
             onListsPage -> buildLists()
             onSitesPage -> buildSites()
             onDnsPage -> buildDns()
-            onDnsPickPage || onMenuPage -> Unit
+            onDnsPickPage || onMenuPage || onHomePage -> Unit
             else -> {
                 (listsRow as? TextView)?.text = rulesText(blocker.rules.rules)
                 (sitesRow as? TextView)?.text = sitesValue()
                 (dnsRow as? TextView)?.text = dnsValue()
                 menuRow?.text = menuValue()
+                homeRow?.text = homeValue()
+                mostVisitedToggle?.on = prefs.showMostVisited
             }
         }
     }
@@ -121,11 +128,15 @@ class SettingsActivity : Activity() {
         row(getString(R.string.menu_buttons), getString(R.string.menu_buttons_sub), menuRow) {
             startActivity(Intent(this, SettingsActivity::class.java).putExtra(PAGE, PAGE_MENU))
         }
+        homeRow = valueText(homeValue())
+        row(getString(R.string.home_layout), getString(R.string.home_layout_sub), homeRow) {
+            startActivity(Intent(this, SettingsActivity::class.java).putExtra(PAGE, PAGE_HOME))
+        }
         // WebView can only darken pages for a dark app theme.
         if (Ui.p.dark && WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
             switch(R.string.dark_pages, R.string.dark_pages_sub, prefs::darkPages)
         }
-        switch(R.string.most_visited_setting, R.string.most_visited_setting_sub, prefs::showMostVisited)
+        mostVisitedToggle = switch(R.string.most_visited_setting, R.string.most_visited_setting_sub, prefs::showMostVisited)
 
         section(R.string.section_browsing)
         nav(R.string.search_engine, prefs.searchEngine.name) { pickEngine() }
@@ -248,6 +259,15 @@ class SettingsActivity : Activity() {
             else -> getString(R.string.menu_buttons_custom)
         }
     }
+    private fun homeValue(): String {
+        val l = prefs.homeLayout
+        return when {
+            l.hiddenCount > 0 -> resources.getQuantityString(R.plurals.menu_buttons_hidden, l.hiddenCount, l.hiddenCount)
+            l.isDefault -> getString(R.string.menu_buttons_default)
+            else -> getString(R.string.menu_buttons_custom)
+        }
+    }
+
     private fun arrow() = ImageView(this).apply { setImageResource(R.drawable.ic_chevron_right); setColorFilter(Ui.p.textMid); layoutParams = LinearLayout.LayoutParams(40.px, 40.px) }
 
     private fun valueText(value: String) = Ui.text(this, 28, Ui.p.textMid).apply { text = value; setPadding(24.px, 0, 0, 0) }
@@ -261,7 +281,7 @@ class SettingsActivity : Activity() {
     }
 
     private fun switch(title: Int, subtitle: Int, prop: kotlin.reflect.KMutableProperty0<Boolean>, confirmOff: Int? = null,
-                       onChange: ((Boolean) -> Unit)? = null) {
+                       onChange: ((Boolean) -> Unit)? = null): Toggle {
         val toggle = Toggle(this, prop.get())
         row(getString(title), getString(subtitle), toggle) {
             val turnOn = !prop.get()
@@ -272,6 +292,7 @@ class SettingsActivity : Activity() {
                     .setNegativeButton(R.string.keep_on, null).show()
             } else apply()
         }
+        return toggle
     }
 
     // Pickers and actions
@@ -904,6 +925,7 @@ class SettingsActivity : Activity() {
         private const val PAGE_DNS = "dns"
         private const val PAGE_DNS_PICK = "dns_pick"
         private const val PAGE_MENU = "menu"
+        private const val PAGE_HOME = "home"
         /** Which DNS the pick page chooses: [FALLBACK], or the main one. */
         private const val SLOT = "slot"
         private const val FALLBACK = "fallback"

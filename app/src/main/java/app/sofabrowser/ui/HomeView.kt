@@ -19,7 +19,8 @@ import app.sofabrowser.data.Site
 
 /**
  * The start screen: a fixed top bar (logo, search pill, mic, labelled icon buttons) above rows of site cards:
- * Quick access (user-editable), Most visited and Bookmarks. All of it is local data.
+ * Quick access (user-editable), Most visited and Bookmarks. All of it is local data. The buttons and the rows come
+ * in the order Settings > Start page gives them ([HomeLayout]).
  */
 @SuppressLint("ViewConstructor")
 class HomeView(context: Context, private val listener: Listener) : FrameLayout(context) {
@@ -49,9 +50,13 @@ class HomeView(context: Context, private val listener: Listener) : FrameLayout(c
         addView(rows)
     }
     val searchPill: View
-    private val privateButton: LabeledIconButton
-    private val adBlockButton: LabeledIconButton
-    private val downloadsButton: LabeledIconButton
+    private val buttons: Map<HomeLayout.Button, LabeledIconButton>
+    private val buttonBar = LinearLayout(context).apply { gravity = Gravity.TOP; clipChildren = false; clipToPadding = false }
+    /** The buttons in [buttonBar], in its order; they are put in again only when the layout changes them. */
+    private var barButtons: List<HomeLayout.Button>? = null
+    private val privateButton get() = buttons.getValue(HomeLayout.Button.PRIVATE)
+    private val adBlockButton get() = buttons.getValue(HomeLayout.Button.ADBLOCK)
+    private val downloadsButton get() = buttons.getValue(HomeLayout.Button.DOWNLOADS)
     private val micButton: LabeledIconButton
     private var tilesRow: LinearLayout? = null
 
@@ -101,18 +106,20 @@ class HomeView(context: Context, private val listener: Listener) : FrameLayout(c
         micButton = button(R.drawable.ic_mic, R.string.voice_search) { listener.onVoiceSearch() }
         top.addView(micButton, params(8))
         top.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
-        privateButton = button(R.drawable.ic_private, R.string.private_mode) { listener.onTogglePrivate() }
-        adBlockButton = button(R.drawable.ic_shield, R.string.ad_blocker) { listener.onToggleAdBlock() }
-        downloadsButton = button(R.drawable.ic_download, R.string.downloads) { listener.onDownloads() }
-        listOf(
-            button(R.drawable.ic_bookmarks, R.string.bookmarks) { listener.onBookmarks() },
-            button(R.drawable.ic_history, R.string.history) { listener.onHistory() },
-            downloadsButton,
-            privateButton,
-            adBlockButton,
-            button(R.drawable.ic_settings, R.string.settings) { listener.onSettings() },
-            button(R.drawable.ic_exit, R.string.exit_sofa) { listener.onExit() },
-        ).forEach { top.addView(it, params(12)) }
+        buttons = HomeLayout.Button.entries.associateWith { b ->
+            button(b.icon, b.label) {
+                when (b) {
+                    HomeLayout.Button.BOOKMARKS -> listener.onBookmarks()
+                    HomeLayout.Button.HISTORY -> listener.onHistory()
+                    HomeLayout.Button.DOWNLOADS -> listener.onDownloads()
+                    HomeLayout.Button.PRIVATE -> listener.onTogglePrivate()
+                    HomeLayout.Button.ADBLOCK -> listener.onToggleAdBlock()
+                    HomeLayout.Button.SETTINGS -> listener.onSettings()
+                    HomeLayout.Button.EXIT -> listener.onExit()
+                }
+            }
+        }
+        top.addView(buttonBar)
 
         column.addView(top)
         column.addView(scroller, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
@@ -126,7 +133,20 @@ class HomeView(context: Context, private val listener: Listener) : FrameLayout(c
 
     fun refresh(privateMode: Boolean, adBlock: Boolean) {
         background = Ui.background(privateMode)
+        val layout = prefs.homeLayout
         micButton.visibility = if (prefs.voiceSearch) VISIBLE else GONE
+        // A hidden Private button still shows while private browsing is on: it is the way out of it.
+        val shown = layout.buttons.entries.filter { it.shown || privateMode && it.item == HomeLayout.Button.PRIVATE }.map { it.item }
+        if (shown != barButtons) {
+            barButtons = shown
+            buttonBar.removeAllViews()
+            shown.forEach { b ->
+                buttonBar.addView(buttons.getValue(b), LinearLayout.LayoutParams(LabeledIconButton.WIDTH.px, LayoutParams.WRAP_CONTENT).apply {
+                    marginStart = 12.px
+                    topMargin = 4.px
+                })
+            }
+        }
         privateButton.set(if (privateMode) R.drawable.ic_private_filled else R.drawable.ic_private,
             context.getString(if (privateMode) R.string.private_mode_on else R.string.private_mode_off))
         adBlockButton.set(if (adBlock) R.drawable.ic_shield_filled else R.drawable.ic_shield,
@@ -136,25 +156,30 @@ class HomeView(context: Context, private val listener: Listener) : FrameLayout(c
         rows.removeAllViews()
         rows.setPadding(96.px, 24.px, 0, 64.px)
 
-        val tiles = db.tiles()
-        tilesRow = addRow(R.string.quick_access, tiles) { card ->
-            card.setOnLongClickListener { card.site?.let(listener::onTileMenu); true }
-        }.also { row ->
-            row.addView(SiteCard(context, null, context.getDrawable(R.drawable.ic_add), context.getString(R.string.add_site)).apply {
-                setOnClickListener { listener.onAddTile() }
-            })
+        tilesRow = null
+        for (row in layout.rows.shown) when (row) {
+            HomeLayout.Row.QUICK_ACCESS -> tilesRow = addRow(R.string.quick_access, db.tiles()) { card ->
+                card.setOnLongClickListener { card.site?.let(listener::onTileMenu); true }
+            }.also { line ->
+                line.addView(SiteCard(context, null, context.getDrawable(R.drawable.ic_add), context.getString(R.string.add_site)).apply {
+                    setOnClickListener { listener.onAddTile() }
+                })
+            }
+            HomeLayout.Row.MOST_VISITED -> if (!privateMode) db.mostVisited(10).takeIf { it.isNotEmpty() }?.let { addRow(R.string.most_visited, it) }
+            // One title over all the lines of bookmarks.
+            HomeLayout.Row.BOOKMARKS -> layout.bookmarkLines(db.bookmarks()).forEachIndexed { i, line ->
+                addRow(if (i == 0) R.string.bookmarks else 0, line)
+            }
         }
-        if (!privateMode && prefs.showMostVisited) {
-            db.mostVisited(10).takeIf { it.isNotEmpty() }?.let { addRow(R.string.most_visited, it) }
-        }
-        db.bookmarks().take(12).takeIf { it.isNotEmpty() }?.let { addRow(R.string.bookmarks, it) }
 
+        // Back on the card that had focus; else the first card, or the search pill when no row is shown.
         val restore = focusedUrl?.let { url -> findCard { it.site?.url == url } }
-        (restore ?: if (findFocus() == null) tilesRow?.getChildAt(0) else null)?.requestFocus()
+        (restore ?: if (findFocus() == null) findCard { true } ?: searchPill else null)?.requestFocus()
     }
 
+    /** A row of cards, under [title] (0: none, for the second and later lines of bookmarks). */
     private fun addRow(title: Int, sites: List<Site>, extra: ((SiteCard) -> Unit)? = null): LinearLayout {
-        rows.addView(Ui.text(context, 28, Ui.p.textMid).apply {
+        if (title != 0) rows.addView(Ui.text(context, 28, Ui.p.textMid).apply {
             text = context.getString(title)
             setPadding(0, 32.px, 0, 18.px)
         })

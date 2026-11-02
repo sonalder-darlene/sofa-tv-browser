@@ -8,6 +8,9 @@ import app.sofabrowser.browser.ResumeStore
 import app.sofabrowser.browser.WatchTarget
 import app.sofabrowser.data.HistoryRetention
 import app.sofabrowser.player.PlayerChoices
+import app.sofabrowser.ui.Arrangement
+import app.sofabrowser.ui.HomeLayout
+import app.sofabrowser.ui.MenuLayout
 
 data class SearchEngine(
     val id: String,
@@ -117,9 +120,15 @@ class Prefs(context: Context) {
     var showMostVisited by boolean("most_visited", true)
     /** The browse menu's buttons, in the user's order (MenuLayout.encode); "" is the default menu. A setting: clearing browsing data never touches it. */
     var menuButtons by string("menu_buttons", "")
-    var menuLayout: app.sofabrowser.ui.MenuLayout
-        get() = app.sofabrowser.ui.MenuLayout.decode(menuButtons)
+    var menuLayout: Arrangement<MenuLayout.Item>
+        get() = MenuLayout.decode(menuButtons)
         set(v) { menuButtons = v.encode() }
+    /** The start page's rows and buttons (HomeLayout.encode); "" is the default page. A setting, like [menuButtons]. */
+    var homeLayoutText by string("home_layout", "")
+    /** Most visited's switch ([showMostVisited]) is the one place its shown state is kept. */
+    var homeLayout: HomeLayout
+        get() = HomeLayout.decode(homeLayoutText, showMostVisited)
+        set(v) { homeLayoutText = v.encode(); showMostVisited = v.mostVisited }
     var privateMode by boolean("private_mode", false)
     var askedNotifications by boolean("asked_notifications", false)
     /** The WebView version the old-WebView warning was last shown for, and when. */

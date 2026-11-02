@@ -19,7 +19,7 @@ import app.sofabrowser.R
  * The browse menu, opened with BACK: an address pill above a row of labelled action buttons. Like BrowsHere's,
  * it remembers the last button used and doesn't hide on its own. Its buttons and their order follow [layout].
  */
-class BrowserMenu(context: Context, private val actions: Actions, val layout: MenuLayout) : Dialog(context, android.R.style.Theme_Translucent_NoTitleBar) {
+class BrowserMenu(context: Context, private val actions: Actions, val layout: Arrangement<MenuLayout.Item>) : Dialog(context, android.R.style.Theme_Translucent_NoTitleBar) {
 
     enum class Action { HOME, WATCH, AUTO_WATCH, BACK, FORWARD, RELOAD, FIND, BOOKMARK, PIN, HISTORY, BOOKMARKS, DOWNLOADS, ADBLOCK, ALLOW_ONCE, USER_AGENT, SCROLL, POINTER, ZOOM_OUT, ZOOM_IN, SETTINGS }
 

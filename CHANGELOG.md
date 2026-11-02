@@ -33,6 +33,13 @@
   shown below the list. Home and Settings always stay in the menu. Clearing browsing data keeps your menu, and Reset
   brings back the default one.
 
+**Start page**
+
+- **Arrange the start page** (Settings → Start page): reorder and hide its rows and buttons, and show up to 48
+  bookmarks, in one to four rows of 12. It is edited like the menu, with the start page as it will look shown
+  below the list. Settings and the search bar always stay, and a hidden Private button comes back while private
+  browsing is on. Clearing browsing data keeps your start page, and Reset brings back the default one.
+
 ## 1.2.2 (2026-10-30)
 
 **Sofa Player**

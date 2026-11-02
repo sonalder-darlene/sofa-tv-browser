@@ -197,4 +197,23 @@
     <string name="menu_reset_do">Reset</string>
     <string name="menu_reset_done">Menu reset</string>
     <string name="zoom">Zoom</string>
+
+    <!-- Settings > Start page -->
+    <string name="home_layout">Start page</string>
+    <string name="home_layout_sub">Put its rows and buttons in your order, hide the ones you don\'t use, and show more bookmarks</string>
+    <string name="home_rows">Rows</string>
+    <string name="home_buttons">Buttons at the top</string>
+    <string name="home_bookmark_rows">Bookmarks rows</string>
+    <plurals name="home_bookmark_rows_value">
+        <item quantity="one">%1$d row, up to %2$d bookmarks</item>
+        <item quantity="other">%1$d rows, up to %2$d bookmarks</item>
+    </plurals>
+    <string name="home_hint">OK picks a row or button up to move it. ▶ shows or hides it.</string>
+    <string name="home_hint_switch">OK shows or hides it on the start page.</string>
+    <string name="home_hint_bookmark_rows">OK chooses how many rows of bookmarks the start page shows, 12 to a row.</string>
+    <string name="home_hint_reset">Every row and button back in its first place, all of them shown, and one row of bookmarks.</string>
+    <string name="home_preview">Your start page</string>
+    <string name="home_reset">Reset to the default start page</string>
+    <string name="home_reset_confirm">Put every row and button back in its first place, show them all, and show one row of bookmarks?</string>
+    <string name="home_reset_done">Start page reset</string>
 </resources>
