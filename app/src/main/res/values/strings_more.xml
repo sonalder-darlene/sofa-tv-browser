@@ -174,4 +174,27 @@
     <string name="pin_title_allow_site">Allow this site</string>
     <string name="pin_title_private">Turn private browsing on</string>
     <string name="pin_title_history">Delete from History</string>
+
+    <!-- Settings > Menu buttons -->
+    <string name="menu_buttons">Menu buttons</string>
+    <string name="menu_buttons_sub">Put the menu\'s buttons in your order and hide the ones you don\'t use</string>
+    <string name="menu_buttons_default">Default</string>
+    <string name="menu_buttons_custom">Your order</string>
+    <plurals name="menu_buttons_hidden">
+        <item quantity="one">%d hidden</item>
+        <item quantity="other">%d hidden</item>
+    </plurals>
+    <string name="menu_hint">OK picks a button up to move it. ▶ shows or hides it.</string>
+    <string name="menu_hint_moving">▲ ▼ move it. OK puts it here. Back puts it back where it was.</string>
+    <string name="menu_hint_switch">OK shows or hides this button in the menu.</string>
+    <string name="menu_hint_reset">Every button back in its first place, and all of them shown.</string>
+    <string name="menu_shown">Shown</string>
+    <string name="menu_hidden">Hidden</string>
+    <string name="menu_always_shown">Always shown</string>
+    <string name="menu_preview">Your menu</string>
+    <string name="menu_reset">Reset to the default menu</string>
+    <string name="menu_reset_confirm">Put every button back in its first place and show them all?</string>
+    <string name="menu_reset_do">Reset</string>
+    <string name="menu_reset_done">Menu reset</string>
+    <string name="zoom">Zoom</string>
 </resources>

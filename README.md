@@ -10,7 +10,8 @@ called Sofa.
 - **Game pads** (Xbox, PlayStation, 8BitDo and others): the left stick moves the pointer, the right stick scrolls,
   and the buttons work as in a console browser. Settings → Game controller shows them all.
 - **A menu on the Back key**: address, Watch, back and forward, find in page, bookmarks, history, zoom, ad
-  blocking per site, and "Browse as" desktop, mobile or TV.
+  blocking per site, and "Browse as" desktop, mobile or TV. Settings → Menu buttons puts its buttons in your order
+  and hides the ones you don't use.
 - **A home screen** with your own tiles, your most visited sites and your bookmarks.
 - **Watch**: one press of Play finds the page's main video and plays it fullscreen.
 - **Sofa Player**: in fullscreen, Sofa plays the site's stream in its own player when it can, with 4K at full

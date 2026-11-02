@@ -26,6 +26,13 @@
   or History is deleted. It is entered with the remote's arrows or number keys, kept only as a salted hash, and
   wrong tries lead to a growing pause.
 
+**Menu buttons**
+
+- **Your own menu** (Settings → Menu buttons): put the menu's buttons in the order you like and hide the ones you
+  don't use. Pick a button up with OK, move it with the arrows and put it down with OK; the menu as it will look is
+  shown below the list. Home and Settings always stay in the menu. Clearing browsing data keeps your menu, and Reset
+  brings back the default one.
+
 ## 1.2.2 (2026-10-30)
 
 **Sofa Player**

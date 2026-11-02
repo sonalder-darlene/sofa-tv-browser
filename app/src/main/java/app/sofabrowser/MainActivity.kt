@@ -554,7 +554,9 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
 
     private fun showMenu() {
         cursor.hide()
-        val m = menu ?: BrowserMenu(this, this).also { menu = it }
+        // Built again after the buttons were rearranged in Settings.
+        val layout = prefs.menuLayout
+        val m = menu?.takeIf { it.layout == layout } ?: BrowserMenu(this, this, layout).also { menu = it }
         m.show(menuState())
     }
 

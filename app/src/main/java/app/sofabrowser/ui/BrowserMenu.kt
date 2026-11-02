@@ -17,9 +17,9 @@ import app.sofabrowser.R
 
 /**
  * The browse menu, opened with BACK: an address pill above a row of labelled action buttons. Like BrowsHere's,
- * it remembers the last button used and doesn't hide on its own.
+ * it remembers the last button used and doesn't hide on its own. Its buttons and their order follow [layout].
  */
-class BrowserMenu(context: Context, private val actions: Actions) : Dialog(context, android.R.style.Theme_Translucent_NoTitleBar) {
+class BrowserMenu(context: Context, private val actions: Actions, val layout: MenuLayout) : Dialog(context, android.R.style.Theme_Translucent_NoTitleBar) {
 
     enum class Action { HOME, WATCH, AUTO_WATCH, BACK, FORWARD, RELOAD, FIND, BOOKMARK, PIN, HISTORY, BOOKMARKS, DOWNLOADS, ADBLOCK, ALLOW_ONCE, USER_AGENT, SCROLL, POINTER, ZOOM_OUT, ZOOM_IN, SETTINGS }
 
@@ -49,7 +49,7 @@ class BrowserMenu(context: Context, private val actions: Actions) : Dialog(conte
 
     private val buttons = LinkedHashMap<Action, LabeledIconButton>()
     private lateinit var address: TextView
-    private lateinit var zoomLabel: TextView
+    private var zoomLabel: TextView? = null
     private var lastFocused = Action.HOME
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -97,39 +97,29 @@ class BrowserMenu(context: Context, private val actions: Actions) : Dialog(conte
             clipChildren = false
             clipToPadding = false
         }
-        fun add(action: Action, icon: Int, label: Int) {
+        fun add(action: Action, icon: Int, label: Int, first: Boolean = false) {
             val b = LabeledIconButton(context, icon, context.getString(label)) { actions.onAction(action) }
             b.onFocused = { lastFocused = action }
             buttons[action] = b
-            row.addView(b, LinearLayout.LayoutParams(LabeledIconButton.WIDTH.px, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            row.addView(b, if (first) 0 else -1, LinearLayout.LayoutParams(LabeledIconButton.WIDTH.px, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
                 marginEnd = 28.px
             })
         }
-        add(Action.HOME, R.drawable.ic_home, R.string.home)
-        // Watch is the action a TV is most often used for: next to Home.
-        add(Action.WATCH, R.drawable.ic_play_circle, R.string.watch)
-        add(Action.BACK, R.drawable.ic_arrow_back, R.string.back)
-        add(Action.FORWARD, R.drawable.ic_arrow_forward, R.string.forward)
-        add(Action.RELOAD, R.drawable.ic_refresh, R.string.reload)
-        add(Action.FIND, R.drawable.ic_find_in_page, R.string.find_in_page)
-        add(Action.BOOKMARK, R.drawable.ic_star, R.string.bookmark)
-        add(Action.PIN, R.drawable.ic_add, R.string.pin_to_home)
-        add(Action.HISTORY, R.drawable.ic_history, R.string.history)
-        add(Action.BOOKMARKS, R.drawable.ic_bookmarks, R.string.bookmarks)
-        add(Action.DOWNLOADS, R.drawable.ic_download, R.string.downloads)
-        add(Action.ADBLOCK, R.drawable.ic_shield, R.string.adblock_site)
-        // Shown only after a block, next to the shield it belongs with; the menu then opens with it focused.
-        add(Action.ALLOW_ONCE, R.drawable.ic_open_in_new, R.string.allow_once)
-        // With the other choices kept per site; not in private browsing, which saves none.
-        add(Action.AUTO_WATCH, R.drawable.ic_autoplay, R.string.auto_watch)
-        add(Action.USER_AGENT, R.drawable.ic_desktop_windows, R.string.user_agent)
-        add(Action.SCROLL, R.drawable.ic_swap_vert, R.string.scroll_mode)
-        add(Action.POINTER, R.drawable.ic_mouse, R.string.pointer)
-        add(Action.ZOOM_OUT, R.drawable.ic_zoom_out, R.string.zoom_out)
-        zoomLabel = Ui.text(context, 26, Ui.p.textMid).apply { gravity = Gravity.CENTER; text = context.getString(R.string.percent, 100) }
-        row.addView(zoomLabel, LinearLayout.LayoutParams(100.px, 80.px))
-        add(Action.ZOOM_IN, R.drawable.ic_zoom_in, R.string.zoom_in)
-        add(Action.SETTINGS, R.drawable.ic_settings, R.string.settings)
+        for (item in layout.shown) when (item) {
+            MenuLayout.Item.ZOOM -> {
+                add(Action.ZOOM_OUT, R.drawable.ic_zoom_out, R.string.zoom_out)
+                zoomLabel = Ui.text(context, 26, Ui.p.textMid).apply { gravity = Gravity.CENTER; text = context.getString(R.string.percent, 100) }
+                row.addView(zoomLabel, LinearLayout.LayoutParams(100.px, 80.px))
+                add(Action.ZOOM_IN, R.drawable.ic_zoom_in, R.string.zoom_in)
+            }
+            else -> {
+                add(Action.valueOf(item.name), item.icon, item.label)
+                // Shown only after a block, next to the shield it belongs with; the menu then opens with it focused.
+                if (item == MenuLayout.Item.ADBLOCK) add(Action.ALLOW_ONCE, R.drawable.ic_open_in_new, R.string.allow_once)
+            }
+        }
+        // With the shield hidden, "Allow once" goes first in the row.
+        if (Action.ALLOW_ONCE !in buttons) add(Action.ALLOW_ONCE, R.drawable.ic_open_in_new, R.string.allow_once, first = true)
 
         root.addView(HorizontalScrollView(context).apply {
             isHorizontalScrollBarEnabled = false
@@ -145,7 +135,8 @@ class BrowserMenu(context: Context, private val actions: Actions) : Dialog(conte
         update(state)
         // A pending "Allow once" is why the menu was opened, most likely.
         val first = if (state.allowPending) Action.ALLOW_ONCE else lastFocused
-        (buttons[first]?.takeIf { it.isEnabled && it.visibility == android.view.View.VISIBLE } ?: buttons[Action.HOME])?.requestFocus()
+        val usable = { b: LabeledIconButton -> b.isEnabled && b.visibility == android.view.View.VISIBLE }
+        (buttons[first]?.takeIf(usable) ?: buttons.values.firstOrNull(usable))?.requestFocus()
     }
 
     fun update(s: State) {
@@ -172,7 +163,7 @@ class BrowserMenu(context: Context, private val actions: Actions) : Dialog(conte
             context.getString(R.string.user_agent))
         buttons[Action.POINTER]?.set(if (s.pointer) R.drawable.ic_mouse else R.drawable.ic_keyboard,
             context.getString(if (s.pointer) R.string.pointer_on else R.string.pointer_off))
-        zoomLabel.text = context.getString(R.string.percent, s.zoomPercent)
+        zoomLabel?.text = context.getString(R.string.percent, s.zoomPercent)
     }
 
     private fun tinted(res: Int) = context.getDrawable(res)?.mutate()?.apply {

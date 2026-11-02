@@ -5,8 +5,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Canvas
-import android.graphics.Paint
 import android.os.Build
 import android.os.Bundle
 import android.text.InputType
@@ -57,12 +55,15 @@ class SettingsActivity : Activity() {
     private val onSitesPage get() = intent.getStringExtra(PAGE) == PAGE_SITES
     private val onDnsPage get() = intent.getStringExtra(PAGE) == PAGE_DNS
     private val onDnsPickPage get() = intent.getStringExtra(PAGE) == PAGE_DNS_PICK
+    private val onMenuPage get() = intent.getStringExtra(PAGE) == PAGE_MENU
     /** The Filter lists row on the main page, whose rule count is refreshed on return. */
     private var listsRow: View? = null
     /** The Site filters row on the main page, whose value is refreshed on return. */
     private var sitesRow: View? = null
     /** The DNS row on the main page, whose value is refreshed on return. */
     private var dnsRow: View? = null
+    /** The Menu buttons row's value, refreshed on return. */
+    private var menuRow: TextView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -74,13 +75,13 @@ class SettingsActivity : Activity() {
             setPadding(0, 72.px, 0, 96.px)
             clipChildren = false
         }
-        content = FocusScrollView(this).apply {
+        content = if (onMenuPage) MenuEditor(this, prefs) else FocusScrollView(this).apply {
             isVerticalScrollBarEnabled = false
             clipChildren = false
             addView(list)
         }
         setContentView(FrameLayout(this).apply { background = Ui.background(false); addView(content) })
-        when { onListsPage -> buildLists(); onSitesPage -> buildSites(); onDnsPage -> buildDns(); onDnsPickPage -> buildDnsPick(); else -> build() }
+        when { onMenuPage -> Unit; onListsPage -> buildLists(); onSitesPage -> buildSites(); onDnsPage -> buildDns(); onDnsPickPage -> buildDnsPick(); else -> build() }
     }
 
     override fun onStart() {
@@ -95,11 +96,12 @@ class SettingsActivity : Activity() {
             onListsPage -> buildLists()
             onSitesPage -> buildSites()
             onDnsPage -> buildDns()
-            onDnsPickPage -> Unit
+            onDnsPickPage || onMenuPage -> Unit
             else -> {
                 (listsRow as? TextView)?.text = rulesText(blocker.rules.rules)
                 (sitesRow as? TextView)?.text = sitesValue()
                 (dnsRow as? TextView)?.text = dnsValue()
+                menuRow?.text = menuValue()
             }
         }
     }
@@ -115,6 +117,10 @@ class SettingsActivity : Activity() {
         section(R.string.section_appearance)
         nav(R.string.theme, resources.getStringArray(R.array.themes)[THEMES.indexOf(prefs.theme).coerceAtLeast(0)]) { pickTheme() }
         nav(R.string.text_size, getString(R.string.percent, prefs.textZoom)) { pickTextSize() }
+        menuRow = valueText(menuValue())
+        row(getString(R.string.menu_buttons), getString(R.string.menu_buttons_sub), menuRow) {
+            startActivity(Intent(this, SettingsActivity::class.java).putExtra(PAGE, PAGE_MENU))
+        }
         // WebView can only darken pages for a dark app theme.
         if (Ui.p.dark && WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
             switch(R.string.dark_pages, R.string.dark_pages_sub, prefs::darkPages)
@@ -233,6 +239,15 @@ class SettingsActivity : Activity() {
         return row
     }
 
+
+    private fun menuValue(): String {
+        val l = prefs.menuLayout
+        return when {
+            l.hiddenCount > 0 -> resources.getQuantityString(R.plurals.menu_buttons_hidden, l.hiddenCount, l.hiddenCount)
+            l.isDefault -> getString(R.string.menu_buttons_default)
+            else -> getString(R.string.menu_buttons_custom)
+        }
+    }
     private fun arrow() = ImageView(this).apply { setImageResource(R.drawable.ic_chevron_right); setColorFilter(Ui.p.textMid); layoutParams = LinearLayout.LayoutParams(40.px, 40.px) }
 
     private fun valueText(value: String) = Ui.text(this, 28, Ui.p.textMid).apply { text = value; setPadding(24.px, 0, 0, 0) }
@@ -247,7 +262,7 @@ class SettingsActivity : Activity() {
 
     private fun switch(title: Int, subtitle: Int, prop: kotlin.reflect.KMutableProperty0<Boolean>, confirmOff: Int? = null,
                        onChange: ((Boolean) -> Unit)? = null) {
-        val toggle = Toggle(prop.get())
+        val toggle = Toggle(this, prop.get())
         row(getString(title), getString(subtitle), toggle) {
             val turnOn = !prop.get()
             fun apply() { prop.set(turnOn); toggle.on = turnOn; onChange?.invoke(turnOn) }
@@ -256,24 +271,6 @@ class SettingsActivity : Activity() {
                     .setPositiveButton(R.string.turn_off) { _, _ -> apply() }
                     .setNegativeButton(R.string.keep_on, null).show()
             } else apply()
-        }
-    }
-
-    /** 80x44 pill switch: blue when on. */
-    private inner class Toggle(initial: Boolean) : View(this@SettingsActivity) {
-        var on = initial
-            set(v) { field = v; invalidate() }
-        private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-
-        init { layoutParams = LinearLayout.LayoutParams(80.px, 44.px).apply { marginStart = 24.px } }
-
-        override fun onDraw(c: Canvas) {
-            val h = height.toFloat()
-            paint.color = if (on) Ui.SWITCH_ON else Ui.p.toggleOff
-            c.drawRoundRect(0f, 0f, width.toFloat(), h, h / 2, h / 2, paint)
-            paint.color = Ui.p.knob
-            val r = h / 2 - 5.px
-            c.drawCircle(if (on) width - h / 2 else h / 2, h / 2, r, paint)
         }
     }
 
@@ -411,7 +408,7 @@ class SettingsActivity : Activity() {
 
     /** EasyList and EasyPrivacy in one switch, for TVs with room for them; they are downloaded when switched on. */
     private fun strongerRow() {
-        val toggle = Toggle(blocker.stronger)
+        val toggle = Toggle(this, blocker.stronger)
         row(getString(R.string.stronger_adblock), getString(R.string.stronger_adblock_sub), toggle) {
             val on = !toggle.on
             toggle.on = on
@@ -455,7 +452,7 @@ class SettingsActivity : Activity() {
             text = getString(R.string.filter_lists_intro) + " " + rulesText(blocker.rules.rules) + "."
         }, LinearLayout.LayoutParams(ROW_WIDTH.px, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = 32.px })
 
-        val first = blocker.lists.filter { !it.site }.map { l -> row(l.name, listStatus(l), Toggle(l.enabled)) { listActions(l) } }.firstOrNull()
+        val first = blocker.lists.filter { !it.site }.map { l -> row(l.name, listStatus(l), Toggle(this, l.enabled)) { listActions(l) } }.firstOrNull()
         switch(R.string.auto_update_lists, R.string.auto_update_lists_sub, prefs::autoUpdateLists) { on ->
             listUpdatesChanged(on)
             buildLists()
@@ -575,7 +572,7 @@ class SettingsActivity : Activity() {
         category(FilterList.DRUGS)?.let { siteSwitch(it, getString(R.string.site_drugs_warning), confirm = R.string.site_drugs_confirm) }
 
         section(R.string.your_lists)
-        sites.filter { !it.category }.forEach { l -> row(l.name, siteStatus(l), Toggle(l.enabled)) { listActions(l) } }
+        sites.filter { !it.category }.forEach { l -> row(l.name, siteStatus(l), Toggle(this, l.enabled)) { listActions(l) } }
         row(getString(R.string.add_filter_list), getString(R.string.add_site_list_sub), arrow()) { enterListAddress(site = true) }
         val allowed = SiteAllowlist.all(this)
         if (allowed.isNotEmpty()) {
@@ -606,7 +603,7 @@ class SettingsActivity : Activity() {
 
     /** A category with a switch: one press turns it on or off; with [confirm], turning it on asks first. */
     private fun siteSwitch(l: FilterList, note: String? = null, confirm: Int? = null): View =
-        row(siteListName(this, l), siteStatus(l, note), Toggle(l.enabled || l.id in pending)) {
+        row(siteListName(this, l), siteStatus(l, note), Toggle(this, l.enabled || l.id in pending)) {
             if (l.id in pending) return@row
             if (!l.enabled && confirm != null) {
                 dialog().setTitle(siteListName(this, l)).setMessage(confirm)
@@ -906,6 +903,7 @@ class SettingsActivity : Activity() {
         private const val PAGE_SITES = "sites"
         private const val PAGE_DNS = "dns"
         private const val PAGE_DNS_PICK = "dns_pick"
+        private const val PAGE_MENU = "menu"
         /** Which DNS the pick page chooses: [FALLBACK], or the main one. */
         private const val SLOT = "slot"
         private const val FALLBACK = "fallback"

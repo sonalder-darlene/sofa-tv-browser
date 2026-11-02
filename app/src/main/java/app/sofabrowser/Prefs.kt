@@ -115,6 +115,11 @@ class Prefs(context: Context) {
     /** Lets WebView darken pages that have no dark theme of their own. */
     var darkPages by boolean("dark_pages", false)
     var showMostVisited by boolean("most_visited", true)
+    /** The browse menu's buttons, in the user's order (MenuLayout.encode); "" is the default menu. A setting: clearing browsing data never touches it. */
+    var menuButtons by string("menu_buttons", "")
+    var menuLayout: app.sofabrowser.ui.MenuLayout
+        get() = app.sofabrowser.ui.MenuLayout.decode(menuButtons)
+        set(v) { menuButtons = v.encode() }
     var privateMode by boolean("private_mode", false)
     var askedNotifications by boolean("asked_notifications", false)
     /** The WebView version the old-WebView warning was last shown for, and when. */
