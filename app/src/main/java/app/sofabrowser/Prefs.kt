@@ -106,6 +106,12 @@ class Prefs(context: Context) {
     /** Clears cookies, site storage, cache and history whenever the app is closed. */
     var clearOnExit by boolean("clear_on_exit", false)
     var safeBrowsing by boolean("safe_browsing", false)
+    /**
+     * Custom DNS (SecureDns): the main and the fallback DNS, each a DnsProviders id or a DoH address ("https://…"), or
+     * "" for the device's own DNS. Both empty by default: Sofa then contacts no DNS provider of its own.
+     */
+    var dnsMain by string("dns_main", "")
+    var dnsFallback by string("dns_fallback", "")
     /** Lets WebView darken pages that have no dark theme of their own. */
     var darkPages by boolean("dark_pages", false)
     var showMostVisited by boolean("most_visited", true)

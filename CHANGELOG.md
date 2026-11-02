@@ -11,6 +11,14 @@
   and offers Go back or Allow this site; Allowed sites in Settings takes a site back.
 - Reading a large list takes far less memory than before, which also helps the ad lists.
 
+**Custom DNS**
+
+- **DNS over HTTPS** (Settings → DNS, off until you choose): a main and a fallback DNS from services ranked in four
+  groups, from most to least private (Private, Private with trade-offs, Limited privacy, Utility-first), each with
+  what it blocks; filtered and unfiltered versions where a service has both; or any other service by its address.
+  It covers pages, Sofa Player, downloads and list updates. When neither service answers, the TV's own DNS takes
+  over so pages keep loading; home-network names always use it. Test shows how fast each one answers.
+
 ## 1.2.2 (2026-10-30)
 
 **Sofa Player**

@@ -25,6 +25,8 @@ called Sofa.
 - **Pop-ups blocked**, even from ad networks no list knows yet, with "Allow once" in the menu when you need one.
 - **Site filters** (off until you choose): block whole sites by category, such as adult, gambling or unsafe sites,
   or with a list of your own.
+- **Custom DNS** (off until you choose): look sites up over DNS over HTTPS with a main and a fallback service,
+  picked from a list ranked from most to least private, or your own.
 - **Search** with the engine you choose at first start, and voice search.
 - **Downloads** that pause, resume and carry on in the background.
 - **Dark and Light themes.**
@@ -50,8 +52,9 @@ Copies installed by an app store or by Obtainium never offer this; the store kee
 
 - **Nothing of its own:** no accounts, analytics, ads, crash reports or servers. Apart from the sites you visit,
   Sofa only contacts your search engine (for suggestions, if you turn them on), GitHub (for update checks, if
-  you turn them on) and the addresses of your filter lists (when you add or update them, or every few days if you
-  turn on automatic updates). Voice search uses the TV's speech service.
+  you turn them on), the addresses of your filter lists (when you add or update them, or every few days if you
+  turn on automatic updates) and the DNS service you choose, if you choose one ([Custom DNS](#custom-dns)).
+  Voice search uses the TV's speech service.
 - **Blocking:** ads and trackers are blocked on the TV (see [Ad blocking](#ad-blocking)), and third-party cookies
   are blocked too.
 - **Blending in:** few browsers send Do Not Track and desktop Chrome is the most common browser, so Sofa sends no
@@ -62,6 +65,33 @@ Copies installed by an app store or by Obtainium never offer this; the store kee
   A video handed to another app (Play in…) may stay in that app's own history, which Sofa can't erase.
 - **History** is kept for as long as you choose: 7, 30 or 90 days (the default), always or never.
 - **WebView reporting:** usage reports to Google are off, and so are Safe Browsing lookups unless you turn them on.
+
+### Custom DNS
+
+Sofa looks sites up with the TV's own DNS until you choose a **main DNS** in Settings → DNS. From then on, every
+site name is looked up over DNS over HTTPS: encrypted, so the network can't read or change the lookups. That covers
+pages, Sofa Player, downloads and list updates. A **fallback DNS** is asked when the main one doesn't answer, and the
+TV's own DNS when neither does, so pages keep loading. A name that doesn't exist isn't asked again elsewhere. Names
+on the home network (no dot, or `.local`, `.lan`, `.home.arpa` and the like) always use the TV's DNS. **Test** times
+a lookup with each one.
+
+The built-in services are ranked from most to least private, from each one's own privacy policy (November 2026).
+Each row says what it blocks, and services that offer a filtered and an unfiltered version have both:
+
+| Group | Services |
+|---|---|
+| Private | Quad9, UncensoredDNS, HaGeZi DNS, dnsforge.de |
+| Private with trade-offs | Cloudflare 1.1.1.1, DNS.SB, AdGuard DNS, CleanBrowsing |
+| Limited privacy | Bancuh, Tiarap, Control D |
+| Utility-first | Google Public DNS, DNS4EU, OpenDNS, DNS for Family |
+
+Any other service can be added by its DNS over HTTPS address (`https://…`). The service you choose sees the name of
+every site Sofa opens; that is what a DNS does. A service that blocks sites stops them on top of Sofa's own blocking.
+
+WebView has no DNS setting, so Sofa runs a small proxy inside the app, reachable only from the TV itself
+(127.0.0.1), that looks each site up and passes the connection through. HTTPS stays encrypted end to end between
+Sofa and the site. On a network that has its own proxy, or with a WebView too old for it, the chosen DNS isn't used,
+and Settings → DNS says so.
 
 ## Ad blocking
 

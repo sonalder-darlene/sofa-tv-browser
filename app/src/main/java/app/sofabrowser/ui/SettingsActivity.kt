@@ -37,6 +37,9 @@ import app.sofabrowser.browser.StreamCopyProvider
 import app.sofabrowser.browser.WatchTarget
 import app.sofabrowser.browser.WebViews
 import app.sofabrowser.data.Db
+import app.sofabrowser.dns.DnsProviders
+import app.sofabrowser.dns.DohEndpoint
+import app.sofabrowser.dns.SecureDns
 import app.sofabrowser.data.Favicons
 import app.sofabrowser.data.HistoryRetention
 import app.sofabrowser.player.PlayerChoices
@@ -49,10 +52,14 @@ class SettingsActivity : Activity() {
     private lateinit var list: LinearLayout
     private val onListsPage get() = intent.getStringExtra(PAGE) == PAGE_LISTS
     private val onSitesPage get() = intent.getStringExtra(PAGE) == PAGE_SITES
+    private val onDnsPage get() = intent.getStringExtra(PAGE) == PAGE_DNS
+    private val onDnsPickPage get() = intent.getStringExtra(PAGE) == PAGE_DNS_PICK
     /** The Filter lists row on the main page, whose rule count is refreshed on return. */
     private var listsRow: View? = null
     /** The Site filters row on the main page, whose value is refreshed on return. */
     private var sitesRow: View? = null
+    /** The DNS row on the main page, whose value is refreshed on return. */
+    private var dnsRow: View? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -70,7 +77,7 @@ class SettingsActivity : Activity() {
             clipChildren = false
             addView(list)
         })
-        when { onListsPage -> buildLists(); onSitesPage -> buildSites(); else -> build() }
+        when { onListsPage -> buildLists(); onSitesPage -> buildSites(); onDnsPage -> buildDns(); onDnsPickPage -> buildDnsPick(); else -> build() }
     }
 
     override fun onRestart() {
@@ -79,9 +86,12 @@ class SettingsActivity : Activity() {
         when {
             onListsPage -> buildLists()
             onSitesPage -> buildSites()
+            onDnsPage -> buildDns()
+            onDnsPickPage -> Unit
             else -> {
                 (listsRow as? TextView)?.text = rulesText(blocker.rules.rules)
                 (sitesRow as? TextView)?.text = sitesValue()
+                (dnsRow as? TextView)?.text = dnsValue()
             }
         }
     }
@@ -152,6 +162,9 @@ class SettingsActivity : Activity() {
         }
         sitesRow = nav(R.string.site_filters, sitesValue()) {
             startActivity(Intent(this, SettingsActivity::class.java).putExtra(PAGE, PAGE_SITES))
+        }
+        dnsRow = nav(R.string.dns, dnsValue()) {
+            startActivity(Intent(this, SettingsActivity::class.java).putExtra(PAGE, PAGE_DNS))
         }
         switch(R.string.cookies, R.string.cookies_sub, prefs::cookies, confirmOff = R.string.cookies_confirm)
         switch(R.string.third_party_cookies, R.string.third_party_cookies_sub, prefs::blockThirdPartyCookies)
@@ -651,6 +664,139 @@ class SettingsActivity : Activity() {
             .setNegativeButton(android.R.string.cancel, null).show()
     }
 
+    // Custom DNS: main and fallback on a page of their own (PAGE_DNS), each chosen on another (PAGE_DNS_PICK)
+
+    /** A page's big title and the explanation under it. */
+    private fun pageTitle(title: Int, intro: Int) {
+        list.addView(Ui.text(this, 56, Ui.p.textMid, bold = true).apply {
+            text = getString(title)
+        }, LinearLayout.LayoutParams(ROW_WIDTH.px, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = 16.px })
+        note(getString(intro))
+    }
+
+    /** A line of small text between rows. */
+    private fun note(text: String, color: Int = Ui.p.textWeak) {
+        list.addView(Ui.text(this, 26, color).apply {
+            this.text = text
+            setPadding(27.px, 0, 27.px, 0)
+        }, LinearLayout.LayoutParams(ROW_WIDTH.px, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = 16.px; bottomMargin = 16.px })
+    }
+
+    /** A choice's short name: the provider, or the custom address's host; null for the device DNS. */
+    private fun dnsName(choice: String): String? = when {
+        choice.isEmpty() -> null
+        DnsProviders.isCustom(choice) -> android.net.Uri.parse(choice).host ?: choice
+        else -> DnsProviders.byId(choice)?.name
+    }
+
+    /** What a choice does and its privacy tier, for the line under it. */
+    private fun dnsDetail(choice: String): String? = when {
+        choice.isEmpty() -> null
+        DnsProviders.isCustom(choice) -> getString(R.string.dns_custom)
+        else -> DnsProviders.byId(choice)?.let { getString(R.string.filter_list_sub, getString(it.variant), getString(it.tier.label)) }
+    }
+
+    private fun dnsValue() = dnsName(prefs.dnsMain) ?: getString(R.string.dns_device)
+
+    private fun buildDns() {
+        val focused = list.indexOfChild(list.focusedChild)
+        list.removeAllViews()
+        pageTitle(R.string.dns, R.string.dns_intro)
+        val main = prefs.dnsMain
+        val first = row(getString(R.string.dns_main), dnsDetail(main) ?: getString(R.string.dns_device_sub), valueText(dnsValue())) { pickDns(fallback = false) }
+        if (main.isNotEmpty()) {
+            val fallback = prefs.dnsFallback
+            row(getString(R.string.dns_fallback), dnsDetail(fallback) ?: getString(R.string.dns_fallback_sub),
+                valueText(dnsName(fallback) ?: getString(R.string.dns_none))) { pickDns(fallback = true) }
+            row(getString(R.string.dns_test), getString(R.string.dns_test_sub), null) { testDns() }
+            note(getString(R.string.dns_last_step))
+            when (SecureDns.unused) {
+                SecureDns.Unused.NETWORK_PROXY -> note(getString(R.string.dns_network_proxy), Ui.p.text)
+                SecureDns.Unused.NO_WEBVIEW_SUPPORT -> note(getString(R.string.dns_no_webview), Ui.p.text)
+                null -> Unit
+            }
+        }
+        (list.getChildAt(focused)?.takeIf { it.isFocusable } ?: first).requestFocus()
+    }
+
+    private fun pickDns(fallback: Boolean) {
+        startActivity(Intent(this, SettingsActivity::class.java).putExtra(PAGE, PAGE_DNS_PICK).putExtra(SLOT, if (fallback) FALLBACK else ""))
+    }
+
+    /** Every choice for one slot: the device DNS (or none), the four tiers in rank order, then a custom address. */
+    private fun buildDnsPick() {
+        val fallback = intent.getStringExtra(SLOT) == FALLBACK
+        val current = if (fallback) prefs.dnsFallback else prefs.dnsMain
+        list.removeAllViews()
+        pageTitle(if (fallback) R.string.dns_fallback else R.string.dns_main, R.string.dns_pick_intro)
+        var selected: View? = null
+        fun choice(title: String, sub: String, id: String, isCurrent: Boolean = id == current, onClick: () -> Unit = { chooseDns(fallback, id) }) =
+            row(title, sub, if (isCurrent) check() else null, onClick).also { if (isCurrent) selected = it }
+        val first = if (fallback) choice(getString(R.string.dns_none), getString(R.string.dns_none_sub), "")
+        else choice(getString(R.string.dns_device), getString(R.string.dns_device_sub), "")
+        DnsProviders.Tier.entries.forEach { tier ->
+            list.addView(Ui.text(this, 28, tier.color, bold = true).apply {
+                text = getString(R.string.dns_tier_heading, getString(tier.label))
+                setPadding(27.px, 40.px, 0, 16.px)
+            }, LinearLayout.LayoutParams(ROW_WIDTH.px, LinearLayout.LayoutParams.WRAP_CONTENT))
+            DnsProviders.ALL.filter { it.tier == tier }.forEach { p ->
+                choice(p.name, getString(R.string.filter_list_sub, getString(p.variant), getString(p.about)), p.id)
+            }
+        }
+        section(R.string.dns_custom)
+        val custom = DnsProviders.isCustom(current)
+        choice(getString(R.string.dns_custom), if (custom) current else getString(R.string.dns_custom_sub), current, isCurrent = custom) {
+            enterDnsAddress(fallback, if (custom) current else "https://")
+        }
+        (selected ?: first).requestFocus()
+    }
+
+    private fun check() = ImageView(this).apply { setImageResource(R.drawable.ic_check); setColorFilter(Ui.p.textMid); layoutParams = LinearLayout.LayoutParams(40.px, 40.px) }
+
+    private fun enterDnsAddress(fallback: Boolean, current: String) {
+        val field = EditText(this).apply {
+            setText(current)
+            setSelection(text.length)
+            isSingleLine = true
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+        }
+        dialog().setTitle(R.string.dns_custom).setMessage(R.string.dns_custom_message).setView(padded(field))
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val typed = field.text.toString().trim().removePrefix("https://https://").let { if ("://" in it) it else "https://$it" }
+                if (runCatching { DohEndpoint(typed) }.isSuccess) chooseDns(fallback, typed)
+                else Toast.makeText(this, R.string.dns_custom_invalid, Toast.LENGTH_LONG).show()
+            }
+            .setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    /** Saves the choice and applies it at once; the device DNS as main also clears the fallback. */
+    private fun chooseDns(fallback: Boolean, choice: String) {
+        if (fallback) prefs.dnsFallback = choice
+        else {
+            prefs.dnsMain = choice
+            if (choice.isEmpty()) prefs.dnsFallback = ""
+        }
+        SecureDns.apply(applicationContext)
+        finish()
+    }
+
+    /** Looks one name up with the main and the fallback DNS, each on its own, and shows how each did. */
+    private fun testDns() {
+        val choices = listOf(prefs.dnsMain, prefs.dnsFallback).filter { it.isNotEmpty() }.distinct()
+        val lines = arrayOfNulls<String>(choices.size)
+        var left = choices.size
+        val shown = dialog().setTitle(R.string.dns_test).setMessage(R.string.dns_testing).setPositiveButton(android.R.string.ok, null).show()
+        choices.forEachIndexed { i, c ->
+            val label = DnsProviders.byId(c)?.let { getString(R.string.filter_list_sub, it.name, getString(it.variant)) } ?: dnsName(c)
+            SecureDns.test(c) { result ->
+                lines[i] = getString(R.string.dns_test_line, label, result.fold(
+                    { getString(R.string.dns_test_ms, it) },
+                    { getString(R.string.dns_test_failed, it.message ?: it.javaClass.simpleName) }))
+                if (--left == 0 && shown.isShowing) shown.setMessage(lines.joinToString("\n"))
+            }
+        }
+    }
+
     private fun clearNow() {
         dialog().setMessage(R.string.clear_now_confirm)
             .setPositiveButton(R.string.clear) { _, _ ->
@@ -699,6 +845,11 @@ class SettingsActivity : Activity() {
         private const val PAGE = "page"
         private const val PAGE_LISTS = "lists"
         private const val PAGE_SITES = "sites"
+        private const val PAGE_DNS = "dns"
+        private const val PAGE_DNS_PICK = "dns_pick"
+        /** Which DNS the pick page chooses: [FALLBACK], or the main one. */
+        private const val SLOT = "slot"
+        private const val FALLBACK = "fallback"
 
         /** What Site filters calls [list]: a category's name, or the name of a list the user added. */
         fun siteListName(context: Context, list: FilterList): String = when (list.id) {

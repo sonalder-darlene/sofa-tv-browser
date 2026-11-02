@@ -36,6 +36,7 @@
     <!-- Picture-in-picture starts from the video bar or from Home (onUserLeaveHint), as on Android TV; lint's
          auto-enter advice is for phones' gesture navigation, hence PictureInPictureIssue is ignored. -->
     <application
+        android:name=".SofaApp"
         tools:ignore="PictureInPictureIssue"
         android:allowBackup="false"
         android:banner="@drawable/banner"

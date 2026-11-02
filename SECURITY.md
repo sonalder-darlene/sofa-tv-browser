@@ -32,6 +32,8 @@ Sofa's own code, for example:
 - Sofa Player and "Play in…": stream addresses, playlists and subtitles from pages, and what Sofa hands to other
   players;
 - filter lists: a list that could do more than hide or block things;
+- Custom DNS: the in-app proxy on 127.0.0.1 and the DNS over HTTPS client, for example a lookup that bypasses
+  the chosen DNS without saying so, or a connection the proxy shouldn't make;
 - private browsing: anything that stays on the TV after it.
 
 ## What doesn't
