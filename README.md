@@ -25,6 +25,7 @@ called Sofa.
 - **Pop-ups blocked**, even from ad networks no list knows yet, with "Allow once" in the menu when you need one.
 - **Site filters** (off until you choose): block whole sites by category, such as adult, gambling or unsafe sites,
   or with a list of your own.
+- **Parental PIN** (off until you set one): a PIN before Settings open or a blocker is turned off.
 - **Custom DNS** (off until you choose): look sites up over DNS over HTTPS with a main and a fallback service,
   picked from a list ranked from most to least private, or your own.
 - **Search** with the engine you choose at first start, and voice search.
@@ -134,6 +135,21 @@ when ad blocking is off. Each category is off until you turn it on, and its list
 A blocked site shows which list blocked it, with **Go back** and **Allow this site**; Settings → Site filters →
 Allowed sites takes an allowed site back. The lists are written by their authors and miss sites: a filter, not a
 guarantee.
+
+### Parental PIN
+
+Settings → Parental PIN (off until you set one) asks for a 4-digit PIN before anyone opens Settings, turns ad
+blocking off (for every site or for one), lets a site through Site filters, turns private browsing on or deletes
+History. Turning things back on never asks. In Settings and History the PIN counts until you go back to browsing
+or Sofa leaves the screen; anywhere else it counts for one action.
+
+The PIN is entered with the remote's arrows, one digit at a time, or with its number keys. Sofa keeps only a salted
+hash of it, on the TV. After five wrong tries it waits 30 seconds before the next, then twice as long after each
+wrong try, up to 30 minutes, also across restarts. Forgot the PIN? Clearing Sofa's data in the TV's settings removes
+it, along with your bookmarks, lists and settings; there is no other way back.
+
+The PIN guards Sofa's own settings and blockers, not the TV: it can't stop anyone from using another app, changing
+the TV's settings or removing Sofa.
 
 ## Video
 

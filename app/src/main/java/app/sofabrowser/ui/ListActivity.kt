@@ -48,7 +48,7 @@ class ListActivity : Activity() {
             background = Ui.fillSelector(Ui.p.fillFocused, Ui.p.focus, 12)
             setPadding(32.px, 14.px, 32.px, 14.px)
             setOnFocusChangeListener { v, has -> (v as android.widget.TextView).setTextColor(if (has) Ui.p.onFocus else Ui.p.textMid) }
-            setOnClickListener { confirmDeleteAll() }
+            setOnClickListener { guardHistory { confirmDeleteAll() } }
         })
         root.addView(header)
 
@@ -141,11 +141,13 @@ class ListActivity : Activity() {
                 if (!has && !body.hasFocus()) visibility = View.INVISIBLE
             }
             setOnClickListener {
-                delete()
-                val i = list.indexOfChild(line)
-                list.removeView(line)
-                (list.getChildAt(i) as? LinearLayout ?: list.getChildAt(i - 1) as? LinearLayout)?.getChildAt(0)?.requestFocus()
-                empty.visibility = if (list.childCount == 0) View.VISIBLE else View.GONE
+                guardHistory {
+                    delete()
+                    val i = list.indexOfChild(line)
+                    list.removeView(line)
+                    (list.getChildAt(i) as? LinearLayout ?: list.getChildAt(i - 1) as? LinearLayout)?.getChildAt(0)?.requestFocus()
+                    empty.visibility = if (list.childCount == 0) View.VISIBLE else View.GONE
+                }
             }
         }
         line.addView(remove, LinearLayout.LayoutParams(80.px, 80.px).apply { marginStart = 24.px })
@@ -157,6 +159,10 @@ class ListActivity : Activity() {
             bottomMargin = 16.px
         })
     }
+
+    /** Deleting History asks for the parental PIN when one is set, once for this visit; bookmarks never do. */
+    private fun guardHistory(action: () -> Unit) =
+        if (history) PinPad.guard(this, R.string.pin_title_history, stay = true, action = action) else action()
 
     private fun confirmDeleteAll() {
         Ui.dialog(this)

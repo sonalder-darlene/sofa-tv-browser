@@ -141,4 +141,37 @@
     <string name="decoder_hardware">%s (hardware)</string>
     <string name="decoder_software">%s (software)</string>
     <string name="video_info_display_player">Display: panel %3$d × %4$d, the video drawn at the panel\'s own resolution (app window %1$d × %2$d)</string>
+
+    <!-- Parental PIN -->
+    <string name="pin_setting">Parental PIN</string>
+    <string name="pin_setting_sub">Asks for a PIN before Settings open, blocking is turned off, private browsing starts or History is deleted</string>
+    <string name="pin_value_on">On</string>
+    <string name="pin_intro">Sofa will ask for a 4-digit PIN before anyone:\n\n• opens Settings\n• turns ad blocking off, for every site or for one\n• lets a site through Site filters\n• turns private browsing on\n• deletes History\n\nIt can\'t stop anyone from using another app, changing the TV\'s settings or removing Sofa.\n\nForgot the PIN? The only way back is clearing Sofa\'s data in the TV\'s settings, which also removes your bookmarks, lists and settings.</string>
+    <string name="pin_choose">Choose a PIN</string>
+    <string name="pin_change">Change the PIN</string>
+    <string name="pin_turn_off">Turn the PIN off</string>
+    <string name="pin_turned_on">Parental PIN is on</string>
+    <string name="pin_turned_off">Parental PIN is off</string>
+    <string name="pin_changed">PIN changed</string>
+    <string name="pin_choose_title">Choose a PIN</string>
+    <string name="pin_choose_sub">Four digits. You\'ll enter them twice.</string>
+    <string name="pin_again_title">Enter it again</string>
+    <string name="pin_again_sub">To be sure it\'s the PIN you meant.</string>
+    <string name="pin_mismatch">Those didn\'t match. Choose a PIN again.</string>
+    <string name="pin_enter">Enter the parental PIN.</string>
+    <string name="pin_wrong">Wrong PIN</string>
+    <plurals name="pin_wrong_tries">
+        <item quantity="one">Wrong PIN. %d more try before a pause.</item>
+        <item quantity="other">Wrong PIN. %d more tries before a pause.</item>
+    </plurals>
+    <string name="pin_resting">Too many tries. Try again in %s</string>
+    <string name="pin_try_again">Try again</string>
+    <string name="pin_hint">▲ ▼ change a digit  ·  OK next  ·  number keys work too</string>
+    <string name="pin_forgot">Forgot it? Clearing Sofa\'s data in the TV\'s settings removes the PIN, and your bookmarks and settings with it.</string>
+    <string name="pin_title_settings">Unlock Settings</string>
+    <string name="pin_title_adblock">Turn ad blocking off</string>
+    <string name="pin_title_site_adblock">Turn ad blocking off for this site</string>
+    <string name="pin_title_allow_site">Allow this site</string>
+    <string name="pin_title_private">Turn private browsing on</string>
+    <string name="pin_title_history">Delete from History</string>
 </resources>

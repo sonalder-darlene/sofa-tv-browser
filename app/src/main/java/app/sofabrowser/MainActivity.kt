@@ -87,6 +87,8 @@ import app.sofabrowser.ui.PadHelp
 import app.sofabrowser.ui.ListActivity
 import app.sofabrowser.ui.Palette
 import app.sofabrowser.ui.SearchActivity
+import app.sofabrowser.ui.PinGate
+import app.sofabrowser.ui.PinPad
 import app.sofabrowser.ui.SettingsActivity
 import app.sofabrowser.ui.SetupActivity
 import app.sofabrowser.ui.Ui
@@ -592,10 +594,14 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             BrowserMenu.Action.ADBLOCK -> if (host != null) {
                 if (!prefs.adBlock) { toast(R.string.adblock_globally_off); return }
                 val allowed = !Allowlist.contains(this, host)
-                Allowlist.set(this, host, allowed)
-                toast(if (allowed) R.string.adblock_site_disabled else R.string.adblock_site_enabled)
-                menu?.dismiss()
-                browser.reload()
+                fun apply() {
+                    Allowlist.set(this, host, allowed)
+                    toast(if (allowed) R.string.adblock_site_disabled else R.string.adblock_site_enabled)
+                    menu?.dismiss()
+                    browser.reload()
+                }
+                // Turning blocking back on never needs the PIN.
+                if (allowed) PinPad.guard(this, R.string.pin_title_site_adblock) { apply() } else apply()
             }
             BrowserMenu.Action.USER_AGENT -> pickUserAgent()
             BrowserMenu.Action.SCROLL -> { menu?.dismiss(); cursor.setScrollMode(true) }
@@ -660,12 +666,21 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     }
 
     override fun onToggleAdBlock() {
+        if (prefs.adBlock) PinPad.guard(this, R.string.pin_title_adblock) { toggleAdBlock() } else toggleAdBlock()
+    }
+
+    private fun toggleAdBlock() {
         prefs.adBlock = !prefs.adBlock
         toast(if (prefs.adBlock) R.string.adblock_on else R.string.adblock_off)
         home.refresh(prefs.privateMode, prefs.adBlock)
     }
 
     override fun onTogglePrivate() {
+        // Leaving private browsing never needs the PIN.
+        if (!prefs.privateMode) PinPad.guard(this, R.string.pin_title_private) { togglePrivate() } else togglePrivate()
+    }
+
+    private fun togglePrivate() {
         val entering = !prefs.privateMode
         val wasIsolated = browser.isolated
         // Leaving or entering private mode throws away the current page and, for private mode, everything in it.
@@ -1695,9 +1710,12 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             .setMessage(getString(R.string.site_blocked_text, site, SettingsActivity.siteListName(this, list)))
             .setPositiveButton(R.string.go_back) { _, _ -> leave() }
             .setNegativeButton(R.string.allow_this_site) { _, _ ->
-                SiteAllowlist.allow(this, Browser.hostOf(url) ?: site)
-                toast(getString(R.string.site_allowed, site))
-                if (replaced && web?.url == url) browser.reloadAllowed() else openUrl(url)
+                // Not entered: back to the block screen, with Go back in focus.
+                PinPad.guard(this, R.string.pin_title_allow_site, cancelled = { onSiteBlocked(url, list, replaced) }) {
+                    SiteAllowlist.allow(this, Browser.hostOf(url) ?: site)
+                    toast(getString(R.string.site_allowed, site))
+                    if (replaced && web?.url == url) browser.reloadAllowed() else openUrl(url)
+                }
             }
             .setOnCancelListener { leave() }
             .show()
@@ -1742,6 +1760,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
 
     override fun onResume() {
         super.onResume()
+        // Back to browsing: a PIN entered for Settings or History doesn't carry over.
+        PinGate.close()
         playInSince = 0L
         // A theme change in Settings rebuilds the screen (and the WebView, whose pages follow the theme).
         if (Ui.paletteFor(this, prefs.theme) !== palette) { recreate(); return }

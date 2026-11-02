@@ -19,6 +19,13 @@
   It covers pages, Sofa Player, downloads and list updates. When neither service answers, the TV's own DNS takes
   over so pages keep loading; home-network names always use it. Test shows how fast each one answers.
 
+**Parental PIN**
+
+- **A PIN for Settings and the blockers** (Settings → Parental PIN, off until you set one): once set, Sofa asks for
+  it before Settings open, ad blocking is turned off, a site is let through Site filters, private browsing starts
+  or History is deleted. It is entered with the remote's arrows or number keys, kept only as a salted hash, and
+  wrong tries lead to a growing pause.
+
 ## 1.2.2 (2026-10-30)
 
 **Sofa Player**

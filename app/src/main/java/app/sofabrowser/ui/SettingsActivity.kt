@@ -50,6 +50,9 @@ class SettingsActivity : Activity() {
 
     private lateinit var prefs: Prefs
     private lateinit var list: LinearLayout
+    /** The page's scrolling list, hidden while the PIN is asked. */
+    private lateinit var content: View
+    private var unlocking = false
     private val onListsPage get() = intent.getStringExtra(PAGE) == PAGE_LISTS
     private val onSitesPage get() = intent.getStringExtra(PAGE) == PAGE_SITES
     private val onDnsPage get() = intent.getStringExtra(PAGE) == PAGE_DNS
@@ -71,13 +74,18 @@ class SettingsActivity : Activity() {
             setPadding(0, 72.px, 0, 96.px)
             clipChildren = false
         }
-        setContentView(FocusScrollView(this).apply {
-            background = Ui.background(false)
+        content = FocusScrollView(this).apply {
             isVerticalScrollBarEnabled = false
             clipChildren = false
             addView(list)
-        })
+        }
+        setContentView(FrameLayout(this).apply { background = Ui.background(false); addView(content) })
         when { onListsPage -> buildLists(); onSitesPage -> buildSites(); onDnsPage -> buildDns(); onDnsPickPage -> buildDnsPick(); else -> build() }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        unlock()
     }
 
     override fun onRestart() {
@@ -163,6 +171,8 @@ class SettingsActivity : Activity() {
         sitesRow = nav(R.string.site_filters, sitesValue()) {
             startActivity(Intent(this, SettingsActivity::class.java).putExtra(PAGE, PAGE_SITES))
         }
+        row(getString(R.string.pin_setting), getString(R.string.pin_setting_sub),
+            valueText(getString(if (pinOf(this).isSet) R.string.pin_value_on else R.string.filter_list_off))) { pinActions() }
         dnsRow = nav(R.string.dns, dnsValue()) {
             startActivity(Intent(this, SettingsActivity::class.java).putExtra(PAGE, PAGE_DNS))
         }
@@ -793,6 +803,55 @@ class SettingsActivity : Activity() {
                     { getString(R.string.dns_test_ms, it) },
                     { getString(R.string.dns_test_failed, it.message ?: it.javaClass.simpleName) }))
                 if (--left == 0 && shown.isShowing) shown.setMessage(lines.joinToString("\n"))
+            }
+        }
+    }
+
+    // Parental PIN
+
+    /** Off: explains what the PIN guards, then asks for one. On: change it or turn it off (Settings is already unlocked). */
+    private fun pinActions() {
+        val pin = pinOf(this)
+        if (!pin.isSet) {
+            dialog().setTitle(R.string.pin_setting).setMessage(R.string.pin_intro)
+                .setPositiveButton(R.string.pin_choose) { _, _ ->
+                    PinPad.choose(this) { ok ->
+                        if (!ok) return@choose
+                        PinGate.open()
+                        Toast.makeText(this, R.string.pin_turned_on, Toast.LENGTH_SHORT).show()
+                        build()
+                    }
+                }
+                .setNegativeButton(android.R.string.cancel, null).show()
+            return
+        }
+        dialog().setTitle(R.string.pin_setting)
+            .setItems(arrayOf(getString(R.string.pin_change), getString(R.string.pin_turn_off))) { _, which ->
+                if (which == 0) PinPad.choose(this) { ok -> if (ok) Toast.makeText(this, R.string.pin_changed, Toast.LENGTH_SHORT).show() }
+                else {
+                    pin.remove()
+                    Toast.makeText(this, R.string.pin_turned_off, Toast.LENGTH_SHORT).show()
+                    build()
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    /** Asks for the PIN before showing any Settings page, unless it was entered for this visit; not entered goes back to the browser. */
+    private fun unlock() {
+        if (unlocking || !pinOf(this).isSet || PinGate.isOpen) return
+        unlocking = true
+        // Hidden, not removed, so the row in focus keeps its focus for when the page shows.
+        content.alpha = 0f
+        PinPad.ask(this, R.string.pin_title_settings) { ok ->
+            unlocking = false
+            if (ok) {
+                PinGate.open()
+                content.animate().alpha(1f).setDuration(180).start()
+            } else {
+                // MainActivity is singleTask: starting it closes every Settings page above it.
+                startActivity(Intent(this, app.sofabrowser.MainActivity::class.java))
+                finish()
             }
         }
     }
