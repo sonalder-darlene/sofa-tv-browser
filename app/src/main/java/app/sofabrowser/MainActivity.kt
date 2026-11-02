@@ -40,6 +40,9 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.webkit.WebViewFeature
 import app.sofabrowser.adblock.Allowlist
+import app.sofabrowser.adblock.FilterList
+import app.sofabrowser.adblock.SiteAllowlist
+import app.sofabrowser.adblock.Sites
 import app.sofabrowser.browser.Browser
 import app.sofabrowser.browser.CursorLayout
 import app.sofabrowser.browser.Decoders
@@ -1672,6 +1675,34 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     override fun onPopupBlocked(url: String?) = toast(if (url != null) R.string.popup_blocked_allow else R.string.popup_blocked)
 
     override fun onRedirectBlocked() = toast(R.string.redirect_blocked_allow)
+
+    private var siteBlock: AlertDialog? = null
+
+    /**
+     * The block screen: the site and the list that blocks it. "Go back" (focused) and Back leave it; "Allow this site"
+     * lets the site through from now on (Settings > Site filters > Allowed sites takes it back).
+     */
+    override fun onSiteBlocked(url: String, list: FilterList, replaced: Boolean) {
+        if (isFinishing) return
+        siteBlock?.dismiss()
+        val site = Sites.of(Browser.hostOf(url)?.lowercase() ?: url)
+        fun leave() {
+            // Nothing to go back to: the page was the first one opened from the home screen.
+            if (replaced) { if (web?.canGoBack() == true) browser.goBack() else showHome() }
+            else if (web?.url == null) showHome()
+        }
+        siteBlock = dialog().setTitle(R.string.site_blocked_title)
+            .setMessage(getString(R.string.site_blocked_text, site, SettingsActivity.siteListName(this, list)))
+            .setPositiveButton(R.string.go_back) { _, _ -> leave() }
+            .setNegativeButton(R.string.allow_this_site) { _, _ ->
+                SiteAllowlist.allow(this, Browser.hostOf(url) ?: site)
+                toast(getString(R.string.site_allowed, site))
+                if (replaced && web?.url == url) browser.reloadAllowed() else openUrl(url)
+            }
+            .setOnCancelListener { leave() }
+            .show()
+            .also { it.getButton(AlertDialog.BUTTON_POSITIVE)?.requestFocus() }
+    }
 
     override fun onRendererGone() {
         val url = web?.url

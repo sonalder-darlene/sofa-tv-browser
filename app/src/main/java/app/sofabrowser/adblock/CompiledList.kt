@@ -74,6 +74,13 @@ class CompiledList(
         fun domainsOnly(domains: DomainBlocklist) = CompiledList(null, 0, domains, emptyMap(), emptyList(), 0)
 
         /**
+         * A list for Site filters: only its whole domains, since those block whole sites; path rules, options and
+         * element hiding mean nothing there and would only take memory.
+         */
+        fun sitesOnly(list: CompiledList) = CompiledList(list.title, list.expiresHours, list.domains, emptyMap(), emptyList(),
+            list.skipped + list.filters.values.sumOf { it.size } + list.cosmetics.size)
+
+        /**
          * Parses a list in Adblock Plus / uBlock Origin syntax or in hosts format (a list may mix them): comments,
          * "!#if" blocks for other platforms, hosts lines, domain rules, network rules and element hiding. A broken line
          * is skipped, never fatal.
@@ -81,7 +88,7 @@ class CompiledList(
         fun parse(reader: BufferedReader): CompiledList {
             val info = UnifiedFilterInfo()
             val decoder = AbpFilterDecoder()
-            val domains = HashSet<Long>(1 shl 15)
+            val domains = DomainBlocklist.Hashes()
             val filters = FilterMap()
             val cosmetics = ArrayList<CosmeticRule>()
             val conditions = Directives()

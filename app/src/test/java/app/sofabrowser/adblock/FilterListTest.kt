@@ -9,22 +9,25 @@ import org.junit.Test
 class FilterListTest {
 
     @Test
-    fun aNewInstallHasTheTwoBundledListsOnAndEasyListAndEasyPrivacyOff() {
+    fun aNewInstallHasTheTwoBundledListsOnAndEverythingElseOff() {
         val lists = FilterList.migrate(null, downloaded = false)
-        assertEquals(listOf(FilterList.STEVENBLACK, FilterList.POPUPS, FilterList.EASYLIST, FilterList.EASYPRIVACY), lists.map { it.id })
+        assertEquals(listOf(FilterList.STEVENBLACK, FilterList.POPUPS, FilterList.EASYLIST, FilterList.EASYPRIVACY,
+            FilterList.ADULT, FilterList.GAMBLING, FilterList.UNSAFE, FilterList.DRUGS), lists.map { it.id })
+        assertTrue(lists.filter { it.site }.none { it.enabled || it.bundled })
+        assertEquals(FilterList.CATEGORIES, lists.filter { it.site }.map { it.id }.toSet())
         assertTrue(lists.filter { it.bundled }.all { it.enabled })
         assertTrue(lists.filter { it.stronger }.none { it.enabled || it.bundled })
     }
 
     @Test
     fun theDefaultAddressFromSofa11IsNotACustomList() {
-        assertEquals(4, FilterList.migrate(FilterList.STEVENBLACK_URL, downloaded = true).size)
+        assertEquals(FilterList.defaults().size, FilterList.migrate(FilterList.STEVENBLACK_URL, downloaded = true).size)
     }
 
     @Test
     fun easyListSetAsTheAddressInSofa11IsTheEasyListSwitchTurnedOn() {
         val lists = FilterList.migrate(FilterList.EASYLIST_URL, downloaded = true)
-        assertEquals(4, lists.size)
+        assertEquals(FilterList.defaults().size, lists.size)
         assertTrue(lists.single { it.id == FilterList.EASYLIST }.enabled)
         assertFalse(lists.single { it.id == FilterList.STEVENBLACK }.enabled)
     }
@@ -38,7 +41,7 @@ class FilterListTest {
         assertEquals(9, lists.single { it.id == FilterList.EASYLIST }.rules)
         assertTrue(lists.single { it.id == FilterList.EASYLIST }.enabled)
         assertFalse(lists.single { it.id == FilterList.EASYPRIVACY }.enabled)
-        assertEquals(4, lists.size)
+        assertEquals(FilterList.defaults().size, lists.size)
         assertEquals(stored.take(2) + FilterList.defaults().drop(2), FilterList.complete(FilterList.defaults().take(2)).first)
     }
 
@@ -94,6 +97,59 @@ class FilterListTest {
         assertTrue(FilterList.strongerChosen(with { it.copy(updated = 1_700_000_000_000) }))
         assertTrue(FilterList.strongerChosen(with { it.copy(error = "timeout") }))
         assertFalse(FilterList.strongerChosen(fresh.map { if (it.bundled) it.copy(updated = 1_700_000_000_000) else it }))
+    }
+
+    @Test
+    fun anUpgradeGetsTheSiteFiltersOffAndAnAdListWithTheSameAddressStaysAnAdList() {
+        // Added before Site filters existed, as an ad list: it must not start blocking whole sites.
+        val added = FilterList("u1", "NSFW", FilterList.ADULT_URL, enabled = true, rules = 5)
+        val (lists, renamed) = FilterList.complete(FilterList.defaults().take(4) + added)
+        assertTrue(renamed.isEmpty())
+        assertEquals(added, lists.single { it.id == "u1" })
+        val adult = lists.single { it.id == FilterList.ADULT }
+        assertTrue(adult.site && !adult.enabled)
+        // Nor does setting its address as Sofa 1.1's one list.
+        assertTrue(FilterList.migrate(FilterList.ADULT_URL, downloaded = true).filter { it.site }.none { it.enabled })
+    }
+
+    @Test
+    fun theCategoriesAreSiteListsAndGamblingStartsAtTheRecommendedSize() {
+        val defaults = FilterList.defaults()
+        assertTrue(defaults.filter { it.category }.all { it.site && it.url!!.startsWith("https://") })
+        assertTrue(defaults.none { it.category && !it.site })
+        assertFalse(FilterList("u2", "my sites", "https://lists.example/sites.txt", site = true).category)
+        assertEquals(FilterList.GAMBLING_MEDIUM_URL, defaults.single { it.id == FilterList.GAMBLING }.url)
+        assertEquals(1, FilterList.GAMBLING_URLS.indexOf(FilterList.GAMBLING_MEDIUM_URL))
+    }
+
+    @Test
+    fun aVeryLargeListWaitsAtLeastThreeDaysBetweenUpdates() {
+        val hour = 60 * 60 * 1000L
+        val now = 1000 * 24 * hour
+        // HaGeZi asks for every 8 hours: a day for an ordinary list, three days for one of several hundred thousand.
+        val medium = FilterList(FilterList.GAMBLING, "g", FilterList.GAMBLING_MEDIUM_URL, rules = 180_000, updated = now - 25 * hour, expiresHours = 8, site = true)
+        assertTrue(FilterList.isDue(medium, installed = 0, now = now))
+        val full = medium.copy(url = FilterList.GAMBLING_FULL_URL, rules = 627_000)
+        assertFalse(FilterList.isDue(full, installed = 0, now = now))
+        assertTrue(FilterList.isDue(full.copy(updated = now - 73 * hour), installed = 0, now = now))
+    }
+
+    @Test
+    fun aSiteListKeepsOnlyWholeDomains() {
+        val compiled = CompiledList.parse("""
+            ! Title: Sites
+            casino.example
+            0.0.0.0 bets.example
+            ||poker.example^
+            ||ads.example/banner.js
+            example.org##.ad
+        """.trimIndent().reader().buffered())
+        val sites = CompiledList.sitesOnly(compiled)
+        assertEquals(3, sites.rules)
+        assertEquals("Sites", sites.title)
+        assertTrue(sites.filters.isEmpty() && sites.cosmetics.isEmpty())
+        assertTrue(sites.domains.isBlocked("www.casino.example") && sites.domains.isBlocked("poker.example"))
+        assertFalse(sites.domains.isBlocked("ads.example"))
     }
 
     @Test

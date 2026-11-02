@@ -18,7 +18,9 @@ import java.io.IOException
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
@@ -39,6 +41,12 @@ class AdBlocker private constructor(private val context: Context) {
     @Volatile var rules: RuleSet = RuleSet.EMPTY
         private set
 
+    /**
+     * The domains of every enabled Site filters list, by list id. Kept apart from [rules]: these block whole sites
+     * whether ad blocking is on or not, and say which list did it.
+     */
+    @Volatile private var sites: List<Pair<String, DomainBlocklist>> = emptyList()
+
     /** The lists in Settings, in order. */
     @Volatile var lists: List<FilterList> = emptyList()
         private set
@@ -57,11 +65,24 @@ class AdBlocker private constructor(private val context: Context) {
     /** Requests, pop-ups and redirects blocked since the current page started. */
     val blockedCount: Int get() = blocked.get()
 
+    /**
+     * Whether a Site filters list was on when the lists were last saved, read at once: then pages wait for the lists
+     * to load ([siteListed]), so a page opened as Sofa starts, from another app or a home tile, can't slip through.
+     */
+    private val sitesSaved = runCatching {
+        FilterList.listFromJson(store.getString(KEY_LISTS, null) ?: "[]").any { it.site && it.enabled }
+    }.getOrDefault(false)
+    private val loaded = CountDownLatch(1)
+
     init {
         worker.execute {
-            lists = runCatching { loadOrMigrate() }.getOrDefault(FilterList.defaults())
-            publish()
-            ready = true
+            try {
+                lists = runCatching { loadOrMigrate() }.getOrDefault(FilterList.defaults())
+                publish()
+                ready = true
+            } finally {
+                loaded.countDown()
+            }
         }
     }
 
@@ -73,6 +94,21 @@ class AdBlocker private constructor(private val context: Context) {
 
     /** Whether lists block the page at [url] (blocked domains and $document rules), for pages a site sends Sofa to. */
     fun pageListed(url: String): Boolean = rules.blocksPage(RequestUrl(url))
+
+    /**
+     * The Site filters list that blocks the site at [url], or null: none does, or the user allowed the site from the
+     * block screen ([SiteAllowlist]). For every request, the page itself included, from any thread.
+     */
+    fun siteListed(url: String): FilterList? {
+        // WebView's network threads may wait; the main thread never does (its calls come once a page has loaded).
+        if (!ready && sitesSaved && Looper.myLooper() != Looper.getMainLooper()) loaded.await(SITES_WAIT_MS, TimeUnit.MILLISECONDS)
+        val set = sites
+        if (set.isEmpty()) return null
+        val host = RequestUrl.hostOf(url)?.lowercase() ?: return null
+        val id = set.firstOrNull { it.second.isBlocked(host) }?.first ?: return null
+        if (SiteAllowlist.contains(context, host)) return null
+        return lists.firstOrNull { it.id == id }
+    }
 
     /** The page's address and whether a @@…$document exception lets everything on it through, for [intercept]. */
     @Volatile private var page: Pair<String, Boolean>? = null
@@ -139,6 +175,38 @@ class AdBlocker private constructor(private val context: Context) {
     }
 
     /**
+     * Switches the Site filters list [id] on or off; [url] gives it another address first (the sizes of the gambling
+     * list). A list switched on is downloaded when it has no copy yet, or an old one. When the first download fails
+     * the list stays off; when a new address fails, the list keeps its old one. [done] gets the failure, if any.
+     */
+    fun setSite(id: String, on: Boolean, url: String? = null, done: (Throwable?) -> Unit = {}) = worker.execute {
+        val failure = runCatching {
+            val before = lists.first { it.id == id && it.site }
+            var failed: Throwable? = null
+            when {
+                !on -> edit(id) { it.copy(enabled = false) }
+                url != null && url != before.url -> {
+                    edit(id) { it.copy(url = url, enabled = true) }
+                    failed = refresh(lists.first { it.id == id }).exceptionOrNull()
+                    // Its files are untouched until a download succeeds, so the old address still matches them.
+                    if (failed != null) edit(id) { it.copy(url = before.url, enabled = before.enabled, error = before.error) }
+                }
+                else -> {
+                    edit(id) { it.copy(enabled = true) }
+                    val list = lists.first { it.id == id }
+                    if (!rawFile(list).isFile && !compiledFile(list).isFile) {
+                        failed = refresh(list).exceptionOrNull()
+                        if (failed != null) edit(id) { it.copy(enabled = false) }
+                    } else if (FilterList.isDue(list, 0, System.currentTimeMillis())) refresh(list)
+                }
+            }
+            publish()
+            failed
+        }.getOrElse { it }
+        main.post { done(failure) }
+    }
+
+    /**
      * With automatic updates on, downloads each list that is on and due again: older than it asks to be (between a day
      * and a week; a bundled list counts from when Sofa was installed or updated). Checks at most every few hours, so
      * calling it whenever Sofa comes to the front costs nothing.
@@ -157,11 +225,14 @@ class AdBlocker private constructor(private val context: Context) {
         }
     }
 
-    /** Adds the list at [url] and downloads it; the result carries the new list, or why it failed. */
-    fun add(url: String, done: (Result<FilterList>) -> Unit) = worker.execute {
+    /**
+     * Adds the list at [url] and downloads it, as an ad list or, with [site], a Site filters list; the result carries
+     * the new list, or why it failed.
+     */
+    fun add(url: String, site: Boolean = false, done: (Result<FilterList>) -> Unit) = worker.execute {
         val result = runCatching {
-            require(lists.none { it.url == url }) { "already added" }
-            val list = FilterList("u" + System.currentTimeMillis().toString(36), RequestUrl.hostOf(url) ?: url, url)
+            require(lists.none { it.url == url && it.site == site }) { "already added" }
+            val list = FilterList("u" + System.currentTimeMillis().toString(36), RequestUrl.hostOf(url) ?: url, url, site = site)
             lists = lists + list
             save()
             val fresh = refresh(list)
@@ -180,10 +251,10 @@ class AdBlocker private constructor(private val context: Context) {
         publish()
     }
 
-    /** Downloads every enabled list that has an address; the result counts the lists that failed. */
-    fun updateAll(done: (Int) -> Unit) = worker.execute {
+    /** Downloads every enabled ad list (or, with [site], Site filters list) that has an address; the result counts the lists that failed. */
+    fun updateAll(site: Boolean = false, done: (Int) -> Unit) = worker.execute {
         var failed = 0
-        lists.filter { it.enabled && it.url != null }.forEach { if (refresh(it).isFailure) failed++ }
+        lists.filter { it.enabled && it.url != null && it.site == site }.forEach { if (refresh(it).isFailure) failed++ }
         publish()
         main.post { done(failed) }
     }
@@ -260,20 +331,27 @@ class AdBlocker private constructor(private val context: Context) {
         // Loading leaves several times the rules' size behind as garbage (about 35 MB with EasyList and EasyPrivacy);
         // collecting it now, on this background thread, gives it back before a small TV needs it elsewhere.
         Runtime.getRuntime().gc()
-        if (BuildConfig.DEBUG) Log.d("SofaAdblock", "${rules.rules} rules from ${lists.count { it.enabled }} lists " +
+        if (BuildConfig.DEBUG) Log.d("SofaAdblock", "${rules.rules} rules from ${lists.count { it.enabled && !it.site }} lists, " +
+            "${sites.sumOf { it.second.size }} sites from ${sites.size} site filters " +
             "(${stale.size} compiled again) in ${(System.nanoTime() - started) / 1_000_000} ms")
     }
 
     private fun build(load: (FilterList) -> CompiledList?) {
         val builder = RuleSet.Builder()
+        val siteLists = ArrayList<Pair<String, DomainBlocklist>>()
         lists.filter { it.enabled }.forEach { list ->
             val compiled = runCatching { load(list) }.getOrNull() ?: return@forEach
-            builder.add(compiled)
+            if (list.site) siteLists += list.id to compiled.domains else builder.add(compiled)
             if (compiled.rules != list.rules) edit(list.id) { it.copy(rules = compiled.rules) }
         }
         rules = builder.build()
+        sites = siteLists
         page = null
     }
+
+    /** A list's text compiled: a Site filters list keeps only its domains ([CompiledList.sitesOnly]). */
+    private fun parse(list: FilterList, input: InputStream): CompiledList =
+        input.bufferedReader().use(CompiledList::parse).let { if (list.site) CompiledList.sitesOnly(it) else it }
 
     /**
      * The list's compiled rules from its cache. A cache for another version of the list's text is still returned when
@@ -293,7 +371,7 @@ class AdBlocker private constructor(private val context: Context) {
 
     private fun recompile(list: FilterList): CompiledList? {
         val text = source(list) ?: return null
-        val fresh = text.bufferedReader().use(CompiledList::parse)
+        val fresh = parse(list, text)
         writeCompiled(list, fresh, stamp(list) ?: 0L)
         return fresh
     }
@@ -325,7 +403,7 @@ class AdBlocker private constructor(private val context: Context) {
             val tmp = File(dir, list.id + ".txt.gz.tmp")
             try {
                 download(url, tmp)
-                val fresh = GZIPInputStream(tmp.inputStream()).bufferedReader().use(CompiledList::parse)
+                val fresh = parse(list, GZIPInputStream(tmp.inputStream()))
                 if (fresh.rules == 0) throw IOException("no rules found")
                 val raw = rawFile(list)
                 if (!tmp.renameTo(raw)) throw IOException("could not save")
@@ -337,7 +415,7 @@ class AdBlocker private constructor(private val context: Context) {
         }
         result.onSuccess { fresh ->
             edit(list.id) {
-                it.copy(name = if (it.stronger) it.name else fresh.title?.take(60) ?: it.name, rules = fresh.rules,
+                it.copy(name = if (it.stronger || it.category) it.name else fresh.title?.take(60) ?: it.name, rules = fresh.rules,
                     updated = System.currentTimeMillis(), error = null, expiresHours = fresh.expiresHours)
             }
         }.onFailure { e ->
@@ -403,6 +481,8 @@ class AdBlocker private constructor(private val context: Context) {
         private const val KEY_LISTS = "lists"
         private const val KEY_LAST_CHECK = "last_auto_check"
         private const val CHECK_EVERY_MS = 6 * 60 * 60 * 1000L
+        /** How long a page waits for Site filters as Sofa starts; loading them takes about a second on a slow TV. */
+        private const val SITES_WAIT_MS = 10_000L
         /** Stamp of a cache carried over from Sofa 1.1: domains only, kept until the list is downloaded. */
         private const val MIGRATED = -1L
         /** Larger than any common list (EasyList is about 2 MB), small enough for any TV. */
@@ -442,4 +522,21 @@ object Allowlist {
     }
 
     private fun normalize(host: String) = host.lowercase().removePrefix("www.")
+}
+
+/** Sites the user let through from the block screen, though a Site filters list blocks them: by registrable domain. */
+object SiteAllowlist {
+    private const val PREFS = "site_filters_allowed"
+
+    private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    fun contains(context: Context, host: String): Boolean = prefs(context).contains(Sites.of(host.lowercase()))
+
+    /** Allows the site [host] is on; returns that site's domain. */
+    fun allow(context: Context, host: String): String =
+        Sites.of(host.lowercase()).also { prefs(context).edit().putBoolean(it, true).apply() }
+
+    fun remove(context: Context, site: String) = prefs(context).edit().remove(site).apply()
+
+    fun all(context: Context): List<String> = prefs(context).all.keys.sorted()
 }

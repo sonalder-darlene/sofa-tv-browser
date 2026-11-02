@@ -2,6 +2,7 @@ package app.sofabrowser.ui
 
 import android.Manifest
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Canvas
@@ -28,6 +29,7 @@ import app.sofabrowser.Prefs
 import app.sofabrowser.R
 import app.sofabrowser.adblock.AdBlocker
 import app.sofabrowser.adblock.FilterList
+import app.sofabrowser.adblock.SiteAllowlist
 import app.sofabrowser.browser.ExternalPlayer
 import app.sofabrowser.browser.ProtectedMedia
 import app.sofabrowser.browser.RefreshRateMatch
@@ -46,8 +48,11 @@ class SettingsActivity : Activity() {
     private lateinit var prefs: Prefs
     private lateinit var list: LinearLayout
     private val onListsPage get() = intent.getStringExtra(PAGE) == PAGE_LISTS
+    private val onSitesPage get() = intent.getStringExtra(PAGE) == PAGE_SITES
     /** The Filter lists row on the main page, whose rule count is refreshed on return. */
     private var listsRow: View? = null
+    /** The Site filters row on the main page, whose value is refreshed on return. */
+    private var sitesRow: View? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,13 +70,20 @@ class SettingsActivity : Activity() {
             clipChildren = false
             addView(list)
         })
-        if (onListsPage) buildLists() else build()
+        when { onListsPage -> buildLists(); onSitesPage -> buildSites(); else -> build() }
     }
 
     override fun onRestart() {
         super.onRestart()
-        // Back from Filter lists: the rule count may have changed.
-        if (onListsPage) buildLists() else (listsRow as? TextView)?.text = rulesText(blocker.rules.rules)
+        // Back from Filter lists or Site filters: the rule count or the lists on may have changed.
+        when {
+            onListsPage -> buildLists()
+            onSitesPage -> buildSites()
+            else -> {
+                (listsRow as? TextView)?.text = rulesText(blocker.rules.rules)
+                (sitesRow as? TextView)?.text = sitesValue()
+            }
+        }
     }
 
     private fun build() {
@@ -137,6 +149,9 @@ class SettingsActivity : Activity() {
         switch(R.string.auto_update_lists, R.string.auto_update_lists_sub, prefs::autoUpdateLists) { on -> listUpdatesChanged(on) }
         listsRow = nav(R.string.filter_lists, rulesText(blocker.rules.rules)) {
             startActivity(Intent(this, SettingsActivity::class.java).putExtra(PAGE, PAGE_LISTS))
+        }
+        sitesRow = nav(R.string.site_filters, sitesValue()) {
+            startActivity(Intent(this, SettingsActivity::class.java).putExtra(PAGE, PAGE_SITES))
         }
         switch(R.string.cookies, R.string.cookies_sub, prefs::cookies, confirmOff = R.string.cookies_confirm)
         switch(R.string.third_party_cookies, R.string.third_party_cookies_sub, prefs::blockThirdPartyCookies)
@@ -417,12 +432,12 @@ class SettingsActivity : Activity() {
             text = getString(R.string.filter_lists_intro) + " " + rulesText(blocker.rules.rules) + "."
         }, LinearLayout.LayoutParams(ROW_WIDTH.px, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = 32.px })
 
-        val first = blocker.lists.map { l -> row(l.name, listStatus(l), Toggle(l.enabled)) { listActions(l) } }.firstOrNull()
+        val first = blocker.lists.filter { !it.site }.map { l -> row(l.name, listStatus(l), Toggle(l.enabled)) { listActions(l) } }.firstOrNull()
         switch(R.string.auto_update_lists, R.string.auto_update_lists_sub, prefs::autoUpdateLists) { on ->
             listUpdatesChanged(on)
             buildLists()
         }
-        row(getString(R.string.add_filter_list), getString(R.string.add_filter_list_sub), arrow()) { enterListAddress() }
+        row(getString(R.string.add_filter_list), getString(R.string.add_filter_list_sub), arrow()) { enterListAddress(site = false) }
         row(getString(R.string.update_all_lists), getString(R.string.update_all_lists_sub), arrow()) {
             Toast.makeText(this, R.string.lists_updating, Toast.LENGTH_SHORT).show()
             blocker.updateAll { failed ->
@@ -454,45 +469,186 @@ class SettingsActivity : Activity() {
         val actions = mutableListOf<Pair<Int, () -> Unit>>()
         actions += (if (l.enabled) R.string.turn_off else R.string.turn_on) to {
             if (l.stronger) prefs.strongerAsked = true
-            blocker.setEnabled(l.id, !l.enabled) { if (!isFinishing) buildLists() }
+            blocker.setEnabled(l.id, !l.enabled) { if (!isFinishing) rebuild() }
         }
         if (l.url != null) actions += R.string.update to {
             Toast.makeText(this, R.string.list_adding, Toast.LENGTH_SHORT).show()
             blocker.update(l.id) { result ->
                 result.onSuccess { Toast.makeText(this, resources.getQuantityString(R.plurals.list_updated, it.rules, it.name, it.rules), Toast.LENGTH_LONG).show() }
                     .onFailure { Toast.makeText(this, getString(R.string.blocklist_failed, it.message), Toast.LENGTH_LONG).show() }
-                if (!isFinishing) buildLists()
+                if (!isFinishing) rebuild()
             }
         }
-        if (l.bundled && l.updated > 0) actions += R.string.reset_bundled to { blocker.resetToBundled(l.id) { if (!isFinishing) buildLists() } }
-        if (!l.bundled) actions += R.string.remove to { blocker.remove(l.id) { if (!isFinishing) buildLists() } }
+        if (l.bundled && l.updated > 0) actions += R.string.reset_bundled to { blocker.resetToBundled(l.id) { if (!isFinishing) rebuild() } }
+        if (!l.bundled) actions += R.string.remove to { blocker.remove(l.id) { if (!isFinishing) rebuild() } }
         dialog().setTitle(l.name)
             .setItems(actions.map { getString(it.first) }.toTypedArray()) { _, which -> actions[which].second() }
             .setNegativeButton(android.R.string.cancel, null).show()
     }
 
-    private fun enterListAddress() {
+    /** Asks for a list's address, "https://" already typed; [site] adds it to Site filters rather than ad blocking. */
+    private fun enterListAddress(site: Boolean) {
         val field = EditText(this).apply {
             setText("https://")
+            setSelection(text.length)
             isSingleLine = true
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
         }
         dialog().setTitle(R.string.add_filter_list)
-            .setMessage(R.string.filter_list_address_message)
+            .setMessage(if (site) R.string.site_list_address_message else R.string.filter_list_address_message)
             .setView(padded(field))
-            .setPositiveButton(R.string.add) { _, _ -> addListAt(field.text.toString().trim()) }
+            .setPositiveButton(R.string.add) { _, _ -> addListAt(field.text.toString().trim(), site) }
             .setNegativeButton(android.R.string.cancel, null).show()
     }
 
-    private fun addListAt(url: String) {
+    private fun addListAt(typed: String, site: Boolean) {
+        // "lists.example/sites.txt" typed over the prefilled "https://", or without it, means https.
+        val url = typed.removePrefix("https://https://").let { if ("://" in it) it else "https://$it" }
         // Debug builds also take http://, so tests can serve a list from the development machine.
         if (!url.startsWith("https://") && !(BuildConfig.DEBUG && url.startsWith("http://"))) { Toast.makeText(this, R.string.https_only, Toast.LENGTH_LONG).show(); return }
         Toast.makeText(this, R.string.list_adding, Toast.LENGTH_SHORT).show()
-        blocker.add(url) { result ->
-            result.onSuccess { Toast.makeText(this, resources.getQuantityString(R.plurals.list_added, it.rules, it.name, it.rules), Toast.LENGTH_LONG).show() }
-                .onFailure { Toast.makeText(this, getString(R.string.list_add_failed, it.message), Toast.LENGTH_LONG).show() }
-            if (!isFinishing) buildLists()
+        blocker.add(url, site) { result ->
+            result.onSuccess {
+                Toast.makeText(this, resources.getQuantityString(if (site) R.plurals.site_list_added else R.plurals.list_added, it.rules, it.name, it.rules),
+                    Toast.LENGTH_LONG).show()
+            }.onFailure { Toast.makeText(this, getString(R.string.list_add_failed, it.message), Toast.LENGTH_LONG).show() }
+            if (!isFinishing) rebuild()
         }
+    }
+
+    private fun rebuild() = if (onSitesPage) buildSites() else buildLists()
+
+    // Site filters: whole sites blocked by category, a page of its own (PAGE_SITES)
+
+    /** Site filters lists being switched on or changed, by id, with the address they change to (null: the same). */
+    private val pending = HashMap<String, String?>()
+
+    /** The Site filters row's value on the main page: Off, the lists on, or how many. */
+    private fun sitesValue(): String {
+        val on = blocker.lists.filter { it.site && it.enabled }
+        return when {
+            on.isEmpty() -> getString(R.string.filter_list_off)
+            on.size <= 2 -> on.joinToString(", ") { siteListName(this, it) }
+            else -> getString(R.string.site_filters_on, on.size)
+        }
+    }
+
+    private fun buildSites() {
+        val focused = list.indexOfChild(list.focusedChild)
+        list.removeAllViews()
+        list.addView(Ui.text(this, 56, Ui.p.textMid, bold = true).apply {
+            text = getString(R.string.site_filters)
+        }, LinearLayout.LayoutParams(ROW_WIDTH.px, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = 16.px })
+        list.addView(Ui.text(this, 26, Ui.p.textWeak).apply {
+            text = getString(R.string.site_filters_intro)
+        }, LinearLayout.LayoutParams(ROW_WIDTH.px, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = 32.px })
+
+        val sites = blocker.lists.filter { it.site }
+        fun category(id: String) = sites.firstOrNull { it.id == id }
+        // Drugs last: its list over-blocks, so it comes after the others, with its warning.
+        val first = category(FilterList.ADULT)?.let { siteSwitch(it) }
+        category(FilterList.GAMBLING)?.let { gamblingRow(it) }
+        category(FilterList.UNSAFE)?.let { siteSwitch(it, getString(R.string.site_unsafe_what)) }
+        category(FilterList.DRUGS)?.let { siteSwitch(it, getString(R.string.site_drugs_warning), confirm = R.string.site_drugs_confirm) }
+
+        section(R.string.your_lists)
+        sites.filter { !it.category }.forEach { l -> row(l.name, siteStatus(l), Toggle(l.enabled)) { listActions(l) } }
+        row(getString(R.string.add_filter_list), getString(R.string.add_site_list_sub), arrow()) { enterListAddress(site = true) }
+        val allowed = SiteAllowlist.all(this)
+        if (allowed.isNotEmpty()) {
+            row(getString(R.string.allowed_sites), resources.getQuantityString(R.plurals.allowed_sites_count, allowed.size, allowed.size), arrow()) {
+                pickAllowed(allowed)
+            }
+        }
+        (list.getChildAt(focused)?.takeIf { it.isFocusable } ?: first)?.requestFocus()
+    }
+
+    /** The line under a Site filters list: where it comes from, [note], and its state (downloading, sites, updated, failed). */
+    private fun siteStatus(l: FilterList, note: String? = null): String {
+        val state = when {
+            l.id in pending -> getString(R.string.site_list_downloading)
+            !l.enabled -> l.error?.let { getString(if (l.updated == 0L) R.string.site_list_download_failed else R.string.filter_list_failed, it) }
+            else -> listOfNotNull(
+                resources.getQuantityString(R.plurals.sites_count, l.rules, l.rules),
+                l.error?.let { getString(R.string.filter_list_failed, it) } ?: when {
+                    l.updated > System.currentTimeMillis() - DateUtils.MINUTE_IN_MILLIS -> getString(R.string.filter_list_updated_now)
+                    l.updated > 0 -> getString(R.string.filter_list_updated, DateUtils.getRelativeTimeSpanString(l.updated))
+                    else -> null
+                },
+            ).reduce { a, b -> getString(R.string.filter_list_sub, a, b) }
+        }
+        return listOfNotNull(if (l.category) l.name else null, note, state ?: if (l.category) null else getString(R.string.filter_list_off))
+            .reduce { a, b -> getString(R.string.filter_list_sub, a, b) }
+    }
+
+    /** A category with a switch: one press turns it on or off; with [confirm], turning it on asks first. */
+    private fun siteSwitch(l: FilterList, note: String? = null, confirm: Int? = null): View =
+        row(siteListName(this, l), siteStatus(l, note), Toggle(l.enabled || l.id in pending)) {
+            if (l.id in pending) return@row
+            if (!l.enabled && confirm != null) {
+                dialog().setTitle(siteListName(this, l)).setMessage(confirm)
+                    .setPositiveButton(R.string.turn_on) { _, _ -> setSite(l, true) }
+                    .setNegativeButton(android.R.string.cancel, null).show()
+            } else setSite(l, !l.enabled)
+        }
+
+    private fun setSite(l: FilterList, on: Boolean, url: String? = null) {
+        if (on) pending[l.id] = url
+        blocker.setSite(l.id, on, url) { failure ->
+            pending -= l.id
+            failure?.let { Toast.makeText(this, getString(R.string.blocklist_failed, it.message ?: it.javaClass.simpleName), Toast.LENGTH_LONG).show() }
+            if (!isFinishing) buildSites()
+        }
+        buildSites()
+    }
+
+    /** Gambling comes in three sizes; its row shows the one in use and OK picks another. */
+    private fun gamblingRow(l: FilterList) {
+        val url = if (l.id in pending) pending[l.id] ?: l.url else if (l.enabled) l.url else null
+        val value = when (FilterList.GAMBLING_URLS.indexOf(url)) {
+            0 -> R.string.gambling_mini
+            1 -> R.string.gambling_medium
+            2 -> R.string.gambling_full
+            else -> R.string.filter_list_off
+        }
+        row(siteListName(this, l), siteStatus(l), valueText(getString(value))) { if (l.id !in pending) pickGambling(l) }
+    }
+
+    private fun pickGambling(l: FilterList) {
+        val items = listOf(
+            getString(R.string.filter_list_off) to null,
+            getString(R.string.gambling_mini) to getString(R.string.gambling_mini_note),
+            getString(R.string.gambling_medium_choice) to getString(R.string.gambling_medium_note),
+            getString(R.string.gambling_full) to getString(R.string.gambling_full_note),
+        ).map { (label, note) -> withNote(label, note) }
+        val current = if (l.enabled) FilterList.GAMBLING_URLS.indexOf(l.url) + 1 else 0
+        dialog().setTitle(R.string.site_gambling)
+            .setSingleChoiceItems(items.toTypedArray(), current) { d, which ->
+                d.dismiss()
+                if (which == current) return@setSingleChoiceItems
+                if (which == 0) setSite(l, false) else setSite(l, true, FilterList.GAMBLING_URLS[which - 1])
+            }.show()
+    }
+
+    /** A choice with its explanation underneath in small type, as in the search engine list. */
+    private fun withNote(label: String, note: String?): CharSequence {
+        if (note == null) return label
+        return SpannableString(label + "\n" + note).apply {
+            val from = label.length + 1
+            setSpan(RelativeSizeSpan(0.7f), from, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            setSpan(ForegroundColorSpan(Ui.p.textWeak), from, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+    }
+
+    /** Sites let through from the block screen; choosing one blocks it again. */
+    private fun pickAllowed(sites: List<String>) {
+        dialog().setTitle(R.string.allowed_sites_pick)
+            .setItems(sites.toTypedArray()) { _, which ->
+                SiteAllowlist.remove(this, sites[which])
+                Toast.makeText(this, getString(R.string.site_blocked_again, sites[which]), Toast.LENGTH_SHORT).show()
+                buildSites()
+            }
+            .setNegativeButton(android.R.string.cancel, null).show()
     }
 
     private fun clearNow() {
@@ -542,5 +698,15 @@ class SettingsActivity : Activity() {
         private val DRM_MODES = listOf(ProtectedMedia.ASK, ProtectedMedia.ALLOW, ProtectedMedia.BLOCK)
         private const val PAGE = "page"
         private const val PAGE_LISTS = "lists"
+        private const val PAGE_SITES = "sites"
+
+        /** What Site filters calls [list]: a category's name, or the name of a list the user added. */
+        fun siteListName(context: Context, list: FilterList): String = when (list.id) {
+            FilterList.ADULT -> R.string.site_adult
+            FilterList.GAMBLING -> R.string.site_gambling
+            FilterList.UNSAFE -> R.string.site_unsafe
+            FilterList.DRUGS -> R.string.site_drugs
+            else -> null
+        }?.let(context::getString) ?: list.name
     }
 }

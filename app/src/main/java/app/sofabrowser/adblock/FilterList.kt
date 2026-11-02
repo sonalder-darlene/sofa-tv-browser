@@ -6,7 +6,8 @@ import org.json.JSONObject
 /**
  * A filter list in Settings → Filter lists: one bundled with Sofa ([asset] set, can be refreshed from [url] and reset),
  * one Sofa offers to download (EasyList and EasyPrivacy, off until switched on), or one the user added by address.
- * [rules] is what the list contributed when it was last compiled.
+ * A [site] list belongs to Settings → Site filters instead: it blocks whole sites, every way in, rather than the ads
+ * on a page. [rules] is what the list contributed when it was last compiled.
  */
 data class FilterList(
     val id: String,
@@ -22,14 +23,23 @@ data class FilterList(
     val error: String? = null,
     /** How often the list asks to be refreshed ("! Expires: 4 days"), in hours, or 0 when it doesn't say. */
     val expiresHours: Int = 0,
+    /** Blocks whole sites (Site filters) rather than ads. */
+    val site: Boolean = false,
 ) {
     val bundled: Boolean get() = asset != null
 
     /** One of the lists behind "Stronger ad blocking", which go stale within days. */
     val stronger: Boolean get() = id in STRONGER
 
-    /** How long a download stays fresh for automatic updates: what the list asks for, between one and seven days. */
-    val refreshHours: Int get() = (expiresHours.takeIf { it > 0 } ?: DEFAULT_REFRESH_HOURS).coerceIn(24, 7 * 24)
+    /** One of the categories on the Site filters page, whose name and address Sofa sets. */
+    val category: Boolean get() = id in CATEGORIES
+
+    /**
+     * How long a download stays fresh for automatic updates: what the list asks for, between one and seven days, and
+     * at least three days for a very large list, which costs a TV a few megabytes to download and compile each time.
+     */
+    val refreshHours: Int get() =
+        (expiresHours.takeIf { it > 0 } ?: DEFAULT_REFRESH_HOURS).coerceIn(if (rules > LARGE_RULES) 3 * 24 else 24, 7 * 24)
 
     fun toJson(): JSONObject = JSONObject().apply {
         put("id", id)
@@ -41,6 +51,7 @@ data class FilterList(
         put("updated", updated)
         error?.let { put("error", it) }
         put("expires", expiresHours)
+        if (site) put("site", true)
     }
 
     companion object {
@@ -55,29 +66,51 @@ data class FilterList(
         const val EASYPRIVACY_URL = "https://easylist.to/easylist/easyprivacy.txt"
         val STRONGER = setOf(EASYLIST, EASYPRIVACY)
         private const val DEFAULT_REFRESH_HOURS = 4 * 24
+        private const val LARGE_RULES = 200_000
+
+        // Site filters, all off until switched on. HaGeZi's lists are "wildcard" domains: each covers its subdomains too.
+        const val ADULT = "site-adult"
+        const val GAMBLING = "site-gambling"
+        const val UNSAFE = "site-unsafe"
+        const val DRUGS = "site-drugs"
+        val CATEGORIES = setOf(ADULT, GAMBLING, UNSAFE, DRUGS)
+        const val ADULT_URL = "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/nsfw-onlydomains.txt"
+        const val GAMBLING_MINI_URL = "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/gambling.mini-onlydomains.txt"
+        const val GAMBLING_MEDIUM_URL = "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/gambling.medium-onlydomains.txt"
+        const val GAMBLING_FULL_URL = "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/gambling-onlydomains.txt"
+        /** The sizes of the gambling list, smallest first; one is used at a time. */
+        val GAMBLING_URLS = listOf(GAMBLING_MINI_URL, GAMBLING_MEDIUM_URL, GAMBLING_FULL_URL)
+        /** FMHY's Basic list: only sites it found malicious (its Plus list adds software it doesn't recommend). */
+        const val UNSAFE_URL = "https://raw.githubusercontent.com/fmhy/FMHYFilterlist/main/filterlist-basic-domains.txt"
+        const val DRUGS_URL = "https://blocklistproject.github.io/Lists/alt-version/drugs-nl.txt"
 
         /**
-         * The lists every install has: two bundled in the APK and on, and EasyList and EasyPrivacy, which are only
-         * downloaded once switched on ("Stronger ad blocking").
+         * The lists every install has: two bundled in the APK and on, EasyList and EasyPrivacy, which are only
+         * downloaded once switched on ("Stronger ad blocking"), and the Site filters categories, likewise.
          */
         fun defaults() = listOf(
             FilterList(STEVENBLACK, "StevenBlack hosts", STEVENBLACK_URL, AdBlocker.BUNDLED_ASSET),
             FilterList(POPUPS, "HaGeZi Pop-Up Ads", POPUPS_URL, AdBlocker.POPUP_ASSET),
             FilterList(EASYLIST, "EasyList", EASYLIST_URL, enabled = false),
             FilterList(EASYPRIVACY, "EasyPrivacy", EASYPRIVACY_URL, enabled = false),
+            FilterList(ADULT, "HaGeZi NSFW", ADULT_URL, enabled = false, site = true),
+            FilterList(GAMBLING, "HaGeZi Gambling", GAMBLING_MEDIUM_URL, enabled = false, site = true),
+            FilterList(UNSAFE, "FMHY", UNSAFE_URL, enabled = false, site = true),
+            FilterList(DRUGS, "Blocklist Project", DRUGS_URL, enabled = false, site = true),
         )
 
         /**
          * [stored] lists with the ones every install has added where missing; a list the user added by the address of
-         * one of those becomes that one, so its switch and "Stronger ad blocking" agree. Ids that change are returned
-         * as old to new, for the files kept by id.
+         * an ad list every install has becomes that one, so its switch and "Stronger ad blocking" agree. Never for a
+         * Site filters category: that would turn an ad list into one that blocks whole sites. Ids that change are
+         * returned as old to new, for the files kept by id.
          */
         fun complete(stored: List<FilterList>): Pair<List<FilterList>, Map<String, String>> {
             val renamed = HashMap<String, String>()
             var lists = stored
             for (d in defaults()) {
                 if (lists.any { it.id == d.id }) continue
-                val same = lists.firstOrNull { it.url == d.url && !it.bundled }
+                val same = lists.firstOrNull { it.url == d.url && !it.bundled && !d.site }
                 lists = if (same != null) {
                     renamed[same.id] = d.id
                     lists.map { if (it === same) it.copy(id = d.id, name = d.name) else it }
@@ -102,6 +135,7 @@ data class FilterList(
             updated = o.optLong("updated"),
             error = o.optString("error").ifEmpty { null },
             expiresHours = o.optInt("expires"),
+            site = o.optBoolean("site"),
         )
 
         fun listToJson(lists: List<FilterList>): String = JSONArray().apply { lists.forEach { put(it.toJson()) } }.toString()
@@ -128,7 +162,7 @@ data class FilterList(
             val defaults = defaults()
             if (oldUrl.isNullOrBlank() || oldUrl == STEVENBLACK_URL) return defaults
             val replaced = defaults.map { if (it.id == STEVENBLACK && downloaded) it.copy(enabled = false) else it }
-            if (defaults.any { it.url == oldUrl }) return replaced.map { if (it.url == oldUrl) it.copy(enabled = true) else it }
+            if (defaults.any { it.url == oldUrl && !it.site }) return replaced.map { if (it.url == oldUrl && !it.site) it.copy(enabled = true) else it }
             return replaced + FilterList(CUSTOM_ID, RequestUrl.hostOf(oldUrl) ?: oldUrl, oldUrl)
         }
 

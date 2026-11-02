@@ -23,6 +23,8 @@ called Sofa.
 - **Ad blocking with filter lists** in the formats of uBlock Origin, Adblock Plus and hosts files, including
   hiding the empty boxes ads leave behind. One switch adds EasyList and EasyPrivacy.
 - **Pop-ups blocked**, even from ad networks no list knows yet, with "Allow once" in the menu when you need one.
+- **Site filters** (off until you choose): block whole sites by category, such as adult, gambling or unsafe sites,
+  or with a list of your own.
 - **Search** with the engine you choose at first start, and voice search.
 - **Downloads** that pause, resume and carry on in the background.
 - **Dark and Light themes.**
@@ -85,6 +87,23 @@ Everything is matched on the TV; nothing about your browsing leaves it.
   kept that way.
 - **Per site:** the Ad block button in the menu switches all of this off for one site and shows how much was
   blocked on the page.
+
+### Site filters
+
+Settings → Site filters blocks whole sites, not just their ads, whichever way you reach them: a typed address, a
+bookmark, a link or a redirect. Anything a page loads from such a site is blocked too, and the filters keep working
+when ad blocking is off. Each category is off until you turn it on, and its list is downloaded then:
+
+- **Adult sites:** HaGeZi's NSFW list (about 92,000 domains).
+- **Gambling**, in three sizes, one at a time: popular sites (about 110,000 domains), more sites (about 180,000, the
+  recommended one) or all known sites (about 630,000; about 5 MB of memory, and slow to update on cheap TVs).
+- **Unsafe sites:** FMHY's Basic list of fake download sites and malware.
+- **Drugs:** the Block List Project's list. It is updated rarely and also blocks some sites about medicines.
+- **Your lists:** any list of domains or hosts file, by its address.
+
+A blocked site shows which list blocked it, with **Go back** and **Allow this site**; Settings → Site filters →
+Allowed sites takes an allowed site back. The lists are written by their authors and miss sites: a filter, not a
+guarantee.
 
 ## Video
 
@@ -236,4 +255,5 @@ text.
 improved in [Fulguris](https://github.com/Slion/Fulguris) (Apache-2.0 parts only). Element hiding by class and id
 follows the design of [Brave](https://github.com/brave/adblock-rust) and [uBlock Origin](https://github.com/gorhill/uBlock),
 without their code. The lists are the work of [StevenBlack/hosts](https://github.com/StevenBlack/hosts),
-[HaGeZi](https://github.com/hagezi/dns-blocklists) and [the EasyList authors](https://easylist.to/).
+[HaGeZi](https://github.com/hagezi/dns-blocklists), [the EasyList authors](https://easylist.to/),
+[FMHY](https://github.com/fmhy/FMHYFilterlist) and [the Block List Project](https://github.com/blocklistproject/Lists).

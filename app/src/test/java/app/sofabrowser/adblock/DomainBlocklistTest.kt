@@ -86,6 +86,16 @@ class DomainBlocklistTest {
     }
 
     @Test
+    fun aListLargerThanTheFirstArrayIsReadWholeWithRepeatsCountedOnce() {
+        // 40,000 lines, past the collector's first 16,384 slots, each domain twice.
+        val text = (1..20_000).joinToString("\n") { "d$it.test\n0.0.0.0 d$it.test" }
+        val list = DomainBlocklist.parse(text.reader().buffered())
+        assertEquals(20_000, list.size)
+        assertTrue(list.isBlocked("d1.test") && list.isBlocked("www.d20000.test"))
+        assertFalse(list.isBlocked("d20001.test"))
+    }
+
+    @Test
     fun emptyListBlocksNothing() {
         assertFalse(DomainBlocklist.EMPTY.isBlocked("doubleclick.net"))
     }

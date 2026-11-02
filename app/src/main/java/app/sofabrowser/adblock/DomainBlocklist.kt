@@ -81,6 +81,15 @@ class DomainBlocklist private constructor(private val hashes: LongArray) {
         /** A list of the domains whose [fnv1a] hashes are [hashes]. */
         fun of(hashes: Collection<Long>) = DomainBlocklist(hashes.toLongArray().also { it.sort() })
 
+        /** A list of the domains whose hashes [hashes] collected; duplicates count once. */
+        fun of(hashes: Hashes): DomainBlocklist {
+            val a = hashes.toArray()
+            a.sort()
+            var n = 0
+            for (h in a) if (n == 0 || a[n - 1] != h) a[n++] = h
+            return DomainBlocklist(if (n == a.size) a else a.copyOf(n))
+        }
+
         /** Merges any number of lists; see [merge]. */
         fun mergeAll(lists: List<DomainBlocklist>) = lists.fold(EMPTY, ::merge)
 
@@ -90,9 +99,9 @@ class DomainBlocklist private constructor(private val hashes: LongArray) {
          * domain matcher can't honour paths, options or exceptions without over-blocking.
          */
         fun parse(reader: BufferedReader): DomainBlocklist {
-            val set = HashSet<Long>(1 shl 17)
-            reader.forEachLine { raw -> parseLine(raw)?.let { set.add(fnv1a(it)) } }
-            return DomainBlocklist(set.toLongArray().also { it.sort() })
+            val hashes = Hashes()
+            reader.forEachLine { raw -> parseLine(raw)?.let { hashes += fnv1a(it) } }
+            return of(hashes)
         }
 
         internal fun parseLine(raw: String): String? {
@@ -130,5 +139,22 @@ class DomainBlocklist private constructor(private val hashes: LongArray) {
             }
             return h
         }
+    }
+
+    /**
+     * Hashes collected while a list is read, in a growing array: 8 bytes per domain, where a set of boxed longs takes
+     * about 50, which matters for lists of several hundred thousand domains on a TV.
+     */
+    class Hashes {
+        private var a = LongArray(1 shl 14)
+        var size = 0
+            private set
+
+        operator fun plusAssign(h: Long) {
+            if (size == a.size) a = a.copyOf(a.size * 2)
+            a[size++] = h
+        }
+
+        fun toArray(): LongArray = a.copyOf(size)
     }
 }

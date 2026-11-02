@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+**Site filters**
+
+- **Block whole sites by category** (Settings → Site filters, each off until turned on): adult sites, gambling (in
+  three sizes, "More sites" recommended), unsafe sites (fake downloads and malware) and drugs, or any list of
+  domains by its address. A blocked site is stopped however you reach it, a typed address, a bookmark, a link or a
+  redirect, and so is anything a page loads from it, with ad blocking on or off. The block screen names the list
+  and offers Go back or Allow this site; Allowed sites in Settings takes a site back.
+- Reading a large list takes far less memory than before, which also helps the ad lists.
+
 ## 1.2.2 (2026-10-30)
 
 **Sofa Player**
