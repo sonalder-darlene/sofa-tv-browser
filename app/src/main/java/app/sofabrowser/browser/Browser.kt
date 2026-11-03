@@ -220,6 +220,14 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
 
         override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
             val url = request.url.toString()
+            // Out of sight, a page that posts a form to go elsewhere slips past shouldOverrideUrlLoading, which never
+            // sees a POST. Held here instead, before the page's state switches over: an empty 204 makes WebView drop
+            // the navigation, so the page stays as it was.
+            if (hidden && request.isForMainFrame) {
+                hold(url)
+                return WebResourceResponse("text/plain", "utf-8", 204, "No Content", mapOf("Cache-Control" to "no-store"),
+                    ByteArrayInputStream(ByteArray(0)))
+            }
             // Site filters apply whether ad blocking is on or not, and to every way of reaching a page: typed
             // addresses, bookmarks and home tiles never pass through shouldOverrideUrlLoading.
             val site = if (url.startsWith("http")) adBlocker.siteListed(url) else null
@@ -250,6 +258,9 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
 
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             val url = request.url
+            // Out of sight, the page doesn't go anywhere on its own: its timer or an ad would load a site, sound and
+            // all, behind the start page. The address waits for the user (wake). Redirects of a navigation under way pass.
+            if (hidden && request.isForMainFrame && !request.isRedirect) { hold(url.toString()); return true }
             if (request.isForMainFrame && url.scheme?.lowercase()?.startsWith("http") == true) {
                 // Links and server redirects: stopped before anything loads, so the page before stays.
                 adBlocker.siteListed(url.toString())?.let { host.onSiteBlocked(url.toString(), it, replaced = false); return true }
@@ -419,6 +430,7 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
 
     /** Loads a window's first address in [view], unless the pop-up rules block it. */
     private fun openWindow(view: WebView, url: String, opener: String?, pressed: String?) {
+        if (hidden) { hold(url); return }
         val sameSite = opener != null && hostOf(url)?.let { Sites.same(it.lowercase(), opener.lowercase()) } == true
         val verdict = guard.newWindow(blocking(opener), isWebUrl(url) && adBlocker.popupListed(url, opener),
             fromLink = pressed.leadsTo(url), sameSite = sameSite)
@@ -499,6 +511,38 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
 
     /** Whether ad blocking (and with it pop-up and redirect blocking) applies to pages from [pageHost]. */
     private fun blocking(pageHost: String?) = prefs.adBlock && (pageHost == null || !Allowlist.contains(context, pageHost))
+
+    /**
+     * Whether the page is out of sight: behind the start page, or Sofa is in the background. Set by [rest] and [wake];
+     * meanwhile the page's own navigations and windows are held, not loaded. Read on WebView's network threads too.
+     */
+    @Volatile var hidden = false
+        private set
+    @Volatile private var held: String? = null
+
+    private fun hold(url: String) {
+        debug("navigation HELD (out of sight): $url")
+        if (isWebUrl(url)) held = url
+    }
+
+    /** The page went out of sight. */
+    fun rest() {
+        hidden = true
+    }
+
+    /**
+     * The page is in sight again. Returns the last web address it tried to open meanwhile, which "Allow once" can now
+     * open, or null.
+     */
+    fun wake(): String? {
+        hidden = false
+        return held?.also { held = null; guard.blocked(it, SystemClock.uptimeMillis()) }
+    }
+
+    /** Forgets what the resting page tried to open: another address replaces it. */
+    fun forgetHeld() {
+        held = null
+    }
 
     /** The address blocked last, if "Allow once" may still open it. */
     fun pendingAllow(): String? = guard.pending(SystemClock.uptimeMillis())

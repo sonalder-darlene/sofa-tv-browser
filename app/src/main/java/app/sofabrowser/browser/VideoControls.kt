@@ -41,6 +41,42 @@ object VideoRelay {
 (() => {
   const K = ${JSONObject.quote(key.id)}, L = ${JSONObject.quote(key.video)}, PANEL = $panelScale;
   const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+  // What Sofa wraps in a Proxy reads as the native function it wraps, toString included (a Proxy alone loses the name).
+  const masks = new WeakMap();
+  const masked = (proxy, real) => { masks.set(proxy, real); return proxy; };
+  try {
+    const toString = Function.prototype.toString;
+    const own = Object.getOwnPropertyDescriptor(Function.prototype, 'toString');
+    Object.defineProperty(Function.prototype, 'toString', { ...own,
+      value: masked(new Proxy(toString, { apply: (f, self, args) => Reflect.apply(f, masks.get(self) || self, args) }), toString) });
+  } catch (e) {}
+  // Web Audio goes on sounding on a page out of sight (WebView pauses only media elements), so the frame keeps a
+  // weak list of its audio contexts.
+  const contexts = [], hushed = [];
+  for (const name of ['AudioContext', 'webkitAudioContext']) {
+    const C = window[name];
+    if (typeof C !== 'function') continue;
+    try {
+      const P = masked(new Proxy(C, { construct: (t, args, nt) => {
+        const c = Reflect.construct(t, args, nt);
+        contexts.push(new WeakRef(c));
+        return c;
+      } }), C);
+      Object.defineProperty(window, name, { configurable: true, writable: true, enumerable: false, value: P });
+      if (C.prototype.constructor === C) Object.defineProperty(C.prototype, 'constructor', { configurable: true, writable: true, enumerable: false, value: P });
+    } catch (e) {}
+  }
+  // "rest": the page went out of sight (start page, Sofa left). Every playing video and audio element pauses, as
+  // does every running audio context; "wake" resumes those contexts only. Media elements stay paused where they were.
+  const rest = (on) => {
+    if (!on) { for (const c of hushed.splice(0)) if (c.state === 'suspended') c.resume().catch(() => {}); return; }
+    for (const m of document.querySelectorAll('video,audio')) if (!m.paused) m.pause();
+    for (let i = contexts.length - 1; i >= 0; i--) {
+      const c = contexts[i].deref();
+      if (!c || c.state === 'closed') { contexts.splice(i, 1); continue; }
+      if (c.state === 'running' && !hushed.includes(c)) { hushed.push(c); c.suspend().catch(() => {}); }
+    }
+  };
   // Players size their quality to devicePixelRatio × their box, and Android draws apps at 1080p even on a 4K
   // panel, so "auto" stops at 1080p. In fullscreen only, report the panel's pixels instead; pages' layout,
   // images and canvases outside fullscreen see the real value.
@@ -50,10 +86,10 @@ object VideoRelay {
   if (PANEL > 1 && ownRatio && ownRatio.get) {
     try {
       Object.defineProperty(window, 'devicePixelRatio', { configurable: true, enumerable: ownRatio.enumerable,
-        get: new Proxy(ownRatio.get, { apply: (f, self, args) => {
+        get: masked(new Proxy(ownRatio.get, { apply: (f, self, args) => {
           const r = Reflect.apply(f, self, args);
           return fsEl() ? r * PANEL : r;
-        } }) });
+        } }), ownRatio.get) });
     } catch (e) {}
   }
   // The video Watch chose: once its player box is fullscreen, the bar drives it, not another one in the box.
@@ -355,6 +391,7 @@ object VideoRelay {
         return;
       }
       case 'locate': locate(); return;
+      case 'rest': case 'wake': rest(m.cmd === 'rest'); toChildren(m); return;
       // A stream manifest, fetched again by the frame whose player fetched it first (same origin), so it goes out
       // exactly as the player's request did: some sites turn away any other client. Usually from the cache.
       case 'fetch': {

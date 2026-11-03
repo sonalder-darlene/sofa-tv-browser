@@ -217,7 +217,9 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     private fun openUrl(url: String) {
         if (url.isBlank()) return
         ensureWeb()
-        showBrowser()
+        // What the resting page tried to open, and its paused sound, go with it: this address replaces it.
+        browser.forgetHeld()
+        showBrowser(wakeSound = false)
         browser.userNavigation()
         // Older WebViews can't add Sec-GPC to every request; at least send it with navigations we start.
         if (prefs.sendGpc && !WebViewFeature.isFeatureSupported(WebViewFeature.CUSTOM_REQUEST_HEADERS)) {
@@ -227,12 +229,13 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         }
     }
 
-    private fun showBrowser() {
+    private fun showBrowser(wakeSound: Boolean = true) {
         home.visibility = View.GONE
         home.releasePicture()
         applyKeepAwake()
         browserLayer.visibility = View.VISIBLE
         cursor.speedLevel = prefs.cursorSpeed
+        pageInSight(wakeSound)
         web?.onResume()
         web?.requestFocus()
     }
@@ -240,8 +243,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     private fun showHome() {
         menu?.dismiss()
         if (findBar.showing) closeFind()
-        // Leaving a page for the home screen shouldn't leave its video playing behind it.
-        VideoRelay.send(web, "pause")
+        // Leaving a page for the home screen shouldn't leave it playing, or going anywhere, behind it.
+        pageOutOfSight()
         web?.onPause()
         home.refresh(prefs.privateMode, prefs.adBlock)
         home.visibility = View.VISIBLE
@@ -249,6 +252,34 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         browserLayer.visibility = View.INVISIBLE
         if (home.findFocus() == null) home.searchPill.requestFocus()
         Updater.showPending(this)
+    }
+
+    /**
+     * The page went out of sight (the start page, or Sofa left): its media elements and Web Audio pause in every frame,
+     * its timers stop, and what it tries to open waits ([Browser.hidden]). WebView's own onPause pauses media elements
+     * only, so a page could go on sounding through Web Audio, or send itself to another site that plays.
+     */
+    private fun pageOutOfSight() {
+        if (browser.hidden) return
+        browser.rest()
+        VideoRelay.send(web, "rest")
+        // Paused timers hold back the page's messages too, so "rest" goes through every frame first.
+        browserLayer.removeCallbacks(pauseTimers)
+        browserLayer.postDelayed(pauseTimers, TIMERS_PAUSE_MS)
+    }
+
+    /** For every WebView of the app, which is fine: the start page and the rest of Sofa are native. */
+    private val pauseTimers = Runnable { if (browser.hidden) web?.pauseTimers() }
+
+    /** The page is in sight again; [sound] resumes the Web Audio that [pageOutOfSight] paused. */
+    private fun pageInSight(sound: Boolean = true) {
+        browserLayer.removeCallbacks(pauseTimers)
+        // Timers stay paused across a rebuilt screen (a theme change), so they're resumed whatever this one did.
+        web?.resumeTimers()
+        if (!browser.hidden) return
+        val held = browser.wake()
+        if (sound) VideoRelay.send(web, "wake")
+        if (held != null) toast(getString(R.string.page_held_allow, Sites.of(Browser.hostOf(held)?.lowercase() ?: held)))
     }
 
     // Keys
@@ -1785,8 +1816,9 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     }
 
     override fun onStop() {
-        // Stopped while in picture-in-picture means its window was closed: no sound may go on playing.
-        if (inPip) { VideoRelay.send(web, "pause"); web?.onPause() }
+        // Stopped while in picture-in-picture means its window was closed: the page rests now (onPause left it awake).
+        pageOutOfSight()
+        if (inPip) web?.onPause()
         // Out of sight (picture-in-picture keeps the activity started), Sofa Player lets go of its buffer and decoder:
         // the page's video holds the place, and Sofa Player may take over again once it plays.
         if (sofaPlayer.active || pausedForDecoder) {
@@ -1815,13 +1847,15 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         // Cheap when nothing is due: it checks at most every few hours.
         browser.adBlocker.refreshIfDue(prefs.autoUpdateLists)
         // While Sofa Player plays, the page stays at rest (swapIn), past a chooser or another screen.
-        if (homeShown) home.refresh(prefs.privateMode, prefs.adBlock) else if (!nativeOn && !pageRested) web?.onResume()
+        if (homeShown) home.refresh(prefs.privateMode, prefs.adBlock)
+        else { pageInSight(); if (!nativeOn && !pageRested) web?.onResume() }
     }
 
     override fun onPause() {
         super.onPause()
-        // In picture-in-picture the activity is paused but its video keeps playing.
-        if (!inPip) web?.onPause()
+        // In picture-in-picture the activity is paused but its video keeps playing. Otherwise the page rests before
+        // WebView tells it it's hidden: a page that leaves on visibilitychange must find its navigations held.
+        if (!inPip) { pageOutOfSight(); web?.onPause() }
         web?.let { WebViews.cookieManager(it).flush() }
     }
 
@@ -1862,6 +1896,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     }
 
     override fun onDestroy() {
+        // A screen rebuilt for a theme change must not have this one pause its timers afterwards.
+        browserLayer.removeCallbacks(pauseTimers)
         voiceInput.destroy()
         sofaPlayer.release()
         if (isFinishing) {
@@ -1927,6 +1963,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         private const val TAKEOVER_LEAD_MS = 4000L
         /** How long after Sofa Player takes over the page goes to rest; its video's pause is through by then (ms). */
         private const val PAGE_REST_MS = 500L
+        /** How long the page's frames get to rest ([VideoRelay]'s "rest") before its timers pause. */
+        private const val TIMERS_PAUSE_MS = 1000L
         /** How long after Watch's tap a video's start counts as Watch's own (ms). */
         private const val WATCH_TAP_MS = 2000L
         /** How long Watch by itself waits after a page has loaded, for its player to settle (ms). */

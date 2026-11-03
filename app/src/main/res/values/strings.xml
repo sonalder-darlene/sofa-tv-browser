@@ -112,6 +112,7 @@
     <string name="popup_blocked_allow">Blocked a pop-up. To open it, use Allow once in the menu.</string>
     <string name="redirect_blocked_allow">Blocked a redirect. To follow it, use Allow once in the menu.</string>
     <string name="allow_once">Allow once</string>
+    <string name="page_held_allow">Out of sight, this page tried to open %1$s. To open it, use Allow once in the menu.</string>
     <string name="ssl_title">Your connection is not private</string>
     <string name="ssl_message">The security certificate of %s can\'t be trusted. Someone may be trying to steal your information.</string>
     <string name="ssl_back">Back to safety</string>
