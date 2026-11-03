@@ -32,20 +32,21 @@ object HomeEditor {
         return ArrangeEditor(context,
             ArrangeEditor.Texts(R.string.home_layout, R.string.home_hint, R.string.home_hint_switch, R.string.home_hint_reset,
                 R.string.home_reset, R.string.home_reset_confirm, R.string.home_reset_done),
-            listOf(rows, buttons), MiniPage(context) { prefs.homeLayout.copy(rows = rows.value, buttons = buttons.value) }) { prefs.homeLayout = HomeLayout.DEFAULT }
+            listOf(rows, buttons), MiniPage(context, prefs) { prefs.homeLayout.copy(rows = rows.value, buttons = buttons.value) }) { prefs.homeLayout = HomeLayout.DEFAULT }
     }
 
     fun bookmarkRowsLabel(context: Context, rows: Int): String =
         context.resources.getQuantityString(R.plurals.home_bookmark_rows_value, rows, rows, rows * HomeLayout.PER_ROW)
 
     /** The start page as bars and dots: the round buttons at the top, then a bar of cards for each row, the lit one filled. */
-    private class MiniPage(private val context: Context, private val layout: () -> HomeLayout) : ArrangeEditor.Preview {
+    private class MiniPage(private val context: Context, prefs: Prefs, private val layout: () -> HomeLayout) : ArrangeEditor.Preview {
         private val bar = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL; clipChildren = false }
         private val lines = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
 
         override val view: View = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            background = Ui.background(false).also { (it as? GradientDrawable)?.cornerRadii = FloatArray(8) { i -> if (i < 4) 16.px.toFloat() else 0f } }
+            // On the colour or gradient the start page has (a picture would need decoding just for this).
+            background = HomeBackground.drawable(HomeBackground.decode(prefs.homeBackground, false)).also { (it as? GradientDrawable)?.cornerRadii = FloatArray(8) { i -> if (i < 4) 16.px.toFloat() else 0f } }
             setPadding(72.px, 20.px, 72.px, 24.px)
             clipChildren = false
             addView(Ui.text(context, 24, Ui.p.textWeak).apply { setText(R.string.home_preview) })

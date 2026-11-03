@@ -5,10 +5,11 @@ package app.sofabrowser.browser
  *
  * Only addresses another app or Sofa can use make it in: no `javascript:` links, and pictures held in the page (data:
  * and blob: addresses) can be saved but not opened, copied or shared, since those addresses mean nothing elsewhere.
+ * Any picture can become the start page's background.
  */
 object LinkMenu {
 
-    enum class Action { OPEN_ELSEWHERE, COPY_LINK, SHARE_LINK, DOWNLOAD_LINK, OPEN_IMAGE, DOWNLOAD_IMAGE, COPY_IMAGE, SHARE_IMAGE }
+    enum class Action { OPEN_ELSEWHERE, COPY_LINK, SHARE_LINK, DOWNLOAD_LINK, OPEN_IMAGE, DOWNLOAD_IMAGE, COPY_IMAGE, SHARE_IMAGE, SET_BACKGROUND }
 
     /** The menu for a hit test that found [link] (its address) and/or [image] (its source); empty when there is none. */
     fun actions(link: String?, image: String?): List<Action> = buildList {
@@ -22,8 +23,8 @@ object LinkMenu {
             }
         }
         if (i != null) {
-            if (inPage(i)) add(Action.DOWNLOAD_IMAGE)
-            else if (web(i)) addAll(listOf(Action.OPEN_IMAGE, Action.DOWNLOAD_IMAGE, Action.COPY_IMAGE, Action.SHARE_IMAGE))
+            if (inPage(i)) addAll(listOf(Action.DOWNLOAD_IMAGE, Action.SET_BACKGROUND))
+            else if (web(i)) addAll(listOf(Action.OPEN_IMAGE, Action.DOWNLOAD_IMAGE, Action.COPY_IMAGE, Action.SHARE_IMAGE, Action.SET_BACKGROUND))
         }
     }
 

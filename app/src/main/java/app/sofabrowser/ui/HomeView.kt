@@ -2,7 +2,9 @@ package app.sofabrowser.ui
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.drawable.TransitionDrawable
 import android.graphics.PorterDuff
 import android.view.Gravity
 import android.view.KeyEvent
@@ -16,6 +18,7 @@ import android.widget.TextView
 import app.sofabrowser.R
 import app.sofabrowser.data.Db
 import app.sofabrowser.data.Site
+import app.sofabrowser.ui.HomeBackground.Cover
 
 /**
  * The start screen: a fixed top bar (logo, search pill, mic, labelled icon buttons) above rows of site cards:
@@ -62,6 +65,12 @@ class HomeView(context: Context, private val listener: Listener) : FrameLayout(c
 
     /** When non-null, the tile being moved with Left/Right; OK or Back drops it. */
     private var moving: SiteCard? = null
+
+    /** The start page's own picture while it is on screen (only ever one), and what it was decoded for. */
+    private var picture: Bitmap? = null
+    private var pictureFor: String? = null
+    /** Counts picture loads, so a slow one that is no longer wanted is dropped. */
+    private var pictureLoads = 0
 
     init {
         clipChildren = false
@@ -126,13 +135,51 @@ class HomeView(context: Context, private val listener: Listener) : FrameLayout(c
         addView(column)
     }
 
+    /**
+     * Settings > Start page background. A picture is decoded for this screen when the start page shows and faded in
+     * over the theme's background; [releasePicture] lets go of it while something else is in front.
+     */
+    private fun showBackground(privateMode: Boolean) {
+        val choice = HomeBackground.decode(prefs.homeBackground, HomePicture.exists(context))
+        if (privateMode || choice !is HomeBackground.Choice.Picture) {
+            releasePicture()
+            background = HomeBackground.drawable(choice, privateMode)
+            return
+        }
+        val dim = HomeBackground.dim(prefs.homeDim)
+        val wanted = "${HomePicture.stamp(context)} $dim ${Ui.p.dark}"
+        if (wanted == pictureFor) return
+        releasePicture()
+        pictureFor = wanted
+        val load = pictureLoads
+        val dm = resources.displayMetrics
+        HomePicture.load(context, maxOf(dm.widthPixels, dm.heightPixels), minOf(dm.widthPixels, dm.heightPixels)) { bitmap ->
+            if (load != pictureLoads) return@load
+            if (bitmap == null) { pictureFor = null; return@load }
+            picture = bitmap
+            background = TransitionDrawable(arrayOf(Ui.background(false), Cover(bitmap, Ui.p.bgMid, HomeBackground.scrim(dim, Ui.p.dark)))).apply {
+                isCrossFadeEnabled = true
+                startTransition(180)
+            }
+        }
+    }
+
+    /** Lets go of the start page's picture (a web page or a video is in front); the next [refresh] decodes it again. */
+    fun releasePicture() {
+        pictureLoads++
+        pictureFor = null
+        if (picture == null) return
+        picture = null
+        background = Ui.background(false)
+    }
+
     /** Shows the accent dot on Downloads while something is downloading. */
     fun setDownloadsActive(active: Boolean) = downloadsButton.set(
         if (active) R.drawable.ic_downloading else R.drawable.ic_download,
         context.getString(if (active) R.string.downloads_active else R.string.downloads))
 
     fun refresh(privateMode: Boolean, adBlock: Boolean) {
-        background = Ui.background(privateMode)
+        showBackground(privateMode)
         val layout = prefs.homeLayout
         micButton.visibility = if (prefs.voiceSearch) VISIBLE else GONE
         // A hidden Private button still shows while private browsing is on: it is the way out of it.

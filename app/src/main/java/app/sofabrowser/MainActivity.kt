@@ -40,6 +40,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.webkit.WebViewFeature
 import app.sofabrowser.adblock.Allowlist
+import app.sofabrowser.adblock.RequestUrl
 import app.sofabrowser.adblock.FilterList
 import app.sofabrowser.adblock.SiteAllowlist
 import app.sofabrowser.adblock.Sites
@@ -82,7 +83,10 @@ import app.sofabrowser.ui.BrowserMenu
 import app.sofabrowser.ui.DownloadsActivity
 import app.sofabrowser.ui.FindBar
 import app.sofabrowser.ui.VoiceInput
+import app.sofabrowser.ui.HomeBackground
+import app.sofabrowser.ui.HomePicture
 import app.sofabrowser.ui.HomeView
+import app.sofabrowser.ui.PictureSize
 import app.sofabrowser.ui.PadHelp
 import app.sofabrowser.ui.ListActivity
 import app.sofabrowser.ui.Palette
@@ -94,6 +98,7 @@ import app.sofabrowser.ui.SetupActivity
 import app.sofabrowser.ui.Ui
 import app.sofabrowser.ui.px
 import app.sofabrowser.update.Updater
+import jp.hazuki.yuzubrowser.adblock.core.ContentRequest
 import java.util.Locale
 import kotlin.concurrent.thread
 import kotlin.math.pow
@@ -224,6 +229,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
 
     private fun showBrowser() {
         home.visibility = View.GONE
+        home.releasePicture()
         applyKeepAwake()
         browserLayer.visibility = View.VISIBLE
         cursor.speedLevel = prefs.cursorSpeed
@@ -481,6 +487,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             LinkMenu.Action.DOWNLOAD_IMAGE -> R.string.image_download
             LinkMenu.Action.COPY_IMAGE -> R.string.image_copy
             LinkMenu.Action.SHARE_IMAGE -> R.string.image_share
+            LinkMenu.Action.SET_BACKGROUND -> R.string.image_set_background
         }) }
         dialog().setTitle(LinkMenu.title(link, image).ifEmpty { getString(R.string.image) })
             .setItems(labels.toTypedArray()) { _, which -> linkAction(actions[which], link.orEmpty(), image.orEmpty()) }
@@ -498,7 +505,43 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             LinkMenu.Action.DOWNLOAD_IMAGE -> startDownload(image, null, null, null, -1, waited = true)
             LinkMenu.Action.COPY_IMAGE -> copy(image, R.string.image_copied)
             LinkMenu.Action.SHARE_IMAGE -> share(image)
+            LinkMenu.Action.SET_BACKGROUND -> PinPad.guard(this, R.string.pin_title_background) { setStartPagePicture(image) }
         }
+    }
+
+    /**
+     * The held picture as the start page's background: one picture of the page, read from it or fetched once like the
+     * page fetched it, never from a site the blockers stop.
+     */
+    private fun setStartPagePicture(image: String) {
+        val page = web?.url
+        val done = { outcome: HomePicture.Outcome ->
+            when (outcome) {
+                HomePicture.Outcome.SET -> { prefs.homeBackground = HomeBackground.PICTURE; toast(R.string.background_set) }
+                HomePicture.Outcome.TOO_LARGE -> toast(R.string.background_too_large)
+                HomePicture.Outcome.UNREADABLE -> toast(R.string.background_unreadable)
+            }
+        }
+        when {
+            image.startsWith("data:") -> HomePicture.set(this, { PageDownloads.decodeDataUrl(image)?.bytes?.inputStream() ?: throw java.io.IOException() }, done)
+            image.startsWith("blob:") -> {
+                val view = web ?: return
+                PageDownloads.fetchBlob(view, image, PictureSize.MAX_SOURCE_BYTES) { result ->
+                    result.onSuccess { HomePicture.set(this, { it.bytes.inputStream() }, done) }.onFailure { done(HomePicture.Outcome.UNREADABLE) }
+                }
+            }
+            Browser.isWebUrl(image) -> {
+                val blocker = browser.adBlocker
+                if (blocker.siteListed(image) != null || prefs.adBlock && blocker.rules.blocks(RequestUrl(image), ContentRequest.TYPE_IMAGE, Browser.hostOf(page))) {
+                    toast(R.string.background_blocked)
+                    return
+                }
+                val agent = web?.settings?.userAgentString
+                HomePicture.set(this, { HomePicture.fetch(image, agent, page) }, done)
+            }
+            else -> return
+        }
+        toast(R.string.background_setting)
     }
 
     /** Android's chooser for [url], without Sofa in it. */

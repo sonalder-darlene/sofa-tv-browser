@@ -129,6 +129,10 @@ class Prefs(context: Context) {
     var homeLayout: HomeLayout
         get() = HomeLayout.decode(homeLayoutText, showMostVisited)
         set(v) { homeLayoutText = v.encode(); showMostVisited = v.mostVisited }
+    /** What the start page is drawn on (HomeBackground.encode); "" is the theme's own background. A setting, like [menuButtons]. */
+    var homeBackground by string("home_background", "")
+    /** How much a picture on the start page is veiled (a HomeBackground.Dim id). */
+    var homeDim by string("home_dim", "medium")
     var privateMode by boolean("private_mode", false)
     var askedNotifications by boolean("asked_notifications", false)
     /** The WebView version the old-WebView warning was last shown for, and when. */

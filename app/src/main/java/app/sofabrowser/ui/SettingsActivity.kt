@@ -57,6 +57,7 @@ class SettingsActivity : Activity() {
     private val onDnsPickPage get() = intent.getStringExtra(PAGE) == PAGE_DNS_PICK
     private val onMenuPage get() = intent.getStringExtra(PAGE) == PAGE_MENU
     private val onHomePage get() = intent.getStringExtra(PAGE) == PAGE_HOME
+    private val onBackgroundPage get() = intent.getStringExtra(PAGE) == PAGE_BACKGROUND
     /** The Filter lists row on the main page, whose rule count is refreshed on return. */
     private var listsRow: View? = null
     /** The Site filters row on the main page, whose value is refreshed on return. */
@@ -67,6 +68,8 @@ class SettingsActivity : Activity() {
     private var menuRow: TextView? = null
     /** The Start page row's value, refreshed on return. */
     private var homeRow: TextView? = null
+    /** The Start page background row's value, refreshed on return. */
+    private var backgroundRow: TextView? = null
     /** Most visited's switch, which the Start page page also flips. */
     private var mostVisitedToggle: Toggle? = null
 
@@ -80,13 +83,14 @@ class SettingsActivity : Activity() {
             setPadding(0, 72.px, 0, 96.px)
             clipChildren = false
         }
-        content = if (onMenuPage) MenuEditor.create(this, prefs) else if (onHomePage) HomeEditor.create(this, prefs) else FocusScrollView(this).apply {
+        content = if (onMenuPage) MenuEditor.create(this, prefs) else if (onHomePage) HomeEditor.create(this, prefs)
+        else if (onBackgroundPage) BackgroundPage(this, prefs) else FocusScrollView(this).apply {
             isVerticalScrollBarEnabled = false
             clipChildren = false
             addView(list)
         }
         setContentView(FrameLayout(this).apply { background = Ui.background(false); addView(content) })
-        when { onMenuPage || onHomePage -> Unit; onListsPage -> buildLists(); onSitesPage -> buildSites(); onDnsPage -> buildDns(); onDnsPickPage -> buildDnsPick(); else -> build() }
+        when { onMenuPage || onHomePage || onBackgroundPage -> Unit; onListsPage -> buildLists(); onSitesPage -> buildSites(); onDnsPage -> buildDns(); onDnsPickPage -> buildDnsPick(); else -> build() }
     }
 
     override fun onStart() {
@@ -101,13 +105,14 @@ class SettingsActivity : Activity() {
             onListsPage -> buildLists()
             onSitesPage -> buildSites()
             onDnsPage -> buildDns()
-            onDnsPickPage || onMenuPage || onHomePage -> Unit
+            onDnsPickPage || onMenuPage || onHomePage || onBackgroundPage -> Unit
             else -> {
                 (listsRow as? TextView)?.text = rulesText(blocker.rules.rules)
                 (sitesRow as? TextView)?.text = sitesValue()
                 (dnsRow as? TextView)?.text = dnsValue()
                 menuRow?.text = menuValue()
                 homeRow?.text = homeValue()
+                backgroundRow?.text = backgroundValue()
                 mostVisitedToggle?.on = prefs.showMostVisited
             }
         }
@@ -131,6 +136,10 @@ class SettingsActivity : Activity() {
         homeRow = valueText(homeValue())
         row(getString(R.string.home_layout), getString(R.string.home_layout_sub), homeRow) {
             startActivity(Intent(this, SettingsActivity::class.java).putExtra(PAGE, PAGE_HOME))
+        }
+        backgroundRow = valueText(backgroundValue())
+        row(getString(R.string.background_setting_title), getString(R.string.background_setting_sub), backgroundRow) {
+            startActivity(Intent(this, SettingsActivity::class.java).putExtra(PAGE, PAGE_BACKGROUND))
         }
         // WebView can only darken pages for a dark app theme.
         if (Ui.p.dark && WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
@@ -265,6 +274,33 @@ class SettingsActivity : Activity() {
             l.hiddenCount > 0 -> resources.getQuantityString(R.plurals.menu_buttons_hidden, l.hiddenCount, l.hiddenCount)
             l.isDefault -> getString(R.string.menu_buttons_default)
             else -> getString(R.string.menu_buttons_custom)
+        }
+    }
+
+    private fun backgroundValue(): String = when (val c = HomeBackground.decode(prefs.homeBackground, HomePicture.exists(this))) {
+        HomeBackground.Choice.Theme -> getString(R.string.menu_buttons_default)
+        HomeBackground.Choice.Picture -> getString(R.string.background_your_picture)
+        is HomeBackground.Choice.Look -> getString(c.swatch.label)
+    }
+
+    /** A picture from the TV's document picker (Start page background). */
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        @Suppress("DEPRECATION")
+        super.onActivityResult(requestCode, resultCode, data)
+        val uri = data?.data
+        if (requestCode != BackgroundPage.REQUEST_PICTURE || resultCode != RESULT_OK || uri == null) return
+        Toast.makeText(this, R.string.background_setting, Toast.LENGTH_SHORT).show()
+        HomePicture.set(this, { contentResolver.openInputStream(uri) ?: throw java.io.IOException() }) { outcome ->
+            when (outcome) {
+                HomePicture.Outcome.SET -> {
+                    prefs.homeBackground = HomeBackground.PICTURE
+                    Toast.makeText(this, R.string.background_set, Toast.LENGTH_SHORT).show()
+                }
+                HomePicture.Outcome.TOO_LARGE -> Toast.makeText(this, R.string.background_too_large, Toast.LENGTH_LONG).show()
+                HomePicture.Outcome.UNREADABLE -> Toast.makeText(this, R.string.background_unreadable, Toast.LENGTH_LONG).show()
+            }
+            (content as? BackgroundPage)?.refresh()
         }
     }
 
@@ -926,6 +962,7 @@ class SettingsActivity : Activity() {
         private const val PAGE_DNS_PICK = "dns_pick"
         private const val PAGE_MENU = "menu"
         private const val PAGE_HOME = "home"
+        private const val PAGE_BACKGROUND = "background"
         /** Which DNS the pick page chooses: [FALLBACK], or the main one. */
         private const val SLOT = "slot"
         private const val FALLBACK = "fallback"

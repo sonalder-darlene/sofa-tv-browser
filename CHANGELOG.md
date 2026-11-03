@@ -39,6 +39,10 @@
   bookmarks, in one to four rows of 12. It is edited like the menu, with the start page as it will look shown
   below the list. Settings and the search bar always stay, and a hidden Private button comes back while private
   browsing is on. Clearing browsing data keeps your start page, and Reset brings back the default one.
+- **A background of your own** (Settings → Start page background): choose a colour, gradient or your own picture
+  (up to 4K) for the start page. Hold OK on a picture on any page and choose "Set as start page background", or,
+  on TVs that have one, pick a picture with the file picker. Sofa keeps its own copy on the TV, without the photo's
+  details (EXIF), and Dim keeps the titles readable over it. Private browsing keeps its own look.
 
 ## 1.2.2 (2026-10-30)
 

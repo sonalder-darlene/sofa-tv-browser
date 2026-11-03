@@ -34,7 +34,7 @@ class LinkMenuTest {
     @Test
     fun anImageLinkOffersBothTheLinkAndThePicture() {
         assertEquals(listOf(Action.OPEN_ELSEWHERE, Action.COPY_LINK, Action.SHARE_LINK,
-            Action.OPEN_IMAGE, Action.DOWNLOAD_IMAGE, Action.COPY_IMAGE, Action.SHARE_IMAGE),
+            Action.OPEN_IMAGE, Action.DOWNLOAD_IMAGE, Action.COPY_IMAGE, Action.SHARE_IMAGE, Action.SET_BACKGROUND),
             LinkMenu.actions("https://example.org/a", "https://example.org/p.jpg"))
     }
 
@@ -52,8 +52,8 @@ class LinkMenuTest {
 
     @Test
     fun picturesHeldInThePageCanOnlyBeSaved() {
-        assertEquals(listOf(Action.DOWNLOAD_IMAGE), LinkMenu.actions(null, "data:image/png;base64,AAAA"))
-        assertEquals(listOf(Action.DOWNLOAD_IMAGE), LinkMenu.actions(null, "blob:https://example.org/1-2"))
+        assertEquals(listOf(Action.DOWNLOAD_IMAGE, Action.SET_BACKGROUND), LinkMenu.actions(null, "data:image/png;base64,AAAA"))
+        assertEquals(listOf(Action.DOWNLOAD_IMAGE, Action.SET_BACKGROUND), LinkMenu.actions(null, "blob:https://example.org/1-2"))
         assertEquals(listOf(Action.DOWNLOAD_LINK), LinkMenu.actions("blob:https://example.org/3", null))
     }
 

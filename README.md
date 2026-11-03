@@ -13,7 +13,8 @@ called Sofa.
   blocking per site, and "Browse as" desktop, mobile or TV. Settings → Menu buttons puts its buttons in your order
   and hides the ones you don't use.
 - **A home screen** with your own tiles, your most visited sites and your bookmarks. Settings → Start page
-  reorders and hides its rows and buttons, and shows up to 48 bookmarks.
+  reorders and hides its rows and buttons, and shows up to 48 bookmarks; Settings → Start page background gives it
+  a colour, a gradient or your own picture (up to 4K).
 - **Watch**: one press of Play finds the page's main video and plays it fullscreen.
 - **Sofa Player**: in fullscreen, Sofa plays the site's stream in its own player when it can, with 4K at full
   resolution, HDR, and a choice of quality, sound and subtitles that it keeps for the next videos. Otherwise the

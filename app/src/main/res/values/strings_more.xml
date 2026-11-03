@@ -216,4 +216,46 @@
     <string name="home_reset">Reset to the default start page</string>
     <string name="home_reset_confirm">Put every row and button back in its first place, show them all, and show one row of bookmarks?</string>
     <string name="home_reset_done">Start page reset</string>
+
+    <!-- Settings > Start page background -->
+    <string name="background_setting_title">Start page background</string>
+    <string name="background_setting_sub">A colour, a gradient or your own picture</string>
+    <string name="background_colours">Colours</string>
+    <string name="background_gradients">Gradients</string>
+    <string name="background_your_picture">Your picture</string>
+    <string name="background_theme">The theme\'s own background</string>
+    <string name="background_no_picture">None yet. On any page, hold OK on a picture and choose Set as start page background.</string>
+    <string name="background_choose">Choose a picture</string>
+    <string name="background_remove">Remove picture</string>
+    <string name="background_dim">Dim</string>
+    <string name="background_hint_choose">A picture from this TV, a USB stick or a cloud folder, kept at up to 4K.</string>
+    <string name="background_hint_remove">Deletes your picture from this TV; the start page goes back to the theme\'s background.</string>
+    <string name="background_hint_dim">Veils your picture so the titles on the start page stay easy to read.</string>
+    <string name="bg_dim_off">Off</string>
+    <string name="bg_dim_light">Light</string>
+    <string name="bg_dim_medium">Medium</string>
+    <string name="bg_dim_strong">Strong</string>
+    <string name="background_setting">Setting the start page background…</string>
+    <string name="background_set">Start page background set</string>
+    <string name="background_too_large">This picture is too large for a background</string>
+    <string name="background_unreadable">This picture couldn\'t be read</string>
+    <string name="background_blocked">This picture comes from a site the blockers stop</string>
+    <string name="image_set_background">Set as start page background</string>
+    <string name="pin_title_background">Change the start page background</string>
+    <string name="bg_graphite">Graphite</string>
+    <string name="bg_midnight">Midnight</string>
+    <string name="bg_ocean">Ocean</string>
+    <string name="bg_forest">Forest</string>
+    <string name="bg_teal">Teal</string>
+    <string name="bg_plum">Plum</string>
+    <string name="bg_wine">Wine</string>
+    <string name="bg_cocoa">Cocoa</string>
+    <string name="bg_aurora">Aurora</string>
+    <string name="bg_sunset">Sunset</string>
+    <string name="bg_lagoon">Lagoon</string>
+    <string name="bg_dusk">Dusk</string>
+    <string name="bg_ember">Ember</string>
+    <string name="bg_nebula">Nebula</string>
+    <string name="bg_meadow">Meadow</string>
+    <string name="bg_steel">Steel</string>
 </resources>
