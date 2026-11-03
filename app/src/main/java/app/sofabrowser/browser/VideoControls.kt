@@ -782,6 +782,12 @@ class VideoBar(context: Context, private val actions: Actions) : LinearLayout(co
 
     fun update(s: VideoState) {
         state = s
+        // Once the video reaches the offered place (played or skipped there), there is nothing left to continue.
+        // The bar, kept up for the offer, then goes as it would without one.
+        if (resume.visibility == VISIBLE && s.position >= resumeAt) {
+            clearResume()
+            if (showing) { removeCallbacks(hide); postDelayed(hide, 5000) }
+        }
         playPause.setImageResource(if (s.paused) R.drawable.ic_play_arrow else R.drawable.ic_pause)
         if (!scrub.scrubbing) {
             position.text = time(s.position)

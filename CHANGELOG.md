@@ -48,6 +48,10 @@
   site meanwhile, it stays where it was; when you come back, a notice names the site and Allow once in the menu
   opens it. Back to the page resumes its sound; videos stay paused where they were.
 
+**Smaller things**
+
+- "Continue from" goes as soon as the video reaches that place, whether it played there or you skipped ahead.
+
 ## 1.2.2 (2026-10-30)
 
 **Sofa Player**
