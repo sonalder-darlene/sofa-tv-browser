@@ -449,19 +449,31 @@ object VideoRelay {
 })();
 """.trimIndent()
 
-    /**
-     * [panelScale] is PanelScale for this TV. [onState] gets the watched video's state; [onPlaying] gets a frame's id
-     * and whether any video plays in it; [onInfo] answers the "info" command, and [onCandidate] and [onSource] the
-     * "locate" and "source" ones, once per frame with a video. [onFrameTimes] gets the media times of the watched
-     * video's frames, once per watch. [onFetched] answers [fetch]: the address asked for, and the final address and
-     * text, or nulls when the frame couldn't fetch it, then the origin of the frame that answered. [onStarted] gets the
-     * id of a frame where the user just started a video worth opening in Sofa Player; "start" to that frame puts it in
-     * fullscreen. All are called on WebView's message thread.
-     */
-    fun install(web: WebView, key: PageKey, panelScale: Double, onState: (VideoState) -> Unit,
-                onPlaying: (String, Boolean) -> Unit, onInfo: (VideoInfo) -> Unit, onCandidate: (WatchTarget.Candidate) -> Unit,
-                onSource: (VideoSource) -> Unit, onFrameTimes: (List<Double>) -> Unit,
-                onFetched: (String, String?, String?, String) -> Unit, onStarted: (String) -> Unit) {
+    /** What the page's video scripts report ([install]); every call comes on WebView's message thread. */
+    interface Listener {
+        /** The watched video's state. */
+        fun onState(state: VideoState)
+        /** Whether any video plays in the frame with this id. */
+        fun onPlaying(frame: String, playing: Boolean)
+        /** The answer to "info". */
+        fun onInfo(info: VideoInfo)
+        /** An answer to "locate", once per frame with a video. */
+        fun onCandidate(candidate: WatchTarget.Candidate)
+        /** An answer to "source", once per frame with a video. */
+        fun onSource(source: VideoSource)
+        /** The media times of the watched video's frames, once per watch. */
+        fun onFrameTimes(times: List<Double>)
+        /**
+         * The answer to [fetch]: the address asked for, and the final address and text, or nulls when the frame couldn't
+         * fetch it, then the origin of the frame that answered.
+         */
+        fun onFetched(url: String, final: String?, body: String?, sender: String)
+        /** The user just started a video worth opening in Sofa Player in this frame; "start" to it puts it in fullscreen. */
+        fun onStarted(frame: String)
+    }
+
+    /** [panelScale] is PanelScale for this TV; [listener] gets what the page's scripts report. */
+    fun install(web: WebView, key: PageKey, panelScale: Double, listener: Listener) {
         keys[web] = key
         WebViews.addDocumentStartScript(web, script(key, panelScale))
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
@@ -474,12 +486,12 @@ object VideoRelay {
                         // Watch's candidates come from the top frame only: a child's go through its parent, which clamps
                         // them to the frame (fromChild). One sent straight from a frame could put Watch's tap anywhere.
                         o.has("loc") && !isMainFrame -> Unit
-                        o.has("f") -> onPlaying(o.getString("f"), o.optBoolean("on"))
-                        o.has("st") -> onStarted(o.getString("st"))
-                        o.has("i") -> onInfo(VideoInfo.from(o.getJSONObject("i")))
-                        o.has("fr") -> o.getJSONArray("fr").let { a -> onFrameTimes((0 until a.length()).map(a::getDouble)) }
+                        o.has("f") -> listener.onPlaying(o.getString("f"), o.optBoolean("on"))
+                        o.has("st") -> listener.onStarted(o.getString("st"))
+                        o.has("i") -> listener.onInfo(VideoInfo.from(o.getJSONObject("i")))
+                        o.has("fr") -> o.getJSONArray("fr").let { a -> listener.onFrameTimes((0 until a.length()).map(a::getDouble)) }
                         o.has("mf") -> o.getJSONObject("mf").let {
-                            onFetched(it.optString("u"), it.optString("f").takeIf(Browser::isWebUrl), if (it.has("b")) it.optString("b") else null, sender)
+                            listener.onFetched(it.optString("u"), it.optString("f").takeIf(Browser::isWebUrl), if (it.has("b")) it.optString("b") else null, sender)
                         }
                         o.has("src") -> o.getJSONObject("src").let {
                             val tr = it.optJSONArray("tr")
@@ -489,15 +501,15 @@ object VideoRelay {
                             val claimed = it.optString("pg").takeIf(Browser::isWebUrl)
                             val page = PageHeaders.frameFor(claimed, sender)
                             if (page != claimed && app.sofabrowser.BuildConfig.DEBUG) android.util.Log.d("SofaStream", "frame of $sender claimed $claimed")
-                            onSource(VideoSource(it.optString("s"), it.optDouble("t", 0.0), it.optDouble("a", 0.0), it.optBoolean("drm"),
+                            listener.onSource(VideoSource(it.optString("s"), it.optDouble("t", 0.0), it.optDouble("a", 0.0), it.optBoolean("drm"),
                                 page, tracks, it.optInt("w"), it.optInt("h")))
                         }
                         o.has("loc") -> o.getJSONObject("loc").let {
-                            onCandidate(WatchTarget.Candidate(it.getString("fid"), it.optDouble("w", 0.0), it.optDouble("h", 0.0),
+                            listener.onCandidate(WatchTarget.Candidate(it.getString("fid"), it.optDouble("w", 0.0), it.optDouble("h", 0.0),
                                 it.optDouble("tx", -1.0), it.optDouble("ty", -1.0),
                                 it.optBoolean("m"), it.optBoolean("p"), it.optBoolean("l"), it.optDouble("d", 0.0)))
                         }
-                        else -> onState(VideoState(o.optDouble("t"), o.optDouble("d"), o.optBoolean("p", true), o.optDouble("r", 1.0),
+                        else -> listener.onState(VideoState(o.optDouble("t"), o.optDouble("d"), o.optBoolean("p", true), o.optDouble("r", 1.0),
                             o.optInt("tt"), o.optBoolean("ts"), o.optString("w").takeIf { it.isNotEmpty() }))
                     }
                 }
@@ -513,7 +525,7 @@ object VideoRelay {
         web.evaluateJavascript("window.postMessage({k:${JSONObject.quote(key.id)},cmd:'$cmd'$v$f},'*')", null)
     }
 
-    /** Asks the frames from [origin] to fetch [url] again as their player did; [install]'s onFetched gets the answer. */
+    /** Asks the frames from [origin] to fetch [url] again as their player did; [Listener.onFetched] gets the answer. */
     fun fetch(web: WebView?, url: String, origin: String) {
         val key = keys[web ?: return] ?: return
         web.evaluateJavascript("window.postMessage({k:${JSONObject.quote(key.id)},cmd:'fetch',u:${JSONObject.quote(url)}," +

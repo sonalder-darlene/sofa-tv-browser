@@ -135,15 +135,20 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
         applyGpc(view)
         // Fresh random names per view for everything injected into pages (see PageKey).
         val key = PageKey()
-        VideoRelay.install(view, key, panelScale(),
-            onState = { state -> view.post { host.onVideoState(state) } },
-            onPlaying = { frame, on -> view.post { frames.report(frame, on); host.onPlaying(frames.anyPlaying) } },
-            onInfo = { info -> view.post { host.onVideoInfo(info) } },
-            onCandidate = { c -> view.post { host.onVideoCandidate(c) } },
-            onSource = { s -> view.post { host.onVideoSource(s) } },
-            onFrameTimes = { t -> view.post { host.onVideoFrameTimes(t) } },
-            onFetched = { url, final, body, sender -> view.post { fetched(url, final, body, sender) } },
-            onStarted = { frame -> view.post { host.onVideoStarted(frame) } })
+        VideoRelay.install(view, key, panelScale(), object : VideoRelay.Listener {
+            override fun onState(state: VideoState) { view.post { host.onVideoState(state) } }
+            override fun onPlaying(frame: String, playing: Boolean) {
+                view.post { frames.report(frame, playing); host.onPlaying(frames.anyPlaying) }
+            }
+            override fun onInfo(info: VideoInfo) { view.post { host.onVideoInfo(info) } }
+            override fun onCandidate(candidate: WatchTarget.Candidate) { view.post { host.onVideoCandidate(candidate) } }
+            override fun onSource(source: VideoSource) { view.post { host.onVideoSource(source) } }
+            override fun onFrameTimes(times: List<Double>) { view.post { host.onVideoFrameTimes(times) } }
+            override fun onFetched(url: String, final: String?, body: String?, sender: String) {
+                view.post { fetched(url, final, body, sender) }
+            }
+            override fun onStarted(frame: String) { view.post { host.onVideoStarted(frame) } }
+        })
         // Every press that reaches the page (the pointer's taps, a real mouse, OK in keys-to-page mode) may open one
         // window. Both listeners only watch.
         view.setOnTouchListener { _, e ->
