@@ -198,6 +198,20 @@
     <string name="menu_reset_done">Menu reset</string>
     <string name="zoom">Zoom</string>
 
+    <!-- Settings > Open at start -->
+    <string name="open_at_start">Open at start</string>
+    <string name="open_at_start_sub">What Sofa shows when it starts. Home in the menu always opens the start page.</string>
+    <string name="open_at_start_home">Start page</string>
+    <string name="open_at_start_home_note">Search, Quick access and your bookmarks</string>
+    <string name="open_at_start_page">A web page</string>
+    <string name="open_at_start_page_note">Type its address once</string>
+    <string name="open_at_start_last">Where I left off</string>
+    <string name="open_at_start_last_note">The page you were on, or the start page. Never a private page.</string>
+    <string name="open_at_start_last_clears">Start page while \"Clear browsing data on exit\" is on</string>
+    <string name="open_at_start_page_message">Sofa opens this page when it starts. A link sent from another app opens instead.</string>
+    <string name="open_at_start_use_open">Use the open page</string>
+    <string name="open_at_start_invalid">Type a web address, such as example.com</string>
+
     <!-- Settings > Start page -->
     <string name="home_layout">Start page</string>
     <string name="home_layout_sub">Put its rows and buttons in your order, hide the ones you don\'t use, and show more bookmarks</string>

@@ -11,6 +11,7 @@ import app.sofabrowser.player.PlayerChoices
 import app.sofabrowser.ui.Arrangement
 import app.sofabrowser.ui.HomeLayout
 import app.sofabrowser.ui.MenuLayout
+import app.sofabrowser.ui.OpenAtStart
 
 data class SearchEngine(
     val id: String,
@@ -129,6 +130,18 @@ class Prefs(context: Context) {
     var homeLayout: HomeLayout
         get() = HomeLayout.decode(homeLayoutText, showMostVisited)
         set(v) { homeLayoutText = v.encode(); showMostVisited = v.mostVisited }
+    /** What Sofa shows when it starts without a link (an OpenAtStart.Choice id). A setting, like [menuButtons]. */
+    var openAtStartId by string("open_at_start", OpenAtStart.Choice.START_PAGE.id)
+    var openAtStart: OpenAtStart.Choice
+        get() = OpenAtStart.choice(openAtStartId)
+        set(v) { openAtStartId = v.id }
+    /** The web page chosen for [openAtStart]: kept when another choice is made, so choosing it again shows it. */
+    var startPage by string("start_page", "")
+    /**
+     * Where "Where I left off" left off (OpenAtStart.toRemember): browsing data, so clearing it forgets this, and a
+     * settings export never carries it. Empty with any other choice.
+     */
+    var lastPage by string("last_page", "")
     /** What the start page is drawn on (HomeBackground.encode); "" is the theme's own background. A setting, like [menuButtons]. */
     var homeBackground by string("home_background", "")
     /** How much a picture on the start page is veiled (a HomeBackground.Dim id). */

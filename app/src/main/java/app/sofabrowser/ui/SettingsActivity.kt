@@ -133,6 +133,7 @@ class SettingsActivity : Activity() {
         row(getString(R.string.menu_buttons), getString(R.string.menu_buttons_sub), menuRow) {
             startActivity(Intent(this, SettingsActivity::class.java).putExtra(PAGE, PAGE_MENU))
         }
+        row(getString(R.string.open_at_start), getString(R.string.open_at_start_sub), valueText(openAtStartValue())) { pickOpenAtStart() }
         homeRow = valueText(homeValue())
         row(getString(R.string.home_layout), getString(R.string.home_layout_sub), homeRow) {
             startActivity(Intent(this, SettingsActivity::class.java).putExtra(PAGE, PAGE_HOME))
@@ -208,7 +209,7 @@ class SettingsActivity : Activity() {
         switch(R.string.safe_browsing, R.string.safe_browsing_sub, prefs::safeBrowsing)
         row(getString(R.string.drm_setting), getString(R.string.drm_setting_sub), valueText(drmLabel())) { pickDrm() }
         row(getString(R.string.keep_history), getString(R.string.keep_history_sub), valueText(historyLabel())) { pickHistory() }
-        switch(R.string.clear_on_exit, R.string.clear_on_exit_sub, prefs::clearOnExit)
+        switch(R.string.clear_on_exit, R.string.clear_on_exit_sub, prefs::clearOnExit) { on -> if (on) prefs.lastPage = "" }
         nav(R.string.clear_now, null) { clearNow() }
 
         // Only for copies that no app store keeps up to date (never in the Google Play build).
@@ -452,6 +453,78 @@ class SettingsActivity : Activity() {
                 prefs.autoWatch = WatchTarget.Auto.entries[which]; d.dismiss(); build()
             }.show()
     }
+
+    private fun openAtStartValue(): String = when (prefs.openAtStart) {
+        OpenAtStart.Choice.START_PAGE -> getString(R.string.open_at_start_home)
+        OpenAtStart.Choice.WEB_PAGE -> OpenAtStart.label(prefs.startPage)
+        OpenAtStart.Choice.LAST_PAGE -> getString(R.string.open_at_start_last)
+    }
+
+    /** Each choice with its explanation underneath in small type, as in the DRM list. */
+    private fun pickOpenAtStart() {
+        val labels = listOf(R.string.open_at_start_home, R.string.open_at_start_page, R.string.open_at_start_last).map(::getString)
+        val notes = listOf(
+            getString(R.string.open_at_start_home_note),
+            prefs.startPage.takeIf { it.isNotEmpty() }?.let(OpenAtStart::label) ?: getString(R.string.open_at_start_page_note),
+            getString(if (prefs.clearOnExit) R.string.open_at_start_last_clears else R.string.open_at_start_last_note))
+        val items = labels.indices.map { i ->
+            SpannableString(labels[i] + "\n" + notes[i]).apply {
+                val from = labels[i].length + 1
+                setSpan(RelativeSizeSpan(0.7f), from, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                setSpan(ForegroundColorSpan(Ui.p.textWeak), from, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        }
+        dialog().setTitle(R.string.open_at_start)
+            .setSingleChoiceItems(items.toTypedArray(), prefs.openAtStart.ordinal) { d, which ->
+                d.dismiss()
+                when (val choice = OpenAtStart.Choice.entries[which]) {
+                    OpenAtStart.Choice.WEB_PAGE -> enterStartPage(prefs.startPage.ifEmpty { "https://" })
+                    else -> { chooseOpenAtStart(choice); build() }
+                }
+            }.show()
+    }
+
+    /**
+     * Asks for the page to open at start, the chosen one (or "https://") already typed with the cursor after it, as
+     * for a DNS address. The page open in Sofa is one press away when it isn't the one already chosen.
+     */
+    private fun enterStartPage(current: String) {
+        val field = EditText(this).apply {
+            setText(current)
+            setSelection(text.length)
+            isSingleLine = true
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+        }
+        val d = dialog().setTitle(R.string.open_at_start_page).setMessage(R.string.open_at_start_page_message).setView(padded(field))
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val url = OpenAtStart.webAddress(field.text.toString())
+                if (url == null) {
+                    Toast.makeText(this, R.string.open_at_start_invalid, Toast.LENGTH_LONG).show()
+                    // Back to the field with what was typed, rather than typing it all again with the remote.
+                    enterStartPage(field.text.toString())
+                } else saveStartPage(url)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+        openPage?.takeIf { it != prefs.startPage }?.let { page ->
+            d.setNeutralButton(R.string.open_at_start_use_open) { _, _ -> OpenAtStart.webAddress(page)?.let(::saveStartPage) }
+        }
+        d.show()
+    }
+
+    private fun saveStartPage(url: String) {
+        prefs.startPage = url
+        chooseOpenAtStart(OpenAtStart.Choice.WEB_PAGE)
+        build()
+    }
+
+    /** Only "Where I left off" keeps a last page, so any other choice forgets it at once. */
+    private fun chooseOpenAtStart(choice: OpenAtStart.Choice) {
+        prefs.openAtStart = choice
+        if (choice != OpenAtStart.Choice.LAST_PAGE) prefs.lastPage = ""
+    }
+
+    /** The page open in Sofa when Settings opened (MainActivity leaves it out in private browsing). */
+    private val openPage: String? get() = intent.getStringExtra(EXTRA_OPEN_PAGE)
 
     private fun pickTextSize() {
         val sizes = intArrayOf(80, 90, 100, 115, 130, 150, 175, 200)
@@ -919,6 +992,7 @@ class SettingsActivity : Activity() {
                 prefs.clearDrmAnswers()
                 app.sofabrowser.resumeStore(this).clear()
                 StreamCopyProvider.clear(this)
+                prefs.lastPage = ""
                 Toast.makeText(this, R.string.cleared, Toast.LENGTH_SHORT).show()
             }.setNegativeButton(android.R.string.cancel, null).show()
     }
@@ -956,6 +1030,8 @@ class SettingsActivity : Activity() {
         private val THEMES = listOf("dark", "light", "system")
         private val DRM_MODES = listOf(ProtectedMedia.ASK, ProtectedMedia.ALLOW, ProtectedMedia.BLOCK)
         private const val PAGE = "page"
+        /** The address of the page open in Sofa, offered as the page to open at start. */
+        const val EXTRA_OPEN_PAGE = "open_page"
         private const val PAGE_LISTS = "lists"
         private const val PAGE_SITES = "sites"
         private const val PAGE_DNS = "dns"

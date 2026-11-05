@@ -43,6 +43,11 @@
   (up to 4K) for the start page. Hold OK on a picture on any page and choose "Set as start page background", or,
   on TVs that have one, pick a picture with the file picker. Sofa keeps its own copy on the TV, without the photo's
   details (EXIF), and Dim keeps the titles readable over it. Private browsing keeps its own look.
+- **Open at start** (Settings → Open at start): Sofa can start on the start page (as before), on a web page you
+  choose (typed once, or the page that is open), or where you left off, which also brings your page back when the
+  TV closes Sofa in the background. A link sent from another app still opens first, and Home in the menu always
+  opens the start page. Where you left off never keeps a private page, and clearing browsing data, or "Clear
+  browsing data on exit", forgets it.
 - **A page you leave stays quiet**: behind the start page, and while Sofa is in the background, a page no longer
   plays sound through Web Audio, its videos pause in every frame, and its scripts stop. If it tries to go to another
   site meanwhile, it stays where it was; when you come back, a notice names the site and Allow once in the menu

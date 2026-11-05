@@ -86,6 +86,7 @@ import app.sofabrowser.ui.VoiceInput
 import app.sofabrowser.ui.HomeBackground
 import app.sofabrowser.ui.HomePicture
 import app.sofabrowser.ui.HomeView
+import app.sofabrowser.ui.OpenAtStart
 import app.sofabrowser.ui.PictureSize
 import app.sofabrowser.ui.PadHelp
 import app.sofabrowser.ui.ListActivity
@@ -183,7 +184,11 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         root.addView(home, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         setContentView(root)
 
-        if (!handleIntent(intent)) showHome()
+        if (!handleIntent(intent)) {
+            // Settings > Open at start; a link from another app always wins.
+            val at = OpenAtStart.address(prefs.openAtStart, prefs.startPage, prefs.lastPage, restored = savedInstanceState != null)
+            if (at != null) openUrl(at) else showHome()
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -690,7 +695,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
             }
             BrowserMenu.Action.ZOOM_IN -> if (zoomStep < 6) { w.zoomBy(1.25f); zoomStep++ }
             BrowserMenu.Action.ZOOM_OUT -> if (zoomStep > -4) { w.zoomBy(0.8f); zoomStep-- }
-            BrowserMenu.Action.SETTINGS -> { menu?.dismiss(); startActivity(Intent(this, SettingsActivity::class.java)) }
+            BrowserMenu.Action.SETTINGS -> { menu?.dismiss(); onSettings() }
             BrowserMenu.Action.DOWNLOADS -> { menu?.dismiss(); onDownloads() }
         }
         menu?.takeIf { it.isShowing }?.update(menuState())
@@ -729,7 +734,10 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
     override fun onVoiceSearch() = startSearch(voice = true, current = null)
     override fun onBookmarks() = openList(ListActivity.MODE_BOOKMARKS)
     override fun onHistory() = openList(ListActivity.MODE_HISTORY)
-    override fun onSettings() = startActivity(Intent(this, SettingsActivity::class.java))
+    /** Settings may offer the open page (in sight or resting) as the one to open at start; never a private one. */
+    override fun onSettings() = startActivity(Intent(this, SettingsActivity::class.java).apply {
+        web?.url?.takeIf { !browser.privateMode && Browser.isWebUrl(it) }?.let { putExtra(SettingsActivity.EXTRA_OPEN_PAGE, it) }
+    })
     override fun onDownloads() = startActivity(Intent(this, DownloadsActivity::class.java))
 
     /**
@@ -1832,6 +1840,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, BrowserMenu.Ac
         stopAutoWatch()
         applyKeepAwake()
         DownloadEngine.removeListener(downloadsListener)
+        // For "Where I left off": the TV may close Sofa in the background without another word.
+        prefs.lastPage = OpenAtStart.toRemember(prefs.openAtStart, if (homeShown) null else web?.url, browser.privateMode, prefs.clearOnExit)
         super.onStop()
     }
 
