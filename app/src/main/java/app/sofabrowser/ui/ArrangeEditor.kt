@@ -196,7 +196,7 @@ class ArrangeEditor(
                 extraValues.forEach { (extra, view) -> view.text = extra.value() }
                 refresh()
                 Toast.makeText(context, texts.resetDone, Toast.LENGTH_SHORT).show()
-            }.setNegativeButton(android.R.string.cancel, null).show()
+            }.setNegativeButton(R.string.cancel, null).show()
     }.apply {
         setOnFocusChangeListener { v, has ->
             (v as TextView).setTextColor(if (has) Ui.p.onFocus else Ui.p.textMid)

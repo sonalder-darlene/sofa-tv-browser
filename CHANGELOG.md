@@ -28,8 +28,9 @@
 
 - **A PIN for Settings and the blockers** (Settings → Parental PIN, off until you set one): once set, Sofa asks for
   it before Settings open, ad blocking is turned off, a site is let through Site filters, private browsing starts,
-  History is deleted or bookmarks are imported. It is entered with the remote's arrows or number keys, kept only as a salted hash, and
-  wrong tries lead to a growing pause.
+  History is deleted, bookmarks are imported or a picture from a page becomes the start page background. It is
+  entered with the remote's arrows or number keys, kept only as a salted hash, and wrong tries lead to a growing
+  pause.
 
 **Menu buttons**
 
@@ -87,12 +88,23 @@
 
 - "Continue from" goes as soon as the video reaches that place, whether it played there or you skipped ahead.
 - Video info ends with the TV's own decoders: for AV1, HEVC, VP9 and H.264, the largest picture its hardware and
-  software decoders take, as the TV reports it.
+  software decoders take, as the TV reports it. A codec the TV has no decoder for but WebView decodes itself says so.
 - When the TV's decoder can't play a picture, the notice adds that another app may play it with "Play in…".
+- Back on the start page from a page, the card you opened it with has focus again, not the first one.
+- A page that didn't load keeps its address as its name on its tab, in a new bookmark and in History, not the
+  error page's title.
+- Update all lists shows "Updating…" on the lists until they are done.
+- Dialog buttons, "Updated …" times and dates are in English like the rest of Sofa, on a TV set to another
+  language too.
+- A filter list or bookmarks file that couldn't be downloaded says why in plain words ("example.com wasn't found.
+  Check the address.") instead of the network's technical message.
+- Private browsing no longer leaves an empty settings file behind for each session.
 - A TV without a working Android System WebView now gets a screen that says so and what to look for, instead of
   Sofa closing at once.
 - Turning ad blocking off for one site in private browsing lasts only until private browsing ends and is never
   stored, like a site let through Site filters there.
+- Notices over the video stay up longer when they say more (5 seconds, and a second more for every ten words), and
+  the notice that a page tried to open a site while you were away stays up longer too.
 
 ## 1.2.2 (2026-10-30)
 

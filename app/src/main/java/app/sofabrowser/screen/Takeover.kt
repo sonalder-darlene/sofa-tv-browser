@@ -277,7 +277,7 @@ class Takeover(private val s: Screen, private val video: VideoSession) {
             // ("AV1 3840 × 2160" and the decoder's name): enough for a report, over the video every time.
             val name = reason.removePrefix("ERROR_CODE_").lowercase().replace('_', ' ')
             val why = activity.getString(R.string.sofa_player_failed, detail?.let { "$name: $it" } ?: name)
-                .let { if (reason.startsWith(DECODER_ERROR)) withPlayInHint(it) else it }
+                .let { if (reason.startsWith(DECODER_ERROR)) withPlayInHint(it, R.string.play_in_hint_failed) else it }
             val shown = on
             if (shown) backToPage(play = true)
             notForPlayer(why, once = false)
@@ -291,7 +291,7 @@ class Takeover(private val s: Screen, private val video: VideoSession) {
                 SofaPlayer.Step.FAILED -> R.string.sofa_player_stepped_down
                 SofaPlayer.Step.SOFTWARE -> R.string.sofa_player_stepped_down_software
                 SofaPlayer.Step.STUTTER -> R.string.sofa_player_stepped_down_stutter
-            }, failed, now).let { if (why == SofaPlayer.Step.FAILED) withPlayInHint(it) else it }
+            }, failed, now).let { if (why == SofaPlayer.Step.FAILED) withPlayInHint(it, R.string.play_in_hint) else it }
             steppedDown = text
             streamLog(text)
             if (inFullscreen) fullscreen.notice(text)
@@ -426,9 +426,10 @@ class Takeover(private val s: Screen, private val video: VideoSession) {
 
     /**
      * A notice about a picture the TV's own decoder couldn't play, with the hint that another app may: players such
-     * as VLC bring decoders of their own.
+     * as VLC bring decoders of their own. [hint] says it at full quality (Sofa Player stepped down) or as well (the
+     * site's player took the video), so the notice doesn't read as if the video can't play here.
      */
-    private fun withPlayInHint(text: String) = "$text ${activity.getString(R.string.play_in_hint)}"
+    private fun withPlayInHint(text: String, hint: Int) = "$text ${activity.getString(hint)}"
 
     /** Video info while Sofa Player plays. */
     fun info(): String {

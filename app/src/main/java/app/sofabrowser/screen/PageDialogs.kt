@@ -102,7 +102,7 @@ class PageDialogs(private val s: Screen) {
             .setPositiveButton(R.string.keep_browsing, null)
             .setNeutralButton(R.string.how_to_update) { _, _ ->
                 s.dialog().setTitle(R.string.how_to_update).setMessage(R.string.how_to_update_message)
-                    .setPositiveButton(android.R.string.ok, null).show()
+                    .setPositiveButton(R.string.ok, null).show()
             }
             .create()
         d.setOnShowListener { d.getButton(AlertDialog.BUTTON_POSITIVE).requestFocus() }

@@ -6,7 +6,6 @@ import android.content.Intent
 import android.graphics.PorterDuff
 import android.os.Bundle
 import android.text.TextUtils
-import android.text.format.DateUtils
 import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
@@ -17,7 +16,6 @@ import app.sofabrowser.browser.UrlInput
 import app.sofabrowser.data.Db
 import app.sofabrowser.data.Favicons
 import java.text.DateFormat
-import java.util.Calendar
 import java.util.Date
 
 /** History or bookmarks as one focusable list. Returns the chosen URL in [SearchActivity.EXTRA_URL]. */
@@ -82,16 +80,10 @@ class ListActivity : Activity() {
             ?.let { (it as? LinearLayout)?.getChildAt(0)?.requestFocus() }
     }
 
-    private fun dayLabel(t: Long): String {
-        val now = Calendar.getInstance()
-        val then = Calendar.getInstance().apply { timeInMillis = t }
-        val sameYear = now.get(Calendar.YEAR) == then.get(Calendar.YEAR)
-        val days = now.get(Calendar.DAY_OF_YEAR) - then.get(Calendar.DAY_OF_YEAR)
-        return when {
-            sameYear && days == 0 -> getString(R.string.today)
-            sameYear && days == 1 -> getString(R.string.yesterday)
-            else -> DateUtils.formatDateTime(this, t, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_WEEKDAY)
-        }
+    private fun dayLabel(t: Long): String = when (Dates.daysBetween(t, System.currentTimeMillis())) {
+        0 -> getString(R.string.today)
+        1 -> getString(R.string.yesterday)
+        else -> Dates.day(t)
     }
 
     private fun addRow(title: String, url: String, meta: String?, delete: () -> Unit) {
@@ -174,7 +166,7 @@ class ListActivity : Activity() {
                 if (history) db.clearHistory() else db.bookmarks().forEach { db.removeBookmark(it.url) }
                 load()
             }
-            .setNegativeButton(android.R.string.cancel, null)
+            .setNegativeButton(R.string.cancel, null)
             .show()
     }
 

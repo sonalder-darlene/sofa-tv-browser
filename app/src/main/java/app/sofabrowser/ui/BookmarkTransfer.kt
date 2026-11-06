@@ -7,7 +7,6 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.text.InputType
-import android.text.format.DateFormat
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.Toast
@@ -61,12 +60,12 @@ class BookmarkTransfer(private val activity: Activity, private val changed: () -
         actions += { enterAddress() }
         savedFiles().forEach { d ->
             labels += activity.getString(R.string.bookmarks_import_saved, d.name,
-                DateFormat.getMediumDateFormat(activity).format(Date(d.finished.takeIf { it > 0 } ?: d.created)))
+                Dates.date(d.finished.takeIf { it > 0 } ?: d.created))
             actions += { importFrom { DownloadStorage.read(activity, d.target!!) } }
         }
         Ui.dialog(activity).setTitle(R.string.bookmarks_import)
             .setItems(labels.toTypedArray()) { _, which -> actions[which]() }
-            .setNegativeButton(android.R.string.cancel, null).show()
+            .setNegativeButton(R.string.cancel, null).show()
     }
 
     /** Bookmarks files among Sofa's finished downloads (its own exports, for one), newest first. */
@@ -100,7 +99,7 @@ class BookmarkTransfer(private val activity: Activity, private val changed: () -
                     importFrom { fetch(url) }
                 }
             }
-            .setNegativeButton(android.R.string.cancel, null).show()
+            .setNegativeButton(R.string.cancel, null).show()
     }
 
     /** Reads, merges and reports on a worker thread; the file is refused when it is larger than any real one. */
@@ -118,8 +117,8 @@ class BookmarkTransfer(private val activity: Activity, private val changed: () -
                     report(contents, added)
                 }.onFailure {
                     val message = if (it is TooLarge) activity.getString(R.string.bookmarks_import_too_large)
-                    else activity.getString(R.string.bookmarks_import_failed, it.message ?: it.javaClass.simpleName)
-                    Ui.dialog(activity).setTitle(R.string.bookmarks_import).setMessage(message).setPositiveButton(android.R.string.ok, null).show()
+                    else activity.getString(R.string.bookmarks_import_failed, ErrorText.text(activity, it))
+                    Ui.dialog(activity).setTitle(R.string.bookmarks_import).setMessage(message).setPositiveButton(R.string.ok, null).show()
                 }
             }
         }
@@ -133,7 +132,7 @@ class BookmarkTransfer(private val activity: Activity, private val changed: () -
             (contents.entries.size - added).takeIf { it > 0 }?.let { r.getQuantityString(R.plurals.bookmarks_import_known, it, it) },
             contents.skipped.takeIf { it > 0 }?.let { r.getQuantityString(R.plurals.bookmarks_import_skipped, it, it) },
         ).joinToString(" ")
-        Ui.dialog(activity).setTitle(R.string.bookmarks_import).setMessage(message).setPositiveButton(android.R.string.ok, null).show()
+        Ui.dialog(activity).setTitle(R.string.bookmarks_import).setMessage(message).setPositiveButton(R.string.ok, null).show()
     }
 
     private fun export() {
@@ -146,7 +145,7 @@ class BookmarkTransfer(private val activity: Activity, private val changed: () -
             result.onSuccess { d ->
                 val message = activity.resources.getQuantityString(R.plurals.bookmarks_exported, entries.size,
                     entries.size, DownloadStorage.locationLabel(activity), d.name)
-                Ui.dialog(activity).setTitle(R.string.bookmarks_export).setMessage(message).setPositiveButton(android.R.string.ok, null).show()
+                Ui.dialog(activity).setTitle(R.string.bookmarks_export).setMessage(message).setPositiveButton(R.string.ok, null).show()
             }.onFailure {
                 Toast.makeText(activity, activity.getString(R.string.bookmarks_export_failed, it.message ?: ""), Toast.LENGTH_LONG).show()
             }

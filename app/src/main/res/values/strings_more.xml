@@ -116,8 +116,10 @@
     <string name="sofa_player_stepped_down">%1$s didn\'t play on this TV. Sofa Player plays %2$s.</string>
     <string name="sofa_player_stepped_down_software">No hardware decoder was free for %1$s. Sofa Player plays %2$s.</string>
     <string name="sofa_player_stepped_down_stutter">%1$s stuttered on this TV. Sofa Player plays %2$s.</string>
-    <!-- Added to a notice when the TV's own decoder failed: an app with its own decoders may manage. -->
-    <string name="play_in_hint">Another app may play it: try \"Play in…\".</string>
+    <!-- Added to a notice when the TV's own decoder failed and Sofa Player took a lower quality: an app with its own decoders may manage. -->
+    <string name="play_in_hint">For full quality, another app may play it: try \"Play in…\".</string>
+    <!-- Added when Sofa Player gave up and the site's player took the video: an app with its own decoders may manage too. -->
+    <string name="play_in_hint_failed">An app with its own decoders may play it too: try \"Play in…\".</string>
     <string name="sofa_player_why_short">Sofa Player: not used for videos under a minute.</string>
     <string name="sofa_player_why_no_video">Sofa Player couldn\'t find this video on the page. The site\'s player plays it.</string>
     <string name="sofa_player_why_protected">Protected video (DRM): only the site\'s player can play it.</string>
@@ -148,13 +150,15 @@
     <string name="tv_decoder_software">software up to %s</string>
     <string name="tv_decoder_rate">%1$s at %2$d fps</string>
     <string name="tv_decoder_none">none</string>
+    <!-- No decoder on the TV, but WebView decodes the codec itself (Video info of the page's player). -->
+    <string name="tv_decoder_none_webview">none (WebView has its own)</string>
     <string name="video_info_display_player">Display: panel %3$d × %4$d, the video drawn at the panel\'s own resolution (app window %1$d × %2$d)</string>
 
     <!-- Parental PIN -->
     <string name="pin_setting">Parental PIN</string>
-    <string name="pin_setting_sub">Asks for a PIN before Settings open, blocking is turned off, private browsing starts, History is deleted or bookmarks are imported</string>
+    <string name="pin_setting_sub">Asks for a PIN before Settings open, blocking is turned off, private browsing starts, History is deleted, bookmarks are imported or a page\'s picture becomes the start page background</string>
     <string name="pin_value_on">On</string>
-    <string name="pin_intro">Sofa will ask for a 4-digit PIN before anyone:\n\n• opens Settings\n• turns ad blocking off, for every site or for one\n• lets a site through Site filters\n• turns private browsing on\n• deletes History\n• imports bookmarks\n\nIt can\'t stop anyone from using another app, changing the TV\'s settings or removing Sofa.\n\nForgot the PIN? The only way back is clearing Sofa\'s data in the TV\'s settings, which also removes your bookmarks, lists and settings.</string>
+    <string name="pin_intro">Sofa will ask for a 4-digit PIN before anyone:\n\n• opens Settings\n• turns ad blocking off, for every site or for one\n• lets a site through Site filters\n• turns private browsing on\n• deletes History\n• imports bookmarks\n• sets a picture from a page as the start page background\n\nIt can\'t stop anyone from using another app, changing the TV\'s settings or removing Sofa.\n\nForgot the PIN? The only way back is clearing Sofa\'s data in the TV\'s settings, which also removes your bookmarks, lists and settings.</string>
     <string name="pin_choose">Choose a PIN</string>
     <string name="pin_change">Change the PIN</string>
     <string name="pin_turn_off">Turn the PIN off</string>
@@ -299,7 +303,7 @@
     <string name="bookmarks_import_fetching">Getting the file…</string>
     <string name="bookmarks_import_none">No bookmarks found. Choose the HTML file a browser saves when it exports bookmarks.</string>
     <string name="bookmarks_import_too_large">This file is too large to be a bookmarks file.</string>
-    <string name="bookmarks_import_failed">Couldn\'t read the file: %1$s</string>
+    <string name="bookmarks_import_failed">Couldn\'t get the file. %1$s</string>
     <string name="bookmarks_import_nothing_new">No new bookmarks.</string>
     <plurals name="bookmarks_imported">
         <item quantity="one">Added %d bookmark.</item>
@@ -319,4 +323,14 @@
         <item quantity="one">Saved %1$d bookmark in %2$s as %3$s. Desktop browsers import this file, and so does Sofa on another TV.</item>
         <item quantity="other">Saved %1$d bookmarks in %2$s as %3$s. Desktop browsers import this file, and so does Sofa on another TV.</item>
     </plurals>
+
+    <!-- A failed download in plain words (ErrorText): each one sentence, after "Couldn't add the list." and the like. -->
+    <string name="error_no_address">%s wasn\'t found. Check the address.</string>
+    <string name="error_no_address_any">The site wasn\'t found. Check the address.</string>
+    <string name="error_unreachable">%s didn\'t answer.</string>
+    <string name="error_unreachable_any">The server didn\'t answer.</string>
+    <string name="error_timed_out">The server took too long to answer.</string>
+    <string name="error_not_found">There\'s nothing at this address (HTTP 404).</string>
+    <string name="error_http">The server answered with an error (HTTP %d).</string>
+    <string name="error_secure">Couldn\'t make a secure connection to the server.</string>
 </resources>

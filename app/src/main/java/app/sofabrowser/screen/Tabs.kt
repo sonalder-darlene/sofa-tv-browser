@@ -38,7 +38,7 @@ class Tab(private: Boolean, newBrowser: (Tab, Boolean) -> Browser) {
     val address: String? get() = browser.web?.url?.takeIf { it.isNotEmpty() } ?: keptAddress
     /** [address] as Sofa saves it: never a blocked site's stand-in, but the page before it in the tab, if any. */
     val savedAddress: String? get() = address?.let(browser::unblocked)
-    val title: String? get() = (if (live) browser.web?.title else keptTitle)?.takeIf { it.isNotBlank() }
+    val title: String? get() = (if (live) browser.title else keptTitle)?.takeIf { it.isNotBlank() }
 
     /** A tab that comes back from the saved list: its address only, loaded when chosen. */
     fun keep(address: String) {
@@ -52,7 +52,7 @@ class Tab(private: Boolean, newBrowser: (Tab, Boolean) -> Browser) {
     fun drop(history: Boolean = true) {
         val w = browser.web ?: return
         keptAddress = w.url?.takeIf { it.isNotEmpty() } ?: keptAddress
-        keptTitle = w.title
+        keptTitle = browser.title
         keptHistory = if (history) Bundle().takeIf { w.saveState(it) != null } else null
         browser.destroy()
         loading = false

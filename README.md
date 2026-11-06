@@ -62,7 +62,8 @@ Copies installed by an app store or by Obtainium never offer this; the store kee
 - **Nothing of its own:** no accounts, analytics, ads, crash reports or servers. Apart from the sites you visit,
   Sofa only contacts your search engine (for suggestions, if you turn them on), GitHub (for update checks, if
   you turn them on), the addresses of your filter lists (when you add or update them, or every few days if you
-  turn on automatic updates) and the DNS service you choose, if you choose one ([Custom DNS](#custom-dns)).
+  turn on automatic updates), the address of a bookmarks file you import from, and the DNS service you choose, if
+  you choose one ([Custom DNS](#custom-dns)).
   Voice search uses the TV's speech service.
 - **Blocking:** ads and trackers are blocked on the TV (see [Ad blocking](#ad-blocking)), and third-party cookies
   are blocked too.
@@ -151,8 +152,9 @@ guarantee.
 
 Settings → Parental PIN (off until you set one) asks for a 4-digit PIN before anyone opens Settings, turns ad
 blocking off (for every site or for one), lets a site through Site filters, turns private browsing on, deletes
-History or imports bookmarks. Turning things back on never asks. In Settings and History the PIN counts until you go back to browsing
-or Sofa leaves the screen; anywhere else it counts for one action.
+History, imports bookmarks or sets a picture from a page as the start page background. Turning things back on never
+asks. In Settings and History the PIN counts until you go back to browsing or Sofa leaves the screen; anywhere else it
+counts for one action.
 
 The PIN is entered with the remote's arrows, one digit at a time, or with its number keys. Sofa keeps only a salted
 hash of it, on the TV. After five wrong tries it waits 30 seconds before the next, then twice as long after each

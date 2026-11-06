@@ -496,7 +496,7 @@ class SettingsActivity : Activity() {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
         }
         val d = dialog().setTitle(R.string.open_at_start_page).setMessage(R.string.open_at_start_page_message).setView(padded(field))
-            .setPositiveButton(android.R.string.ok) { _, _ ->
+            .setPositiveButton(R.string.ok) { _, _ ->
                 val url = OpenAtStart.webAddress(field.text.toString())
                 if (url == null) {
                     Toast.makeText(this, R.string.open_at_start_invalid, Toast.LENGTH_LONG).show()
@@ -504,7 +504,7 @@ class SettingsActivity : Activity() {
                     enterStartPage(field.text.toString())
                 } else saveStartPage(url)
             }
-            .setNegativeButton(android.R.string.cancel, null)
+            .setNegativeButton(R.string.cancel, null)
         openPage?.takeIf { it != prefs.startPage }?.let { page ->
             d.setNeutralButton(R.string.open_at_start_use_open) { _, _ -> OpenAtStart.webAddress(page)?.let(::saveStartPage) }
         }
@@ -549,7 +549,7 @@ class SettingsActivity : Activity() {
                 if (isFinishing) return@setStronger
                 (listsRow as? TextView)?.text = rulesText(blocker.rules.rules)
                 blocker.lists.firstOrNull { it.stronger && it.error != null }?.let {
-                    Toast.makeText(this, getString(R.string.blocklist_failed, it.error), Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, getString(R.string.blocklist_failed, ErrorText.text(this, it.error)), Toast.LENGTH_LONG).show()
                 }
             }
             if (on && !prefs.autoUpdateLists) suggestListUpdates()
@@ -573,7 +573,11 @@ class SettingsActivity : Activity() {
 
     private fun rulesText(n: Int) = resources.getQuantityString(R.plurals.rules_count, n, n)
 
-    private fun buildLists() {
+    /** "Update all lists" is at work: it can take a while with big lists, so the rows say so until it's done. */
+    private var listsUpdating = false
+    private var updateAllRow: View? = null
+
+    private fun buildLists(focusUpdate: Boolean = false) {
         list.removeAllViews()
         list.addView(Ui.text(this, 56, Ui.p.textMid, bold = true).apply {
             text = getString(R.string.filter_lists)
@@ -588,22 +592,28 @@ class SettingsActivity : Activity() {
             buildLists()
         }
         row(getString(R.string.add_filter_list), getString(R.string.add_filter_list_sub), arrow()) { enterListAddress(site = false) }
-        row(getString(R.string.update_all_lists), getString(R.string.update_all_lists_sub), arrow()) {
-            Toast.makeText(this, R.string.lists_updating, Toast.LENGTH_SHORT).show()
+        val update = row(getString(R.string.update_all_lists),
+            getString(if (listsUpdating) R.string.lists_updating else R.string.update_all_lists_sub), arrow()) {
+            if (listsUpdating) return@row
+            listsUpdating = true
+            buildLists(focusUpdate = true)
             blocker.updateAll { failed ->
+                listsUpdating = false
                 Toast.makeText(this, if (failed == 0) getString(R.string.lists_updated)
                     else resources.getQuantityString(R.plurals.lists_update_failed, failed, failed), Toast.LENGTH_LONG).show()
-                if (!isFinishing) buildLists()
+                if (!isFinishing) buildLists(focusUpdate = currentFocus === updateAllRow)
             }
         }
-        first?.requestFocus()
+        updateAllRow = update
+        (if (focusUpdate) update else first)?.requestFocus()
     }
 
     private fun listStatus(l: FilterList): String {
         val state = when {
-            l.error != null -> getString(R.string.filter_list_failed, l.error)
+            listsUpdating && l.enabled && l.url != null && !l.site -> getString(R.string.filter_list_updating)
+            l.error != null -> getString(R.string.filter_list_failed, ErrorText.text(this, l.error))
             l.updated > System.currentTimeMillis() - DateUtils.MINUTE_IN_MILLIS -> getString(R.string.filter_list_updated_now)
-            l.updated > 0 -> getString(R.string.filter_list_updated, DateUtils.getRelativeTimeSpanString(l.updated))
+            l.updated > 0 -> getString(R.string.filter_list_updated, Dates.ago(this, l.updated))
             l.bundled -> getString(R.string.filter_list_builtin)
             l.rules == 0 -> getString(R.string.filter_list_not_downloaded)
             else -> null
@@ -625,7 +635,7 @@ class SettingsActivity : Activity() {
             Toast.makeText(this, R.string.list_adding, Toast.LENGTH_SHORT).show()
             blocker.update(l.id) { result ->
                 result.onSuccess { Toast.makeText(this, resources.getQuantityString(R.plurals.list_updated, it.rules, it.name, it.rules), Toast.LENGTH_LONG).show() }
-                    .onFailure { Toast.makeText(this, getString(R.string.blocklist_failed, it.message), Toast.LENGTH_LONG).show() }
+                    .onFailure { Toast.makeText(this, getString(R.string.blocklist_failed, ErrorText.text(this, it)), Toast.LENGTH_LONG).show() }
                 if (!isFinishing) rebuild()
             }
         }
@@ -633,7 +643,7 @@ class SettingsActivity : Activity() {
         if (!l.bundled) actions += R.string.remove to { blocker.remove(l.id) { if (!isFinishing) rebuild() } }
         dialog().setTitle(l.name)
             .setItems(actions.map { getString(it.first) }.toTypedArray()) { _, which -> actions[which].second() }
-            .setNegativeButton(android.R.string.cancel, null).show()
+            .setNegativeButton(R.string.cancel, null).show()
     }
 
     /** Asks for a list's address, "https://" already typed; [site] adds it to Site filters rather than ad blocking. */
@@ -648,7 +658,7 @@ class SettingsActivity : Activity() {
             .setMessage(if (site) R.string.site_list_address_message else R.string.filter_list_address_message)
             .setView(padded(field))
             .setPositiveButton(R.string.add) { _, _ -> addListAt(field.text.toString().trim(), site) }
-            .setNegativeButton(android.R.string.cancel, null).show()
+            .setNegativeButton(R.string.cancel, null).show()
     }
 
     private fun addListAt(typed: String, site: Boolean) {
@@ -661,7 +671,7 @@ class SettingsActivity : Activity() {
             result.onSuccess {
                 Toast.makeText(this, resources.getQuantityString(if (site) R.plurals.site_list_added else R.plurals.list_added, it.rules, it.name, it.rules),
                     Toast.LENGTH_LONG).show()
-            }.onFailure { Toast.makeText(this, getString(R.string.list_add_failed, it.message), Toast.LENGTH_LONG).show() }
+            }.onFailure { Toast.makeText(this, getString(R.string.list_add_failed, ErrorText.text(this, it)), Toast.LENGTH_LONG).show() }
             if (!isFinishing) rebuild()
         }
     }
@@ -717,12 +727,12 @@ class SettingsActivity : Activity() {
     private fun siteStatus(l: FilterList, note: String? = null): String {
         val state = when {
             l.id in pending -> getString(R.string.site_list_downloading)
-            !l.enabled -> l.error?.let { getString(if (l.updated == 0L) R.string.site_list_download_failed else R.string.filter_list_failed, it) }
+            !l.enabled -> l.error?.let { getString(if (l.updated == 0L) R.string.site_list_download_failed else R.string.filter_list_failed, ErrorText.text(this, it)) }
             else -> listOfNotNull(
                 resources.getQuantityString(R.plurals.sites_count, l.rules, l.rules),
-                l.error?.let { getString(R.string.filter_list_failed, it) } ?: when {
+                l.error?.let { getString(R.string.filter_list_failed, ErrorText.text(this, it)) } ?: when {
                     l.updated > System.currentTimeMillis() - DateUtils.MINUTE_IN_MILLIS -> getString(R.string.filter_list_updated_now)
-                    l.updated > 0 -> getString(R.string.filter_list_updated, DateUtils.getRelativeTimeSpanString(l.updated))
+                    l.updated > 0 -> getString(R.string.filter_list_updated, Dates.ago(this, l.updated))
                     else -> null
                 },
             ).reduce { a, b -> getString(R.string.filter_list_sub, a, b) }
@@ -738,7 +748,7 @@ class SettingsActivity : Activity() {
             if (!l.enabled && confirm != null) {
                 dialog().setTitle(siteListName(this, l)).setMessage(confirm)
                     .setPositiveButton(R.string.turn_on) { _, _ -> setSite(l, true) }
-                    .setNegativeButton(android.R.string.cancel, null).show()
+                    .setNegativeButton(R.string.cancel, null).show()
             } else setSite(l, !l.enabled)
         }
 
@@ -746,7 +756,7 @@ class SettingsActivity : Activity() {
         if (on) pending[l.id] = url
         blocker.setSite(l.id, on, url) { failure ->
             pending -= l.id
-            failure?.let { Toast.makeText(this, getString(R.string.blocklist_failed, it.message ?: it.javaClass.simpleName), Toast.LENGTH_LONG).show() }
+            failure?.let { Toast.makeText(this, getString(R.string.blocklist_failed, ErrorText.text(this, it)), Toast.LENGTH_LONG).show() }
             if (!isFinishing) buildSites()
         }
         buildSites()
@@ -798,7 +808,7 @@ class SettingsActivity : Activity() {
                 Toast.makeText(this, getString(R.string.site_blocked_again, sites[which]), Toast.LENGTH_SHORT).show()
                 buildSites()
             }
-            .setNegativeButton(android.R.string.cancel, null).show()
+            .setNegativeButton(R.string.cancel, null).show()
     }
 
     // Custom DNS: main and fallback on a page of their own (PAGE_DNS), each chosen on another (PAGE_DNS_PICK)
@@ -898,12 +908,12 @@ class SettingsActivity : Activity() {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
         }
         dialog().setTitle(R.string.dns_custom).setMessage(R.string.dns_custom_message).setView(padded(field))
-            .setPositiveButton(android.R.string.ok) { _, _ ->
+            .setPositiveButton(R.string.ok) { _, _ ->
                 val typed = field.text.toString().trim().removePrefix("https://https://").let { if ("://" in it) it else "https://$it" }
                 if (runCatching { DohEndpoint(typed) }.isSuccess) chooseDns(fallback, typed)
                 else Toast.makeText(this, R.string.dns_custom_invalid, Toast.LENGTH_LONG).show()
             }
-            .setNegativeButton(android.R.string.cancel, null).show()
+            .setNegativeButton(R.string.cancel, null).show()
     }
 
     /** Saves the choice and applies it at once; the device DNS as main also clears the fallback. */
@@ -922,7 +932,7 @@ class SettingsActivity : Activity() {
         val choices = listOf(prefs.dnsMain, prefs.dnsFallback).filter { it.isNotEmpty() }.distinct()
         val lines = arrayOfNulls<String>(choices.size)
         var left = choices.size
-        val shown = dialog().setTitle(R.string.dns_test).setMessage(R.string.dns_testing).setPositiveButton(android.R.string.ok, null).show()
+        val shown = dialog().setTitle(R.string.dns_test).setMessage(R.string.dns_testing).setPositiveButton(R.string.ok, null).show()
         choices.forEachIndexed { i, c ->
             val label = DnsProviders.byId(c)?.let { getString(R.string.filter_list_sub, it.name, getString(it.variant)) } ?: dnsName(c)
             SecureDns.test(c) { result ->
@@ -949,7 +959,7 @@ class SettingsActivity : Activity() {
                         build()
                     }
                 }
-                .setNegativeButton(android.R.string.cancel, null).show()
+                .setNegativeButton(R.string.cancel, null).show()
             return
         }
         dialog().setTitle(R.string.pin_setting)
@@ -961,7 +971,7 @@ class SettingsActivity : Activity() {
                     build()
                 }
             }
-            .setNegativeButton(android.R.string.cancel, null).show()
+            .setNegativeButton(R.string.cancel, null).show()
     }
 
     /** Asks for the PIN before showing any Settings page, unless it was entered for this visit; not entered goes back to the browser. */
@@ -996,7 +1006,7 @@ class SettingsActivity : Activity() {
                 // The saved tab list too; tabs open now stay open, like the page in sight.
                 prefs.tabs = ""
                 Toast.makeText(this, R.string.cleared, Toast.LENGTH_SHORT).show()
-            }.setNegativeButton(android.R.string.cancel, null).show()
+            }.setNegativeButton(R.string.cancel, null).show()
     }
 
     private fun about() {
@@ -1005,7 +1015,7 @@ class SettingsActivity : Activity() {
                 (if (Updater.offered(this)) " " + getString(R.string.about_updates) else "") +
                 "\n\n" + getString(R.string.about_engine, WebViews.engine(this).label) + "\n" + getString(R.string.about_video) +
                 "\n\n" + getString(R.string.about_license))
-            .setPositiveButton(android.R.string.ok, null)
+            .setPositiveButton(R.string.ok, null)
             .setNeutralButton(R.string.license) { _, _ -> showAsset(R.string.license, "LICENSE") }
             .setNegativeButton(R.string.third_party) { _, _ -> showAsset(R.string.third_party, "NOTICE.md") }
             .show()
@@ -1013,14 +1023,14 @@ class SettingsActivity : Activity() {
 
     private fun showAsset(title: Int, name: String) {
         val text = runCatching { assets.open(name).bufferedReader().readText() }.getOrDefault("")
-        dialog().setTitle(title).setMessage(text).setPositiveButton(android.R.string.ok, null).show()
+        dialog().setTitle(title).setMessage(text).setPositiveButton(R.string.ok, null).show()
     }
 
     private fun askText(title: Int, current: String, done: (String) -> Unit) {
         val field = EditText(this).apply { setText(current); isSingleLine = true }
         dialog().setTitle(title).setView(padded(field))
-            .setPositiveButton(android.R.string.ok) { _, _ -> done(field.text.toString().trim()) }
-            .setNegativeButton(android.R.string.cancel, null).show()
+            .setPositiveButton(R.string.ok) { _, _ -> done(field.text.toString().trim()) }
+            .setNegativeButton(R.string.cancel, null).show()
     }
 
     private fun padded(v: View) = FrameLayout(this).apply { setPadding(48.px, 16.px, 48.px, 0); addView(v) }

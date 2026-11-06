@@ -17,6 +17,7 @@ import android.webkit.PermissionRequest
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -94,6 +95,12 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
     /** Address of the page in the main frame, for page-wide filter exceptions. */
     @Volatile var pageUrl: String? = null
         private set
+
+    /** The address whose main frame didn't load: WebView shows its own error page there, titled in the TV's language. */
+    private var failedUrl: String? = null
+
+    /** The page's own title: none while WebView's error page stands in for it. */
+    val title: String? get() = web?.let { w -> w.title?.takeIf { failedUrl == null || w.url != failedUrl } }
 
     /**
      * Where the main frame is going: a link or a server redirect it follows. A redirect reaches neither
@@ -202,6 +209,7 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
     @SuppressLint("MissingOnRenderProcessGone")
     private val client = object : WebViewClient() {
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
+            failedUrl = null
             pageHost = AdBlocker.hostOf(url)
             pageUrl = url
             guard.pageStarted()
@@ -211,6 +219,11 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
         }
 
         override fun onPageFinished(view: WebView, url: String) = host.onPageFinished(url)
+
+        override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+            // After onPageStarted, before the error page's title: that title is WebView's, not the site's.
+            if (request.isForMainFrame) failedUrl = request.url.toString()
+        }
 
         override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
             pageHost = AdBlocker.hostOf(url)
@@ -311,7 +324,7 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
 
         override fun onReceivedTitle(view: WebView, title: String?) {
             val url = view.url ?: return
-            if (!title.isNullOrBlank()) host.onTitle(url, title)
+            if (!title.isNullOrBlank() && url != failedUrl) host.onTitle(url, title)
         }
 
         override fun onReceivedIcon(view: WebView, icon: Bitmap) {
@@ -627,6 +640,7 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
                     WebView(context).apply { WebViewCompat.setProfile(this, name); clearCache(true); clearFormData(); destroy() }
                 }
             }
+            ProfileLeftovers.deleteOrphanPrefs(context)
         }
 
         fun isWebUrl(url: String?) = url != null && (url.startsWith("http://") || url.startsWith("https://"))

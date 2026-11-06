@@ -435,6 +435,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
     }
 
     override fun showHome() {
+        val fromPage = !homeShown
         menu.dismiss()
         if (findBar.showing) closeFind()
         // Leaving a page for the home screen shouldn't leave it playing, or going anywhere, behind it.
@@ -444,7 +445,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         home.visibility = View.VISIBLE
         applyKeepAwake()
         browserLayer.visibility = View.INVISIBLE
-        if (home.findFocus() == null) home.searchPill.requestFocus()
+        if (fromPage) home.focusBack() else if (home.findFocus() == null) home.searchPill.requestFocus()
         Updater.showPending(this)
     }
 
@@ -476,7 +477,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         if (!browser.hidden) return
         val held = browser.wake()
         if (sound) VideoRelay.send(web, "wake")
-        if (held != null) toast(getString(R.string.page_held_allow, Sites.of(Browser.hostOf(held)?.lowercase() ?: held)))
+        // Two lines to read: the long notice.
+        if (held != null) Toast.makeText(this, getString(R.string.page_held_allow, Sites.of(Browser.hostOf(held)?.lowercase() ?: held)), Toast.LENGTH_LONG).show()
     }
 
     // Keys
@@ -600,7 +602,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         if (entering) {
             dialog().setTitle(R.string.private_mode)
                 .setMessage(if (Browser.profilesSupported) R.string.private_mode_info else R.string.private_mode_info_fallback)
-                .setPositiveButton(android.R.string.ok, null).show()
+                .setPositiveButton(R.string.ok, null).show()
         } else {
             DownloadEngine.forgetPrivate()
             toast(R.string.private_mode_left)
@@ -632,13 +634,13 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         }
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; addView(title); addView(address) }
         dialog().setTitle(if (site == null) R.string.add_site else R.string.edit).setView(padded(this, box))
-            .setPositiveButton(android.R.string.ok) { _, _ ->
+            .setPositiveButton(R.string.ok) { _, _ ->
                 val url = UrlInput.resolve(address.text.toString(), prefs.searchEngine)
                 if (!Browser.isWebUrl(url)) return@setPositiveButton
                 val name = title.text.toString().trim().ifEmpty { Db.prettyHost(Browser.hostOf(url).orEmpty()) }
                 if (site == null) db.addTile(name, url) else db.updateTile(site.id, name, url)
                 home.refresh(prefs.privateMode, prefs.adBlock)
-            }.setNegativeButton(android.R.string.cancel, null).show()
+            }.setNegativeButton(R.string.cancel, null).show()
     }
 
     // Other screens
@@ -699,7 +701,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
 
     private fun visited(tab: Tab, url: String) {
         val w = tab.browser.web
-        if (recordsHistory(tab) && Browser.isWebUrl(url)) db.recordVisit(w?.title?.takeIf { w.url == url }.orEmpty(), url)
+        if (recordsHistory(tab) && Browser.isWebUrl(url)) db.recordVisit(tab.browser.title?.takeIf { w?.url == url }.orEmpty(), url)
     }
 
     private fun titled(tab: Tab, url: String, title: String) {

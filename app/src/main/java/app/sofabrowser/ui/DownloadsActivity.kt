@@ -210,7 +210,7 @@ class DownloadsActivity : Activity() {
             val d = current() ?: return
             Ui.dialog(context).setMessage(getString(R.string.delete_file_confirm, d.name))
                 .setPositiveButton(R.string.delete) { _, _ -> DownloadEngine.delete(id) }
-                .setNegativeButton(android.R.string.cancel, null).show()
+                .setNegativeButton(R.string.cancel, null).show()
         }
 
         private fun iconFor(d: Download): Int {

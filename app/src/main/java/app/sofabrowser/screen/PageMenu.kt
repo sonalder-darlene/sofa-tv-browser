@@ -131,11 +131,11 @@ class PageMenu(private val s: Screen, private val watch: Watch) : BrowserMenu.Ac
             }
             BrowserMenu.Action.FIND -> { dismiss(); s.openFind() }
             BrowserMenu.Action.BOOKMARK -> if (Browser.isWebUrl(url)) {
-                if (db.isBookmarked(url)) db.removeBookmark(url) else db.addBookmark(w.title.orEmpty(), url)
+                if (db.isBookmarked(url)) db.removeBookmark(url) else db.addBookmark(s.browser.title.orEmpty(), url)
                 s.toast(if (db.isBookmarked(url)) R.string.bookmark_added else R.string.bookmark_removed)
             }
             BrowserMenu.Action.PIN -> if (Browser.isWebUrl(url)) {
-                db.addTile(w.title?.ifBlank { null } ?: UrlInput.display(url), url)
+                db.addTile(s.browser.title?.ifBlank { null } ?: UrlInput.display(url), url)
                 s.toast(R.string.pinned)
             }
             BrowserMenu.Action.HISTORY -> s.openList(ListActivity.MODE_HISTORY)
@@ -187,10 +187,10 @@ class PageMenu(private val s: Screen, private val watch: Watch) : BrowserMenu.Ac
     private fun askCustomUserAgent() {
         val field = EditText(activity).apply { setText(prefs.customUserAgent); isSingleLine = true }
         s.dialog().setTitle(R.string.custom_user_agent).setView(padded(activity, field))
-            .setPositiveButton(android.R.string.ok) { _, _ ->
+            .setPositiveButton(R.string.ok) { _, _ ->
                 prefs.customUserAgent = field.text.toString().trim()
                 setUserAgent("custom")
-            }.setNegativeButton(android.R.string.cancel, null).show()
+            }.setNegativeButton(R.string.cancel, null).show()
     }
 
     private fun setUserAgent(mode: String) {

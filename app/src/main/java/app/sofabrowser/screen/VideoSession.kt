@@ -267,21 +267,24 @@ class VideoSession(private val s: Screen, private val watch: Watch, private val 
             activity.getString(R.string.video_info_note),
             "",
         ).plus(displayInfo()).plus(activity.getString(R.string.video_info_page, info.screenWidth, info.screenHeight,
-            info.pixelRatio.toString(), info.innerWidth, info.cssWidth)).plus(decoderInfo()).joinToString("\n")
+            info.pixelRatio.toString(), info.innerWidth, info.cssWidth)).plus(decoderInfo(software.map { it.name })).joinToString("\n")
     }
 
     /**
      * Video info's last lines, the same in both players: per codec, the largest picture the TV says its hardware and
-     * software decoders take ([Decoders.tv]). Last, so a small screen cuts these first.
+     * software decoders take ([Decoders.tv]). Last, so a small screen cuts these first. [webView]: the codecs the page's
+     * player decodes in WebView's own decoder, where the TV having none isn't the whole story.
      */
-    fun decoderInfo(): List<String> {
+    fun decoderInfo(webView: List<String> = emptyList()): List<String> {
         fun take(d: Decoders.Listed): String = "${d.width} × ${d.height}".let { size ->
             d.fps?.let { activity.getString(R.string.tv_decoder_rate, size, it) } ?: size
         }
         return listOf("") + Decoders.tv.map { s ->
             val found = listOfNotNull(s.hardware?.let { activity.getString(R.string.tv_decoder_hardware, take(it)) },
                 s.software?.let { activity.getString(R.string.tv_decoder_software, take(it)) })
-            activity.getString(R.string.video_info_tv_decoder, s.codec, found.joinToString(", ").ifEmpty { activity.getString(R.string.tv_decoder_none) })
+            activity.getString(R.string.video_info_tv_decoder, s.codec, found.joinToString(", ").ifEmpty {
+                activity.getString(if (s.codec in webView) R.string.tv_decoder_none_webview else R.string.tv_decoder_none)
+            })
         }
     }
 

@@ -178,6 +178,9 @@ class HomeView(context: Context, private val listener: Listener) : FrameLayout(c
         if (active) R.drawable.ic_downloading else R.drawable.ic_download,
         context.getString(if (active) R.string.downloads_active else R.string.downloads))
 
+    /** The card that opened a page, as its row's place in [rows] and its address: focused again when the page is left. */
+    private var opened: Pair<Int, String>? = null
+
     fun refresh(privateMode: Boolean, adBlock: Boolean) {
         showBackground(privateMode)
         val layout = prefs.homeLayout
@@ -221,7 +224,20 @@ class HomeView(context: Context, private val listener: Listener) : FrameLayout(c
 
         // Back on the card that had focus; else the first card, or the search pill when no row is shown.
         val restore = focusedUrl?.let { url -> findCard { it.site?.url == url } }
-        (restore ?: if (findFocus() == null) findCard { true } ?: searchPill else null)?.requestFocus()
+        (restore ?: if (findFocus() == null) firstFocus() else null)?.requestFocus()
+    }
+
+    /** Back from a page: focus on the card that opened it, in the same row if it's still there, else as [refresh] does. */
+    fun focusBack() {
+        firstFocus().requestFocus()
+        opened = null
+    }
+
+    private fun firstFocus(): View {
+        val back = opened?.let { (at, url) ->
+            (rows.getChildAt(at) as? ViewGroup)?.let { row -> findCard(row) { it.site?.url == url } } ?: findCard { it.site?.url == url }
+        }
+        return back ?: findCard { true } ?: searchPill
     }
 
     /** A row of cards, under [title] (0: none, for the second and later lines of bookmarks). */
@@ -236,9 +252,14 @@ class HomeView(context: Context, private val listener: Listener) : FrameLayout(c
             clipToPadding = false
             setPadding(8.px, 12.px, 96.px, 12.px)
         }
+        val at = rows.childCount
         sites.forEach { site ->
             line.addView(SiteCard(context, site).apply {
-                setOnClickListener { if (moving == null) listener.onOpen(site.url) }
+                setOnClickListener {
+                    if (moving != null) return@setOnClickListener
+                    opened = at to site.url
+                    listener.onOpen(site.url)
+                }
                 extra?.invoke(this)
             })
         }
@@ -251,13 +272,13 @@ class HomeView(context: Context, private val listener: Listener) : FrameLayout(c
         return line
     }
 
-    private fun findCard(match: (SiteCard) -> Boolean): SiteCard? {
+    private fun findCard(within: View = rows, match: (SiteCard) -> Boolean): SiteCard? {
         fun walk(v: View): SiteCard? = when {
             v is SiteCard && match(v) -> v
             v is ViewGroup -> (0 until v.childCount).firstNotNullOfOrNull { walk(v.getChildAt(it)) }
             else -> null
         }
-        return walk(rows)
+        return walk(within)
     }
 
     /** Enters move mode for the tile showing [site]. */

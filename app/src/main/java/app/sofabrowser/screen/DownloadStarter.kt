@@ -74,7 +74,7 @@ class DownloadStarter(private val s: Screen, private val onActive: (Boolean) -> 
         s.dialog().setTitle(R.string.download_title)
             .setMessage(activity.getString(R.string.download_message, name + size, host ?: ""))
             .setPositiveButton(R.string.download) { _, _ -> start() }
-            .setNegativeButton(android.R.string.cancel, null)
+            .setNegativeButton(R.string.cancel, null)
             .show()
     }
 

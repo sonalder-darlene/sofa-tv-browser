@@ -905,12 +905,12 @@ class FullscreenLayer(context: Context, val bar: VideoBar) : FrameLayout(context
     }
     private val hideNotice = Runnable { notice.visibility = GONE }
 
-    /** Shows [text] over the video for a few seconds. */
+    /** Shows [text] over the video for a few seconds, more for a longer text ([NoticeTime]). */
     fun notice(text: String) {
         notice.text = text
         notice.visibility = VISIBLE
         notice.removeCallbacks(hideNotice)
-        notice.postDelayed(hideNotice, NOTICE_MS)
+        notice.postDelayed(hideNotice, NoticeTime.ms(text))
     }
 
     init {
@@ -975,9 +975,5 @@ class FullscreenLayer(context: Context, val bar: VideoBar) : FrameLayout(context
         pointer.cursorEnabled = false
         pointer.removeAllViews()
         visibility = GONE
-    }
-
-    private companion object {
-        const val NOTICE_MS = 5000L
     }
 }

@@ -83,7 +83,7 @@ object PadHelp {
             addView(Ui.text(c, 24, Ui.p.textHint).apply { text = c.getString(R.string.pad_note); setPadding(0, 32.px, 0, 0) })
         }
         Ui.dialog(c).setTitle(R.string.game_controller).setView(ScrollView(c).apply { addView(body) })
-            .setPositiveButton(android.R.string.ok, null).show()
+            .setPositiveButton(R.string.ok, null).show()
     }
 
     private fun connectedFamily(): GamePad.Family =
