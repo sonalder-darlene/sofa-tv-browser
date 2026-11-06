@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Sofa</string>
-    <string name="about_text">A lightweight, private web browser for Android TV and Google TV.\n\nSofa has no accounts, no analytics, no ads and no servers of its own. Your history, bookmarks and settings stay on this device. The only connections it makes are to the sites you visit and, if you ask it to, your search engine\'s suggestions and the filter list addresses you choose.</string>
+    <string name="about_text">A lightweight, private web browser for Android TV and Google TV.\n\nSofa has no accounts, no analytics, no ads and no servers of its own. Your history, bookmarks and settings stay on this device. The only connections it makes are to the sites you visit and, if you ask it to, your search engine\'s suggestions and the filter list and bookmarks file addresses you choose.</string>
     <string name="version">Version %s</string>
 
     <!-- Home -->
@@ -54,7 +54,7 @@
     <string name="today">Today</string>
     <string name="yesterday">Yesterday</string>
     <string name="history_empty">No history yet</string>
-    <string name="bookmarks_empty">No bookmarks yet. Add one from the menu while browsing.</string>
+    <string name="bookmarks_empty">No bookmarks yet. Add one from the menu while browsing, or import them from another browser.</string>
     <string name="confirm_clear_history">Delete all history?</string>
     <string name="confirm_clear_bookmarks">Delete all bookmarks?</string>
 

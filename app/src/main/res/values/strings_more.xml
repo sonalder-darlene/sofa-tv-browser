@@ -152,9 +152,9 @@
 
     <!-- Parental PIN -->
     <string name="pin_setting">Parental PIN</string>
-    <string name="pin_setting_sub">Asks for a PIN before Settings open, blocking is turned off, private browsing starts or History is deleted</string>
+    <string name="pin_setting_sub">Asks for a PIN before Settings open, blocking is turned off, private browsing starts, History is deleted or bookmarks are imported</string>
     <string name="pin_value_on">On</string>
-    <string name="pin_intro">Sofa will ask for a 4-digit PIN before anyone:\n\n• opens Settings\n• turns ad blocking off, for every site or for one\n• lets a site through Site filters\n• turns private browsing on\n• deletes History\n\nIt can\'t stop anyone from using another app, changing the TV\'s settings or removing Sofa.\n\nForgot the PIN? The only way back is clearing Sofa\'s data in the TV\'s settings, which also removes your bookmarks, lists and settings.</string>
+    <string name="pin_intro">Sofa will ask for a 4-digit PIN before anyone:\n\n• opens Settings\n• turns ad blocking off, for every site or for one\n• lets a site through Site filters\n• turns private browsing on\n• deletes History\n• imports bookmarks\n\nIt can\'t stop anyone from using another app, changing the TV\'s settings or removing Sofa.\n\nForgot the PIN? The only way back is clearing Sofa\'s data in the TV\'s settings, which also removes your bookmarks, lists and settings.</string>
     <string name="pin_choose">Choose a PIN</string>
     <string name="pin_change">Change the PIN</string>
     <string name="pin_turn_off">Turn the PIN off</string>
@@ -285,4 +285,38 @@
     <string name="no_engine_title">Sofa can\'t show web pages on this TV</string>
     <string name="no_engine_text">Sofa shows pages with the web engine that comes with your TV, Android System WebView, and this TV has none that works: it may be missing or turned off. Look for \"Android System WebView\" in your TV\'s app store, or in Settings → Apps with system apps shown, and install it or turn it on. Then open Sofa again.</string>
     <string name="no_engine_close">Close Sofa</string>
+
+    <!-- Bookmarks: import and export as the bookmarks file desktop browsers use -->
+    <string name="bookmarks_transfer">Import or export</string>
+    <string name="bookmarks_import">Import bookmarks</string>
+    <string name="bookmarks_export">Export bookmarks</string>
+    <string name="pin_title_import_bookmarks">Import bookmarks</string>
+    <string name="bookmarks_import_file">Choose a file</string>
+    <string name="bookmarks_import_address">From a web address</string>
+    <string name="bookmarks_import_saved">%1$s, saved %2$s</string>
+    <string name="bookmarks_import_address_message">The address of a bookmarks file, the HTML file a browser saves when it exports bookmarks. Bookmarks you already have stay as they are.</string>
+    <string name="bookmarks_import_go">Import</string>
+    <string name="bookmarks_import_fetching">Getting the file…</string>
+    <string name="bookmarks_import_none">No bookmarks found. Choose the HTML file a browser saves when it exports bookmarks.</string>
+    <string name="bookmarks_import_too_large">This file is too large to be a bookmarks file.</string>
+    <string name="bookmarks_import_failed">Couldn\'t read the file: %1$s</string>
+    <string name="bookmarks_import_nothing_new">No new bookmarks.</string>
+    <plurals name="bookmarks_imported">
+        <item quantity="one">Added %d bookmark.</item>
+        <item quantity="other">Added %d bookmarks.</item>
+    </plurals>
+    <plurals name="bookmarks_import_known">
+        <item quantity="one">%d was already there.</item>
+        <item quantity="other">%d were already there.</item>
+    </plurals>
+    <plurals name="bookmarks_import_skipped">
+        <item quantity="one">%d link was left out: Sofa keeps web addresses only.</item>
+        <item quantity="other">%d links were left out: Sofa keeps web addresses only.</item>
+    </plurals>
+    <string name="bookmarks_export_none">No bookmarks to export</string>
+    <string name="bookmarks_export_failed">Couldn\'t save the file: %1$s</string>
+    <plurals name="bookmarks_exported">
+        <item quantity="one">Saved %1$d bookmark in %2$s as %3$s. Desktop browsers import this file, and so does Sofa on another TV.</item>
+        <item quantity="other">Saved %1$d bookmarks in %2$s as %3$s. Desktop browsers import this file, and so does Sofa on another TV.</item>
+    </plurals>
 </resources>

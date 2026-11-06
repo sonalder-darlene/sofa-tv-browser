@@ -36,6 +36,11 @@
             <action android:name="android.intent.action.OPEN_DOCUMENT" />
             <data android:mimeType="image/*" />
         </intent>
+        <!-- Bookmarks: "Choose a file" is shown only when the TV has a document picker. -->
+        <intent>
+            <action android:name="android.intent.action.OPEN_DOCUMENT" />
+            <data android:mimeType="text/html" />
+        </intent>
     </queries>
 
     <!-- Picture-in-picture starts from the video bar or from Home (onUserLeaveHint), as on Android TV; lint's

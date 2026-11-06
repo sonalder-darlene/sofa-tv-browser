@@ -8,9 +8,11 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.io.IOException
+import java.io.InputStream
 import java.io.OutputStream
 
 /**
@@ -51,6 +53,11 @@ object DownloadStorage {
         } else {
             FileOutputStream(File(target), append)
         }
+
+    /** Reads a file Sofa saved (its own downloads need no storage permission). */
+    fun read(context: Context, target: String): InputStream =
+        if (isUri(target)) context.contentResolver.openInputStream(Uri.parse(target)) ?: throw FileNotFoundException(target)
+        else FileInputStream(File(target))
 
     /** Makes a finished download visible to other apps. */
     fun finish(context: Context, target: String) {

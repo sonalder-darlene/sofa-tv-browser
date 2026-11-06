@@ -101,6 +101,34 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, "sofa
         writableDatabase.delete("bookmarks", "url = ?", arrayOf(url))
     }
 
+    /** Every bookmark with the time it was added, newest first, for a bookmarks file. */
+    fun bookmarksToExport(): List<BookmarkFile.Entry> = query("SELECT title, url, created FROM bookmarks ORDER BY created DESC") {
+        BookmarkFile.Entry(it.getString(0), it.getString(1), it.getLong(2))
+    }
+
+    /**
+     * Adds [entries] that aren't bookmarked yet and returns how many were added; a bookmark already there keeps its
+     * title. Entries without a date sort as just added, in file order, so the file's first one shows first.
+     */
+    fun importBookmarks(entries: List<BookmarkFile.Entry>): Int {
+        val db = writableDatabase
+        val now = System.currentTimeMillis()
+        var added = 0
+        db.beginTransaction()
+        try {
+            entries.forEachIndexed { i, e ->
+                val row = db.insertWithOnConflict("bookmarks", null, ContentValues().apply {
+                    put("title", e.title.ifBlank { e.url }); put("url", e.url); put("created", e.added ?: (now - i))
+                }, SQLiteDatabase.CONFLICT_IGNORE)
+                if (row != -1L) added++
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        return added
+    }
+
     // History
 
     fun history(limit: Int = 500): List<HistoryEntry> =

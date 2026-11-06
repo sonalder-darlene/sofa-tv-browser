@@ -27,6 +27,7 @@ class ListActivity : Activity() {
     private val history get() = intent.getStringExtra(EXTRA_MODE) == MODE_HISTORY
     private lateinit var list: LinearLayout
     private lateinit var empty: View
+    private val transfer by lazy { BookmarkTransfer(this) { load() } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,16 +41,9 @@ class ListActivity : Activity() {
         header.addView(Ui.text(this, 56, Ui.p.text, bold = true).apply {
             text = getString(if (history) R.string.history else R.string.bookmarks)
         }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        header.addView(Ui.text(this, 28, Ui.p.textMid).apply {
-            text = getString(R.string.delete_all)
-            isFocusable = true
-            isClickable = true
-            gravity = Gravity.CENTER
-            background = Ui.fillSelector(Ui.p.fillFocused, Ui.p.focus, 12)
-            setPadding(32.px, 14.px, 32.px, 14.px)
-            setOnFocusChangeListener { v, has -> (v as android.widget.TextView).setTextColor(if (has) Ui.p.onFocus else Ui.p.textMid) }
-            setOnClickListener { guardHistory { confirmDeleteAll() } }
-        })
+        if (!history) header.addView(Ui.button(this, getString(R.string.bookmarks_transfer)) { transfer.showMenu() },
+            LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginEnd = 20.px })
+        header.addView(Ui.button(this, getString(R.string.delete_all)) { guardHistory { confirmDeleteAll() } })
         root.addView(header)
 
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 24.px, 0, 72.px); clipChildren = false }
@@ -158,6 +152,15 @@ class ListActivity : Activity() {
         list.addView(line, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
             bottomMargin = 16.px
         })
+    }
+
+    /** A bookmarks file from the TV's document picker. */
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        @Suppress("DEPRECATION")
+        super.onActivityResult(requestCode, resultCode, data)
+        val uri = data?.data
+        if (requestCode == BookmarkTransfer.REQUEST_FILE && resultCode == RESULT_OK && uri != null) transfer.onPicked(uri)
     }
 
     /** Deleting History asks for the parental PIN when one is set, once for this visit; bookmarks never do. */

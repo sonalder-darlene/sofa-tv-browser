@@ -22,8 +22,8 @@
 **Parental PIN**
 
 - **A PIN for Settings and the blockers** (Settings → Parental PIN, off until you set one): once set, Sofa asks for
-  it before Settings open, ad blocking is turned off, a site is let through Site filters, private browsing starts
-  or History is deleted. It is entered with the remote's arrows or number keys, kept only as a salted hash, and
+  it before Settings open, ad blocking is turned off, a site is let through Site filters, private browsing starts,
+  History is deleted or bookmarks are imported. It is entered with the remote's arrows or number keys, kept only as a salted hash, and
   wrong tries lead to a growing pause.
 
 **Menu buttons**
@@ -32,6 +32,13 @@
   don't use. Pick a button up with OK, move it with the arrows and put it down with OK; the menu as it will look is
   shown below the list. Home and Settings always stay in the menu. Clearing browsing data keeps your menu, and Reset
   brings back the default one.
+
+**Bookmarks**
+
+- **Import and export bookmarks** (Bookmarks → Import or export) as the bookmarks file every desktop browser
+  reads and writes. Export saves it in Download; import takes it from the TV's file picker where there is one, from
+  a web address, or from a file Sofa saved. Bookmarks you have stay as they are, and copies are skipped. With a
+  parental PIN, an import asks for it.
 
 **Start page**
 

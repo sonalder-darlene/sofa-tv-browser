@@ -16,6 +16,8 @@ called Sofa.
   reorders and hides its rows and buttons, and shows up to 48 bookmarks; Settings → Start page background gives it
   a colour, a gradient or your own picture (up to 4K). Settings → Open at start has Sofa start on a web page of
   your choice, or where you left off, instead.
+- **Bookmarks from your other browsers**: import the bookmarks file a desktop browser exports, from the TV's file
+  picker, a web address or a file Sofa saved, and export yours the same way.
 - **Watch**: one press of Play finds the page's main video and plays it fullscreen.
 - **Sofa Player**: in fullscreen, Sofa plays the site's stream in its own player when it can, with 4K at full
   resolution, HDR, and a choice of quality, sound and subtitles that it keeps for the next videos. Otherwise the
@@ -143,8 +145,8 @@ guarantee.
 ### Parental PIN
 
 Settings → Parental PIN (off until you set one) asks for a 4-digit PIN before anyone opens Settings, turns ad
-blocking off (for every site or for one), lets a site through Site filters, turns private browsing on or deletes
-History. Turning things back on never asks. In Settings and History the PIN counts until you go back to browsing
+blocking off (for every site or for one), lets a site through Site filters, turns private browsing on, deletes
+History or imports bookmarks. Turning things back on never asks. In Settings and History the PIN counts until you go back to browsing
 or Sofa leaves the screen; anywhere else it counts for one action.
 
 The PIN is entered with the remote's arrows, one digit at a time, or with its number keys. Sofa keeps only a salted
