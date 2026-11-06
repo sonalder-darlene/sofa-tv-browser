@@ -8,8 +8,12 @@
   three sizes, "More sites" recommended), unsafe sites (fake downloads and malware) and drugs, or any list of
   domains by its address. A blocked site is stopped however you reach it, a typed address, a bookmark, a link or a
   redirect, and so is anything a page loads from it, with ad blocking on or off. The block screen names the list
-  and offers Go back or Allow this site; Allowed sites in Settings takes a site back. In private browsing an
-  allow lasts only until private browsing ends and is never stored.
+  and offers Go back or Allow this site; Allowed sites in Settings takes a site back. Go back returns to the last
+  page that isn't blocked, and a blocked link from another app, or opened in a new tab, shows the block screen over
+  the page you're on without making a tab for it; a blocked site is never kept as a tab or as where you left off. A
+  link that comes while a block screen shows opens in front of it, and a tab still on a blocked site shows its block
+  screen again when you come back to it. In private browsing an allow lasts only until private browsing ends and is
+  never stored.
 - Reading a large list takes far less memory than before, which also helps the ad lists.
 
 **Custom DNS**

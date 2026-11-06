@@ -48,6 +48,7 @@ import app.sofabrowser.data.Site
 import app.sofabrowser.downloads.DownloadEngine
 import app.sofabrowser.screen.DownloadStarter
 import app.sofabrowser.screen.LinkActions
+import app.sofabrowser.screen.LinkFrom
 import app.sofabrowser.screen.PadInput
 import app.sofabrowser.screen.PageDialogs
 import app.sofabrowser.screen.PageMenu
@@ -217,7 +218,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         if (findBar.showing) closeFind()
         // It gets a tab of its own, so the page that was open stays; in the tab in sight when that one is empty or no
         // other tab fits.
-        if (tabs.current.address == null) openUrl(url) else openInTab(null, url)
+        val open = { if (tabs.current.address == null) openUrl(url) else openInTab(null, url) }
+        if (!blockedFirst(url, open)) open()
         return true
     }
 
@@ -233,8 +235,11 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
 
     override fun openUrl(url: String) {
         if (url.isBlank()) return
-        // An unloaded page this tab kept is replaced too.
+        // An unloaded page this tab kept is replaced too, and the tab is the user's now, whatever it was made for.
         tabs.current.forget()
+        tabs.current.linkFrom = null
+        // Whatever this tab was blocked from, the new address replaces it (and brings its own block screen if listed).
+        dialogs.dismissBlocked()
         ensureWeb()
         // What the resting page tried to open, and its paused sound, go with it: this address replaces it.
         browser.forgetHeld()
@@ -282,6 +287,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
 
     private fun leaveTab() {
         menu.dismiss()
+        // A block screen belongs to what was in sight; the tab brings it back if it is still on that site (enterTab).
+        dialogs.dismissBlocked()
         if (findBar.showing) closeFind()
         watch.stop()
         pageOutOfSight()
@@ -289,8 +296,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         web?.let(cursor::removeView)
     }
 
-    /** The tab now in sight takes the screen: its page, or the start page when it has none. */
-    private fun enterTab() {
+    /** The tab now in sight takes the screen: its page, or the start page when it has none or [startPage]. */
+    private fun enterTab(startPage: Boolean = false) {
         val tab = tabs.current
         progress.animate().cancel()
         progress.visibility = if (tab.loading) View.VISIBLE else View.GONE
@@ -298,7 +305,9 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         if (cursor.scrollMode) cursor.setScrollMode(false)
         cursor.cursorEnabled = Browser.hostOf(tab.address)?.let { !prefs.keysToPage(it) } ?: true
         video.onPlaying(browser.playing)
-        if (tab.address == null) showHome() else showPage()
+        if (startPage || tab.address == null) showHome() else showPage()
+        // Back on a tab whose page is still a blocked site's stand-in: its block screen again, not a blank page.
+        if (!homeShown) web?.url?.let { url -> browser.adBlocker.siteListed(url)?.let { dialogs.siteBlocked(url, it, replaced = true) } }
         tabs.trim()
     }
 
@@ -308,16 +317,47 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
     }
 
     override fun openInNewTab(url: String) {
+        if (blockedFirst(url) { openInNewTab(url) }) return
         val tab = tabs.add(after = tabs.current) ?: return toast(resources.getQuantityString(R.plurals.tabs_full, Tabs.MAX, Tabs.MAX))
         openInTab(tab, url)
     }
 
     /** Opens [url] in [tab]: a new one when null, or the tab in sight when the side is full. */
     private fun openInTab(tab: Tab?, url: String) {
+        val from = if (homeShown) LinkFrom.START_PAGE else LinkFrom.PAGE
         val target = tab ?: tabs.add(after = tabs.current) ?: tabs.current
+        val made = target !== tabs.current && target.address == null
         if (target !== tabs.current) { leaveTab(); tabs.select(target) }
         openUrl(url)
+        if (made) target.linkFrom = from
         tabs.trim()
+    }
+
+    /**
+     * A link from outside the page in sight (another app's, Open in new tab) to a site a Site filters list blocks: the
+     * block screen comes over what's in sight, and [open] makes the tab only once the user allows the site. False when
+     * no list blocks it (or the lists aren't loaded yet: then the page's own check, which waits for them, does).
+     */
+    private fun blockedFirst(url: String, open: () -> Unit): Boolean {
+        val list = browser.adBlocker.siteListed(url) ?: return false
+        if (homeShown) showHome()
+        dialogs.siteBlocked(url, list, replaced = false, allowed = open)
+        return true
+    }
+
+    override fun leaveBlocked() {
+        if (browser.backPastBlocked()) return
+        val tab = tabs.current
+        val from = tab.linkFrom
+        if (from != null) {
+            leaveTab()
+            tabs.close(tab)
+            enterTab(startPage = from == LinkFrom.START_PAGE)
+        } else {
+            // Back on the start page mustn't bring the stand-in back, nor the next start remember it.
+            tab.clear()
+            showHome()
+        }
     }
 
     /** Closes [which]; when the tab in sight is among them, the one seen before it comes into sight. */
@@ -749,7 +789,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         applyKeepAwake()
         downloads.stopFollowing()
         // For "Where I left off": the TV may close Sofa in the background without another word.
-        prefs.lastPage = OpenAtStart.toRemember(prefs.openAtStart, if (homeShown) null else web?.url, tabs.current.private, prefs.clearOnExit)
+        prefs.lastPage = OpenAtStart.toRemember(prefs.openAtStart, if (homeShown) null else tabs.current.savedAddress, tabs.current.private, prefs.clearOnExit)
         // The normal tabs too, for the same reason; private ones never.
         prefs.tabs = if (prefs.clearOnExit) "" else tabs.saved()
         super.onStop()

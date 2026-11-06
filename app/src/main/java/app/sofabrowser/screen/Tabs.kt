@@ -21,6 +21,12 @@ class Tab(private: Boolean, newBrowser: (Tab, Boolean) -> Browser) {
     var loading = false
     /** The page's zoom, in steps of 25 % from where it loaded. */
     var zoomStep = 0
+    /**
+     * Made to open a link from outside its own page (another app's, Open in new tab), and over what: null for any other
+     * tab, or once the user opens something else in it. With nothing else to go back to, such a tab closes when its
+     * link turns out blocked, and what was in sight comes back.
+     */
+    var linkFrom: LinkFrom? = null
 
     private var keptAddress: String? = null
     private var keptTitle: String? = null
@@ -30,6 +36,8 @@ class Tab(private: Boolean, newBrowser: (Tab, Boolean) -> Browser) {
     val live get() = browser.web != null
     /** The page's address, loaded or not; null for a tab that shows only the start page. */
     val address: String? get() = browser.web?.url?.takeIf { it.isNotEmpty() } ?: keptAddress
+    /** [address] as Sofa saves it: never a blocked site's stand-in, but the page before it in the tab, if any. */
+    val savedAddress: String? get() = address?.let(browser::unblocked)
     val title: String? get() = (if (live) browser.web?.title else keptTitle)?.takeIf { it.isNotBlank() }
 
     /** A tab that comes back from the saved list: its address only, loaded when chosen. */
@@ -68,7 +76,17 @@ class Tab(private: Boolean, newBrowser: (Tab, Boolean) -> Browser) {
         browser.destroy()
         forget()
     }
+
+    /** The tab keeps only the start page: its page and WebView go (the next address makes another one). */
+    fun clear() {
+        close()
+        loading = false
+        linkFrom = null
+    }
 }
+
+/** What was in sight when a tab was made for a link ([Tab.linkFrom]). */
+enum class LinkFrom { PAGE, START_PAGE }
 
 /**
  * The tabs of both sides: normal browsing, and private browsing, kept apart. Only one side shows at a time; while the
@@ -144,7 +162,7 @@ class Tabs(private val context: Context, private val prefs: Prefs, private val n
     /** The normal tabs, as Settings keeps them (`tabs`). */
     fun saved(): String {
         val tabs = normal.items
-        return TabList.encode(tabs.map { it.address.orEmpty() }, tabs.indexOf(normal.current))
+        return TabList.encode(tabs.map { it.savedAddress.orEmpty() }, tabs.indexOf(normal.current))
     }
 
     /** Brings back the normal tabs [saved] wrote, unloaded; nothing when there are tabs already. */

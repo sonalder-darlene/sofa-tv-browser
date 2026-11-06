@@ -513,6 +513,34 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
     /** Reloads a page whose site the user just allowed from the block screen: unlike a plain reload, a visit. */
     fun reloadAllowed() { allowedReload = web?.url; reload() }
 
+    /** The page has an entry in its back list: something loaded, even if only a blocked site's stand-in. */
+    val hasPage: Boolean get() = (web?.copyBackForwardList()?.size ?: 0) > 0
+
+    private fun backList(): Pair<List<String?>, Int>? = web?.copyBackForwardList()?.let { list ->
+        (0 until list.size).map { list.getItemAtIndex(it)?.url } to list.currentIndex
+    }
+
+    private fun blockedSite(url: String) = adBlocker.siteListed(url) != null
+
+    /** Goes back to the newest page before this one that no Site filters list blocks; false when there is none. */
+    fun backPastBlocked(): Boolean {
+        val (urls, at) = backList() ?: return false
+        val steps = BlockedHistory.back(urls, at, ::blockedSite) ?: return false
+        guard.userNavigation()
+        web?.goBackOrForward(steps)
+        return true
+    }
+
+    /**
+     * [url] as Sofa remembers the page (saved tabs, "Where I left off"): when a Site filters list blocks it, the newest
+     * page before it in this tab that none blocks, or null.
+     */
+    fun unblocked(url: String): String? {
+        if (!blockedSite(url)) return url
+        val (urls, at) = backList() ?: return null
+        return BlockedHistory.kept(urls, at, ::blockedSite)
+    }
+
     /** Whether ad blocking (and with it pop-up and redirect blocking) applies to pages from [pageHost]. */
     private fun blocking(pageHost: String?) = prefs.adBlock && (pageHost == null || !Allowlist.contains(context, pageHost))
 

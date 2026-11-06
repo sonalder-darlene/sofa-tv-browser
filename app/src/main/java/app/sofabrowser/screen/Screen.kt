@@ -51,6 +51,11 @@ interface Screen {
     fun selectTab(tab: Tab)
     fun closeTabs(which: List<Tab>)
     fun showHome()
+    /**
+     * Go back from a blocked site's stand-in: to the newest page in the tab that no list blocks; with none, a tab made
+     * for the link closes and what was in sight comes back, and any other tab keeps only the start page.
+     */
+    fun leaveBlocked()
     fun startSearch(voice: Boolean, current: String?)
     fun openList(mode: String)
     fun openSettings()

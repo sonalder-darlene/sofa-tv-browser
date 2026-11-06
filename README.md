@@ -142,9 +142,9 @@ when ad blocking is off. Each category is off until you turn it on, and its list
 - **Drugs:** the Block List Project's list. It is updated rarely and also blocks some sites about medicines.
 - **Your lists:** any list of domains or hosts file, by its address.
 
-A blocked site shows which list blocked it, with **Go back** and **Allow this site**; Settings → Site filters →
-Allowed sites takes an allowed site back. In private browsing an allowed site stays allowed only until private
-browsing ends, and it is not kept or listed. The lists are written by their authors and miss sites: a filter, not a
+A blocked site shows which list blocked it, with **Go back** (to the last page that isn't blocked) and **Allow this
+site**; Settings → Site filters → Allowed sites takes an allowed site back. In private browsing an allowed site stays
+allowed only until private browsing ends, and it is not kept or listed. The lists are written by their authors and miss sites: a filter, not a
 guarantee.
 
 ### Parental PIN

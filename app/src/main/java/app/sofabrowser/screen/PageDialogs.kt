@@ -51,32 +51,42 @@ class PageDialogs(private val s: Screen) {
     /**
      * The block screen: the site and the list that blocks it. "Go back" (focused) and Back leave it; "Allow this site"
      * lets the site through from now on (Settings > Site filters > Allowed sites takes it back),
-     * or in private browsing until it ends.
+     * or in private browsing until it ends. [replaced]: the stand-in took the page's place; otherwise nothing loaded.
+     * [allowed] opens the site once allowed, when the block screen came before anything was opened for it.
      */
-    fun siteBlocked(url: String, list: FilterList, replaced: Boolean) {
+    fun siteBlocked(url: String, list: FilterList, replaced: Boolean, allowed: (() -> Unit)? = null) {
         if (activity.isFinishing) return
         siteBlock?.dismiss()
         val site = Sites.of(Browser.hostOf(url)?.lowercase() ?: url)
         fun leave() {
-            // Nothing to go back to: the page was the first one opened from the home screen.
-            if (replaced) { if (s.web?.canGoBack() == true) s.browser.goBack() else s.showHome() }
-            else if (s.web?.url == null) s.showHome()
+            // A link the page didn't follow leaves it where it was; only a tab with no page of its own has to go.
+            if (replaced || !s.browser.hasPage) s.leaveBlocked()
         }
         siteBlock = s.dialog().setTitle(R.string.site_blocked_title)
             .setMessage(activity.getString(R.string.site_blocked_text, site, SettingsActivity.siteListName(activity, list)))
             .setPositiveButton(R.string.go_back) { _, _ -> leave() }
             .setNegativeButton(R.string.allow_this_site) { _, _ ->
                 // Not entered: back to the block screen, with Go back in focus.
-                PinPad.guard(activity, R.string.pin_title_allow_site, cancelled = { siteBlocked(url, list, replaced) }) {
+                PinPad.guard(activity, R.string.pin_title_allow_site, cancelled = { siteBlocked(url, list, replaced, allowed) }) {
                     val private = s.browser.privateMode
                     SiteAllowlist.allow(activity, Browser.hostOf(url) ?: site, private)
                     s.toast(activity.getString(if (private) R.string.site_allowed_private else R.string.site_allowed, site))
-                    if (replaced && s.web?.url == url) s.browser.reloadAllowed() else s.openUrl(url)
+                    when {
+                        replaced && s.web?.url == url -> s.browser.reloadAllowed()
+                        allowed != null -> allowed()
+                        else -> s.openUrl(url)
+                    }
                 }
             }
             .setOnCancelListener { leave() }
             .show()
             .also { it.getButton(AlertDialog.BUTTON_POSITIVE)?.requestFocus() }
+    }
+
+    /** Takes the block screen away without leaving: another tab or address came into sight in front of it. */
+    fun dismissBlocked() {
+        siteBlock?.dismiss()
+        siteBlock = null
     }
 
     /** Once per WebView version, and again every few months: Sofa can't update the engine, only say so. */
