@@ -8,7 +8,8 @@
   three sizes, "More sites" recommended), unsafe sites (fake downloads and malware) and drugs, or any list of
   domains by its address. A blocked site is stopped however you reach it, a typed address, a bookmark, a link or a
   redirect, and so is anything a page loads from it, with ad blocking on or off. The block screen names the list
-  and offers Go back or Allow this site; Allowed sites in Settings takes a site back.
+  and offers Go back or Allow this site; Allowed sites in Settings takes a site back. In private browsing an
+  allow lasts only until private browsing ends and is never stored.
 - Reading a large list takes far less memory than before, which also helps the ad lists.
 
 **Custom DNS**
@@ -68,6 +69,8 @@
 - When the TV's decoder can't play a picture, the notice adds that another app may play it with "Play in…".
 - A TV without a working Android System WebView now gets a screen that says so and what to look for, instead of
   Sofa closing at once.
+- Turning ad blocking off for one site in private browsing lasts only until private browsing ends and is never
+  stored, like a site let through Site filters there.
 
 ## 1.2.2 (2026-10-30)
 

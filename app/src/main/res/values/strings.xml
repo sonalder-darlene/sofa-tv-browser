@@ -78,6 +78,7 @@
         <item quantity="other">Ad block: on here · %d blocked</item>
     </plurals>
     <string name="adblock_site_disabled">Ad blocking turned off for this site</string>
+    <string name="adblock_site_disabled_private">Ad blocking turned off for this site until you leave private browsing</string>
     <string name="adblock_site_enabled">Ad blocking turned on for this site</string>
     <string name="adblock_globally_off">Ad blocking is turned off in Settings</string>
     <string name="watch">Watch</string>
@@ -303,6 +304,7 @@
     <string name="go_back">Go back</string>
     <string name="allow_this_site">Allow this site</string>
     <string name="site_allowed">%s allowed</string>
+    <string name="site_allowed_private">%s allowed until you leave private browsing</string>
     <string name="dns">DNS</string>
     <string name="dns_intro">DNS turns a site\'s name into the address Sofa connects to. Sofa uses your TV\'s own DNS unless you choose a service here. These services use DNS over HTTPS: lookups are encrypted, so the network can\'t read or change them, but the service you choose sees the name of every site Sofa opens. Covers pages, Sofa Player, downloads and list updates.</string>
     <string name="dns_main">Main DNS</string>

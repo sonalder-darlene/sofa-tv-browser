@@ -24,7 +24,9 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.webkit.WebViewFeature
+import app.sofabrowser.adblock.Allowlist
 import app.sofabrowser.adblock.FilterList
+import app.sofabrowser.adblock.SiteAllowlist
 import app.sofabrowser.adblock.Sites
 import app.sofabrowser.browser.Browser
 import app.sofabrowser.browser.CursorLayout
@@ -130,6 +132,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         // Private mode is a session: a cold start always begins in normal mode, with nothing left over.
         prefs.privateMode = false
         Browser.deletePrivateProfile()
+        forgetPrivateAllows()
         // Copies for other players are needed only while one starts; a kill or crash may have left some.
         StreamCopyProvider.clear(this)
         browser = Browser(this, prefs, this)
@@ -386,6 +389,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         // Stream copies hold what was watched (signed stream addresses); none outlives either side of the switch.
         StreamCopyProvider.clear(this)
         video.takeover.forgetPrivateChoices()
+        forgetPrivateAllows()
         prefs.privateMode = entering
         if (entering) {
             dialog().setTitle(R.string.private_mode)
@@ -646,12 +650,19 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
                 WebViews.clearBrowsingData(this, null)
                 if (prefs.clearOnExit) { db.clearHistory(); resumeStore(this).clear() }
             }
+            forgetPrivateAllows()
             prefs.privateMode = false
         }
         super.onDestroy()
     }
 
     // Helpers
+
+    /** What private browsing let through (sites in Site filters, ads on a site) lasts only as long as it. */
+    private fun forgetPrivateAllows() {
+        SiteAllowlist.forgetPrivate()
+        Allowlist.forgetPrivate()
+    }
 
     override fun toast(res: Int) = Toast.makeText(this, res, Toast.LENGTH_SHORT).show()
 

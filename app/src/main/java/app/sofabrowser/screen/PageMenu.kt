@@ -120,8 +120,12 @@ class PageMenu(private val s: Screen, private val watch: Watch) : BrowserMenu.Ac
                 if (!prefs.adBlock) { s.toast(R.string.adblock_globally_off); return }
                 val allowed = !Allowlist.contains(activity, host)
                 fun apply() {
-                    Allowlist.set(activity, host, allowed)
-                    s.toast(if (allowed) R.string.adblock_site_disabled else R.string.adblock_site_enabled)
+                    Allowlist.set(activity, host, allowed, browser.privateMode)
+                    s.toast(when {
+                        !allowed -> R.string.adblock_site_enabled
+                        browser.privateMode -> R.string.adblock_site_disabled_private
+                        else -> R.string.adblock_site_disabled
+                    })
                     dismiss()
                     browser.reload()
                 }

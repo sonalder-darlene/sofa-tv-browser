@@ -50,7 +50,8 @@ class PageDialogs(private val s: Screen) {
 
     /**
      * The block screen: the site and the list that blocks it. "Go back" (focused) and Back leave it; "Allow this site"
-     * lets the site through from now on (Settings > Site filters > Allowed sites takes it back).
+     * lets the site through from now on (Settings > Site filters > Allowed sites takes it back),
+     * or in private browsing until it ends.
      */
     fun siteBlocked(url: String, list: FilterList, replaced: Boolean) {
         if (activity.isFinishing) return
@@ -67,8 +68,9 @@ class PageDialogs(private val s: Screen) {
             .setNegativeButton(R.string.allow_this_site) { _, _ ->
                 // Not entered: back to the block screen, with Go back in focus.
                 PinPad.guard(activity, R.string.pin_title_allow_site, cancelled = { siteBlocked(url, list, replaced) }) {
-                    SiteAllowlist.allow(activity, Browser.hostOf(url) ?: site)
-                    s.toast(activity.getString(R.string.site_allowed, site))
+                    val private = s.browser.privateMode
+                    SiteAllowlist.allow(activity, Browser.hostOf(url) ?: site, private)
+                    s.toast(activity.getString(if (private) R.string.site_allowed_private else R.string.site_allowed, site))
                     if (replaced && s.web?.url == url) s.browser.reloadAllowed() else s.openUrl(url)
                 }
             }

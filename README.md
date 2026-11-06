@@ -123,7 +123,7 @@ Everything is matched on the TV; nothing about your browsing leaves it.
   few days by itself; it asks at first start, and EasyList and EasyPrivacy, which change every few days, are best
   kept that way.
 - **Per site:** the Ad block button in the menu switches all of this off for one site and shows how much was
-  blocked on the page.
+  blocked on the page. In private browsing that switch lasts only until private browsing ends and is not kept.
 
 ### Site filters
 
@@ -139,7 +139,8 @@ when ad blocking is off. Each category is off until you turn it on, and its list
 - **Your lists:** any list of domains or hosts file, by its address.
 
 A blocked site shows which list blocked it, with **Go back** and **Allow this site**; Settings → Site filters →
-Allowed sites takes an allowed site back. The lists are written by their authors and miss sites: a filter, not a
+Allowed sites takes an allowed site back. In private browsing an allowed site stays allowed only until private
+browsing ends, and it is not kept or listed. The lists are written by their authors and miss sites: a filter, not a
 guarantee.
 
 ### Parental PIN

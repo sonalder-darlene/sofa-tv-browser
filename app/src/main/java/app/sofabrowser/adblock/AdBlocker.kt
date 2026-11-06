@@ -18,6 +18,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -508,35 +509,56 @@ class AdBlocker private constructor(private val context: Context) {
     }
 }
 
-/** Sites where the user switched ad blocking off. */
+/**
+ * Sites where the user switched ad blocking off. A switch in private browsing, either way, is kept in memory only and
+ * counts over the stored one until private browsing ends, so nothing of it is stored.
+ */
 object Allowlist {
     private const val PREFS = "adblock_allowlist"
 
-    fun contains(context: Context, host: String): Boolean =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).contains(normalize(host))
+    private val privateChoices = ConcurrentHashMap<String, Boolean>()
 
-    fun set(context: Context, host: String, allowed: Boolean) {
+    fun contains(context: Context, host: String): Boolean = normalize(host).let {
+        privateChoices[it] ?: context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).contains(it)
+    }
+
+    fun set(context: Context, host: String, allowed: Boolean, private: Boolean) {
+        if (private) { privateChoices[normalize(host)] = allowed; return }
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().apply {
             if (allowed) putBoolean(normalize(host), true) else remove(normalize(host))
         }.apply()
     }
 
+    /** Private browsing ended (or began, or Sofa started): its switches go. */
+    fun forgetPrivate() = privateChoices.clear()
+
     private fun normalize(host: String) = host.lowercase().removePrefix("www.")
 }
 
-/** Sites the user let through from the block screen, though a Site filters list blocks them: by registrable domain. */
+/**
+ * Sites the user let through from the block screen, though a Site filters list blocks them: by registrable domain.
+ * Those allowed in private browsing are kept in memory only, until private browsing ends, so nothing of it is stored.
+ */
 object SiteAllowlist {
     private const val PREFS = "site_filters_allowed"
 
+    private val privateSites: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    fun contains(context: Context, host: String): Boolean = prefs(context).contains(Sites.of(host.lowercase()))
+    fun contains(context: Context, host: String): Boolean =
+        Sites.of(host.lowercase()).let { it in privateSites || prefs(context).contains(it) }
 
-    /** Allows the site [host] is on; returns that site's domain. */
-    fun allow(context: Context, host: String): String =
-        Sites.of(host.lowercase()).also { prefs(context).edit().putBoolean(it, true).apply() }
+    /** Allows the site [host] is on, stored or, in [private] browsing, only until it ends; returns that site's domain. */
+    fun allow(context: Context, host: String, private: Boolean): String = Sites.of(host.lowercase()).also {
+        if (private) privateSites += it else prefs(context).edit().putBoolean(it, true).apply()
+    }
+
+    /** Private browsing ended (or began, or Sofa started): what it allowed is blocked again. */
+    fun forgetPrivate() = privateSites.clear()
 
     fun remove(context: Context, site: String) = prefs(context).edit().remove(site).apply()
 
+    /** The stored allows, as Settings lists them; private browsing's are not among them. */
     fun all(context: Context): List<String> = prefs(context).all.keys.sorted()
 }
