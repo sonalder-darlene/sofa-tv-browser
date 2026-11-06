@@ -105,6 +105,9 @@
         <activity
             android:name=".ui.SetupActivity"
             android:exported="false" />
+        <activity
+            android:name=".ui.NoEngineActivity"
+            android:exported="false" />
 
         <!-- Told by Android's chooser which player was picked for "Play in…". -->
         <receiver

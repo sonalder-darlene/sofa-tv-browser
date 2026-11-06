@@ -106,6 +106,12 @@ object WebViews {
         (WebViewAge.major(null, ua)?.toString() ?: "140").also { chromeMajor = it }
     }
 
+    /**
+     * Whether Android can load a WebView at all. It can be missing, turned off, or one the system refuses (some TV
+     * boxes), and then every WebView call throws. Loading it here costs nothing extra: the first page needs it anyway.
+     */
+    fun usable(context: Context): Boolean = runCatching { WebSettings.getDefaultUserAgent(context) }.isSuccess
+
     /** The installed WebView: its package version name ("" when unknown) and Chromium major version. */
     data class Engine(val version: String, val major: Int?) {
         /** For people: the full version when it is Google's format, else just the major one. */

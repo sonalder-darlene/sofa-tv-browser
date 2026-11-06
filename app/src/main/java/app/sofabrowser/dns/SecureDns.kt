@@ -50,7 +50,8 @@ object SecureDns {
         servers = chosen
         unused = when {
             chosen.isEmpty() -> null
-            !WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE) -> Unused.NO_WEBVIEW_SUPPORT
+            // Throws when the TV has no WebView Android can load (Sofa then says so, NoEngineActivity).
+            !runCatching { WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE) }.getOrDefault(false) -> Unused.NO_WEBVIEW_SUPPORT
             networkProxy() -> Unused.NETWORK_PROXY
             else -> null
         }

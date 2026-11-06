@@ -56,6 +56,7 @@ import app.sofabrowser.ui.DownloadsActivity
 import app.sofabrowser.ui.FindBar
 import app.sofabrowser.ui.VoiceInput
 import app.sofabrowser.ui.HomeView
+import app.sofabrowser.ui.NoEngineActivity
 import app.sofabrowser.ui.OpenAtStart
 import app.sofabrowser.ui.ListActivity
 import app.sofabrowser.ui.Palette
@@ -117,6 +118,12 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Nothing here works without a WebView: say so rather than close at once.
+        if (!WebViews.usable(this)) {
+            startActivity(Intent(this, NoEngineActivity::class.java))
+            finish()
+            return
+        }
         Ui.init(this)
         palette = Ui.p
         prefs = Prefs(this)
@@ -521,7 +528,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        video.onUserLeaveHint()
+        // Also called when onCreate hands over to NoEngineActivity, with nothing set up.
+        if (::prefs.isInitialized) video.onUserLeaveHint()
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
@@ -624,6 +632,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
     }
 
     override fun onDestroy() {
+        // Closed in onCreate because there was no WebView: nothing was set up.
+        if (!::prefs.isInitialized) return super.onDestroy()
         // A screen rebuilt for a theme change must not have this one pause its timers afterwards.
         browserLayer.removeCallbacks(pauseTimers)
         voiceInput.destroy()

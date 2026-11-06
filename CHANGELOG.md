@@ -56,6 +56,8 @@
 **Smaller things**
 
 - "Continue from" goes as soon as the video reaches that place, whether it played there or you skipped ahead.
+- A TV without a working Android System WebView now gets a screen that says so and what to look for, instead of
+  Sofa closing at once.
 
 ## 1.2.2 (2026-10-30)
 

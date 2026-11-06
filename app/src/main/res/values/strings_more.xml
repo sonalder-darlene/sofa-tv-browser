@@ -272,4 +272,9 @@
     <string name="bg_nebula">Nebula</string>
     <string name="bg_meadow">Meadow</string>
     <string name="bg_steel">Steel</string>
+
+    <!-- No web engine: shown instead of the browser when Android can't load any WebView -->
+    <string name="no_engine_title">Sofa can\'t show web pages on this TV</string>
+    <string name="no_engine_text">Sofa shows pages with the web engine that comes with your TV, Android System WebView, and this TV has none that works: it may be missing or turned off. Look for \"Android System WebView\" in your TV\'s app store, or in Settings → Apps with system apps shown, and install it or turn it on. Then open Sofa again.</string>
+    <string name="no_engine_close">Close Sofa</string>
 </resources>
