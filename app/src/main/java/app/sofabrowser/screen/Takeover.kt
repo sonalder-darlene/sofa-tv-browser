@@ -277,6 +277,7 @@ class Takeover(private val s: Screen, private val video: VideoSession) {
             // ("AV1 3840 × 2160" and the decoder's name): enough for a report, over the video every time.
             val name = reason.removePrefix("ERROR_CODE_").lowercase().replace('_', ' ')
             val why = activity.getString(R.string.sofa_player_failed, detail?.let { "$name: $it" } ?: name)
+                .let { if (reason.startsWith(DECODER_ERROR)) withPlayInHint(it) else it }
             val shown = on
             if (shown) backToPage(play = true)
             notForPlayer(why, once = false)
@@ -290,7 +291,7 @@ class Takeover(private val s: Screen, private val video: VideoSession) {
                 SofaPlayer.Step.FAILED -> R.string.sofa_player_stepped_down
                 SofaPlayer.Step.SOFTWARE -> R.string.sofa_player_stepped_down_software
                 SofaPlayer.Step.STUTTER -> R.string.sofa_player_stepped_down_stutter
-            }, failed, now)
+            }, failed, now).let { if (why == SofaPlayer.Step.FAILED) withPlayInHint(it) else it }
             steppedDown = text
             streamLog(text)
             if (inFullscreen) fullscreen.notice(text)
@@ -423,6 +424,12 @@ class Takeover(private val s: Screen, private val video: VideoSession) {
         }.show()
     }
 
+    /**
+     * A notice about a picture the TV's own decoder couldn't play, with the hint that another app may: players such
+     * as VLC bring decoders of their own.
+     */
+    private fun withPlayInHint(text: String) = "$text ${activity.getString(R.string.play_in_hint)}"
+
     /** Video info while Sofa Player plays. */
     fun info(): String {
         val lines = player.info()
@@ -434,10 +441,12 @@ class Takeover(private val s: Screen, private val video: VideoSession) {
         }
         return (listOfNotNull(activity.getString(R.string.sofa_player), steppedDown) +
             lines.zip(labels).mapNotNull { (line, label) -> line?.let { activity.getString(label, it) } } +
-            rate + "" + video.displayInfo(player = true)).joinToString("\n")
+            rate + "" + video.displayInfo(player = true) + video.decoderInfo()).joinToString("\n")
     }
 
     private companion object {
+        /** Media3's decoder errors by name: ERROR_CODE_DECODER_INIT_FAILED, ERROR_CODE_DECODING_FAILED and the like. */
+        const val DECODER_ERROR = "ERROR_CODE_DECOD"
         /** Seconds: shorter videos (trailers, previews, ads) stay with the page's player. */
         const val SHORT_FOR_PLAYER = 60.0
         /** Seconds of the end the page's video plays itself after Sofa Player finished, so the site sees the end. */

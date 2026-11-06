@@ -116,6 +116,8 @@
     <string name="sofa_player_stepped_down">%1$s didn\'t play on this TV. Sofa Player plays %2$s.</string>
     <string name="sofa_player_stepped_down_software">No hardware decoder was free for %1$s. Sofa Player plays %2$s.</string>
     <string name="sofa_player_stepped_down_stutter">%1$s stuttered on this TV. Sofa Player plays %2$s.</string>
+    <!-- Added to a notice when the TV's own decoder failed: an app with its own decoders may manage. -->
+    <string name="play_in_hint">Another app may play it: try \"Play in…\".</string>
     <string name="sofa_player_why_short">Sofa Player: not used for videos under a minute.</string>
     <string name="sofa_player_why_no_video">Sofa Player couldn\'t find this video on the page. The site\'s player plays it.</string>
     <string name="sofa_player_why_protected">Protected video (DRM): only the site\'s player can play it.</string>
@@ -140,6 +142,12 @@
     <string name="video_info_sound">Sound: %s</string>
     <string name="decoder_hardware">%s (hardware)</string>
     <string name="decoder_software">%s (software)</string>
+    <!-- Video info: what the TV says each codec's decoders take. %1$s: "AV1", %2$s: the decoders, e.g. "hardware up to 3840 × 2160 at 60 fps, software up to 1920 × 1080 at 30 fps". -->
+    <string name="video_info_tv_decoder">%1$s decoders on this TV: %2$s</string>
+    <string name="tv_decoder_hardware">hardware up to %s</string>
+    <string name="tv_decoder_software">software up to %s</string>
+    <string name="tv_decoder_rate">%1$s at %2$d fps</string>
+    <string name="tv_decoder_none">none</string>
     <string name="video_info_display_player">Display: panel %3$d × %4$d, the video drawn at the panel\'s own resolution (app window %1$d × %2$d)</string>
 
     <!-- Parental PIN -->

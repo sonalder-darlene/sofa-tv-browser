@@ -56,6 +56,9 @@
 **Smaller things**
 
 - "Continue from" goes as soon as the video reaches that place, whether it played there or you skipped ahead.
+- Video info ends with the TV's own decoders: for AV1, HEVC, VP9 and H.264, the largest picture its hardware and
+  software decoders take, as the TV reports it.
+- When the TV's decoder can't play a picture, the notice adds that another app may play it with "Play in…".
 - A TV without a working Android System WebView now gets a screen that says so and what to look for, instead of
   Sofa closing at once.
 
