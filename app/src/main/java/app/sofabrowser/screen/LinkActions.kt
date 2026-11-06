@@ -51,6 +51,7 @@ class LinkActions(private val s: Screen, private val downloads: DownloadStarter)
         val actions = LinkMenu.actions(link, image)
         if (actions.isEmpty()) return false
         val labels = actions.map { activity.getString(when (it) {
+            LinkMenu.Action.OPEN_NEW_TAB -> R.string.link_open_new_tab
             LinkMenu.Action.OPEN_ELSEWHERE -> R.string.link_open_elsewhere
             LinkMenu.Action.COPY_LINK -> R.string.link_copy
             LinkMenu.Action.SHARE_LINK -> R.string.link_share
@@ -69,6 +70,7 @@ class LinkActions(private val s: Screen, private val downloads: DownloadStarter)
 
     private fun act(action: LinkMenu.Action, link: String, image: String) {
         when (action) {
+            LinkMenu.Action.OPEN_NEW_TAB -> s.openInNewTab(link)
             LinkMenu.Action.OPEN_ELSEWHERE -> openElsewhere(link)
             LinkMenu.Action.COPY_LINK -> copy(link, R.string.link_copied)
             LinkMenu.Action.SHARE_LINK -> share(link)

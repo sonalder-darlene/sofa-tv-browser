@@ -6,7 +6,9 @@ called Sofa.
 ![Sofa's home screen: search, top-bar buttons, quick-access tiles and most visited sites](fastlane/metadata/android/en-US/images/tvScreenshots/1.png)
 
 - **A mouse pointer on the D-pad**, with hover, drag, and scrolling by pushing against the screen edge. Hold OK
-  on a link or image to open it in another app, copy or share its address, or download it.
+  on a link or image to open it in a new tab or another app, copy or share its address, or download it.
+- **Tabs**, in a strip at the top of the menu: up to 10, with private ones kept apart. Only the tab you look at
+  runs; the others wait, and on a TV short of memory their pages load again when you come back to them.
 - **Game pads** (Xbox, PlayStation, 8BitDo and others): the left stick moves the pointer, the right stick scrolls,
   and the buttons work as in a console browser. Settings → Game controller shows them all.
 - **A menu on the Back key**: address, Watch, back and forward, find in page, bookmarks, history, zoom, ad
@@ -67,8 +69,10 @@ Copies installed by an app store or by Obtainium never offer this; the store kee
 - **Blending in:** few browsers send Do Not Track and desktop Chrome is the most common browser, so Sofa sends no
   Do Not Track and uses a desktop Chrome user agent by default. Global Privacy Control can be turned on in Settings.
 - **Pages get nothing extra:** no camera, microphone, location or files.
-- **Private browsing** uses a separate WebView profile that is deleted afterwards. On TVs whose WebView is too old
-  for that, it keeps no history and erases site data when it ends.
+- **Private browsing** has its own tabs, in a separate WebView profile that is deleted afterwards. On TVs whose
+  WebView is too old for that, it keeps no history and erases site data when it ends.
+- **Tabs** come back after a restart as addresses only: never private ones, and none with "Clear browsing data on
+  exit".
   A video handed to another app (Play in…) may stay in that app's own history, which Sofa can't erase.
 - **History** is kept for as long as you choose: 7, 30 or 90 days (the default), always or never.
 - **WebView reporting:** usage reports to Google are off, and so are Safe Browsing lookups unless you turn them on.
@@ -110,10 +114,10 @@ Everything is matched on the TV; nothing about your browsing leaves it.
   lists takes any other list by its address, in hosts, Adblock Plus or uBlock Origin format, and switches each list
   on or off.
 - **Element hiding** removes the empty boxes and banners that blocked ads leave, also when a page adds them later.
-- **Pop-ups:** with one view and no tabs, a pop-up would replace the page you were on. Sofa blocks windows a page
-  opens without a press, windows to listed ad sites, windows a script opens to another site when you didn't press a
-  link to it, and the invisible links pop-under networks lay over a page. Pages that send you to a listed ad site
-  on their own are stopped too. The menu's "Allow once" opens the last thing blocked. This also stops buttons
+- **Pop-ups:** a window a page opens replaces the page in its tab (only you open new tabs). Sofa blocks windows a
+  page opens without a press, windows to listed ad sites, windows a script opens to another site when you didn't
+  press a link to it, and the invisible links pop-under networks lay over a page. Pages that send you to a listed ad
+  site on their own are stopped too. The menu's "Allow once" opens the last thing blocked. This also stops buttons
   (not links) that open another site's window on purpose, such as some "Sign in with…", payment or "Watch on
   YouTube" buttons: press the button, then "Allow once".
 - **Certificate warnings:** only the page you are on, or the one it is taking you to, can ask whether to go on
@@ -222,7 +226,7 @@ the TV's settings or removing Sofa.
 
 ## Not there yet
 
-Tabs, reader mode, typing from a phone, translations, and user scripts (planned: [docs/user-scripts.md](docs/user-scripts.md)).
+Reader mode, typing from a phone, translations, and user scripts (planned: [docs/user-scripts.md](docs/user-scripts.md)).
 
 ## For developers
 

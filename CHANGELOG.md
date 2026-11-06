@@ -61,6 +61,24 @@
   site meanwhile, it stays where it was; when you come back, a notice names the site and Allow once in the menu
   opens it. Back to the page resumes its sound; videos stay paused where they were.
 
+**Tabs**
+
+- **Tabs in the menu**: a strip next to the address, at the top of the menu. New tab opens the start page in a tab
+  of its own; OK on a tab brings it up; OK on the tab you are on, or holding OK on any tab, closes it, the others
+  or all of them. Hold OK on a link for "Open in new tab". Up to 10 tabs.
+- **Light on memory**: only the tab you look at runs. The others rest like a page behind the start page: no sound,
+  videos paused, nothing opened on their own. Past what the TV has room for, or when Android runs short of memory,
+  a tab's page is unloaded, and loads again with its back and forward history when you come back to it.
+- **Private tabs kept apart**: private browsing has its own tabs, and your normal tabs wait until it ends.
+- **Tabs come back after a restart**, as addresses only: never private tabs, and none with "Clear browsing data on
+  exit". Each page loads when you choose its tab. Open at start still decides what shows first: the start page,
+  your web page (in a tab of its own, the same one each time), or the tab you were on.
+- A link sent from another app opens in a new tab, so the page you had stays. Back on the start page of a new tab
+  you didn't use closes it again.
+- A window a page opens still replaces the page in its tab, so the pop-up blocker and "Allow once" work as before.
+- Fixed: private browsing's cookies, site storage and cache are erased as soon as it ends, not at the next start,
+  and a second private session in the same run no longer finds the first one's cookies.
+
 **Smaller things**
 
 - "Continue from" goes as soon as the video reaches that place, whether it played there or you skipped ahead.

@@ -142,6 +142,11 @@ class Prefs(context: Context) {
      * settings export never carries it. Empty with any other choice.
      */
     var lastPage by string("last_page", "")
+    /**
+     * The normal tabs' addresses and which one was in sight (TabList.encode), for the next start. Never private tabs,
+     * nothing with "Clear data on exit", and, like [lastPage], never in a settings export.
+     */
+    var tabs by string("tabs", "")
     /** What the start page is drawn on (HomeBackground.encode); "" is the theme's own background. A setting, like [menuButtons]. */
     var homeBackground by string("home_background", "")
     /** How much a picture on the start page is veiled (a HomeBackground.Dim id). */

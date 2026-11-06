@@ -24,7 +24,9 @@ import app.sofabrowser.ui.px
 interface Screen {
     val activity: Activity
     val prefs: Prefs
-    /** The page in sight, or resting behind the start page. */
+    /** The tabs of the side in sight (normal or private browsing). */
+    val tabs: Tabs
+    /** The page in sight, or resting behind the start page: the one of [Tabs.current]. */
     val browser: Browser
     val web: WebView? get() = browser.web
     val cursor: CursorLayout
@@ -40,7 +42,14 @@ interface Screen {
     /** The page in sight is loading. */
     val loading: Boolean
 
+    /** Opens [url] in the tab in sight. */
     fun openUrl(url: String)
+    /** Opens [url] in a new tab next to the one in sight, and brings it into sight. */
+    fun openInNewTab(url: String)
+    /** A new empty tab, with the start page. */
+    fun newTab()
+    fun selectTab(tab: Tab)
+    fun closeTabs(which: List<Tab>)
     fun showHome()
     fun startSearch(voice: Boolean, current: String?)
     fun openList(mode: String)

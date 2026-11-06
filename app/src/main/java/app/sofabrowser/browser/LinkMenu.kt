@@ -3,13 +3,13 @@ package app.sofabrowser.browser
 /**
  * What the menu of a held link or image offers, from WebView's hit test. Plain Kotlin, so the rules are unit-tested.
  *
- * Only addresses another app or Sofa can use make it in: no `javascript:` links, and pictures held in the page (data:
+ * Only addresses another app or Sofa can use make it in (a new tab only for web pages): no `javascript:` links, and pictures held in the page (data:
  * and blob: addresses) can be saved but not opened, copied or shared, since those addresses mean nothing elsewhere.
  * Any picture can become the start page's background.
  */
 object LinkMenu {
 
-    enum class Action { OPEN_ELSEWHERE, COPY_LINK, SHARE_LINK, DOWNLOAD_LINK, OPEN_IMAGE, DOWNLOAD_IMAGE, COPY_IMAGE, SHARE_IMAGE, SET_BACKGROUND }
+    enum class Action { OPEN_NEW_TAB, OPEN_ELSEWHERE, COPY_LINK, SHARE_LINK, DOWNLOAD_LINK, OPEN_IMAGE, DOWNLOAD_IMAGE, COPY_IMAGE, SHARE_IMAGE, SET_BACKGROUND }
 
     /** The menu for a hit test that found [link] (its address) and/or [image] (its source); empty when there is none. */
     fun actions(link: String?, image: String?): List<Action> = buildList {
@@ -18,6 +18,7 @@ object LinkMenu {
         if (l != null) {
             if (inPage(l)) add(Action.DOWNLOAD_LINK)
             else {
+                if (web(l)) add(Action.OPEN_NEW_TAB)
                 addAll(listOf(Action.OPEN_ELSEWHERE, Action.COPY_LINK, Action.SHARE_LINK))
                 if (web(l) && looksLikeFile(l)) add(Action.DOWNLOAD_LINK)
             }

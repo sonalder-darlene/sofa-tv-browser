@@ -26,7 +26,15 @@ class BrowserMenu(context: Context, private val actions: Actions, val layout: Ar
     interface Actions {
         fun onAddress()
         fun onAction(action: Action)
+        /** OK on the tab at [index] of the strip. */
+        fun onTab(index: Int)
+        /** OK held on the tab at [index]. */
+        fun onTabHeld(index: Int)
+        fun onNewTab()
     }
+
+    /** A tab in the strip: what it's called, and whether it's the one in sight. */
+    data class TabChip(val label: String, val current: Boolean)
 
     data class State(
         val address: String,
@@ -45,10 +53,15 @@ class BrowserMenu(context: Context, private val actions: Actions, val layout: Ar
         val allowPending: Boolean,
         /** "Watch by itself" runs on this site (on every site, or this one is chosen). */
         val autoWatchHere: Boolean,
+        /** The tabs of the side in sight, in order. */
+        val tabs: List<TabChip>,
     )
 
     private val buttons = LinkedHashMap<Action, LabeledIconButton>()
     private lateinit var address: TextView
+    /** The tabs (when there are two or more) and New tab, right of the address. */
+    private lateinit var strip: LinearLayout
+    private var stripTabs: List<TabChip>? = null
     private var zoomLabel: TextView? = null
     private var lastFocused = Action.HOME
 
@@ -87,7 +100,14 @@ class BrowserMenu(context: Context, private val actions: Actions, val layout: Ar
             }
             setOnClickListener { dismiss(); actions.onAddress() }
         }
-        addressRow.addView(address, LinearLayout.LayoutParams(1100.px, 88.px))
+        addressRow.addView(address, LinearLayout.LayoutParams(ADDRESS_WIDE.px, 88.px))
+        strip = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        addressRow.addView(HorizontalScrollView(context).apply {
+            isHorizontalScrollBarEnabled = false
+            clipChildren = false
+            clipToPadding = false
+            addView(strip)
+        }, LinearLayout.LayoutParams(0, 88.px, 1f).apply { marginStart = 24.px })
         root.addView(addressRow)
 
         val row = LinearLayout(context).apply {
@@ -142,6 +162,7 @@ class BrowserMenu(context: Context, private val actions: Actions, val layout: Ar
     fun update(s: State) {
         if (!::address.isInitialized) return
         address.text = s.address.ifEmpty { context.getString(R.string.search_hint) }
+        if (s.tabs != stripTabs) showTabs(s.tabs)
         buttons[Action.ALLOW_ONCE]?.visibility = if (s.allowPending) android.view.View.VISIBLE else android.view.View.GONE
         buttons[Action.BACK]?.setEnabledLook(s.canGoBack)
         buttons[Action.FORWARD]?.setEnabledLook(s.canGoForward)
@@ -166,8 +187,54 @@ class BrowserMenu(context: Context, private val actions: Actions, val layout: Ar
         zoomLabel?.text = context.getString(R.string.percent, s.zoomPercent)
     }
 
+    /**
+     * The strip: one chip per tab when there are two or more (the one in sight outlined), then New tab. The address
+     * gets narrower to make room. Focus stays at the same place in the strip when it changes under it.
+     */
+    private fun showTabs(tabs: List<TabChip>) {
+        stripTabs = tabs
+        val focused = (0 until strip.childCount).firstOrNull { strip.getChildAt(it).hasFocus() }
+        strip.removeAllViews()
+        address.layoutParams = address.layoutParams.apply { width = (if (tabs.size > 1) ADDRESS_NARROW else ADDRESS_WIDE).px }
+        if (tabs.size > 1) tabs.forEachIndexed { i, tab ->
+            strip.addView(chip(tab.label, tab.current) { actions.onTab(i) }.apply {
+                isLongClickable = true
+                setOnLongClickListener { actions.onTabHeld(i); true }
+            }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, 88.px).apply { marginEnd = 16.px })
+        }
+        strip.addView(chip(context.getString(R.string.new_tab), false, R.drawable.ic_add) { actions.onNewTab() },
+            LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, 88.px))
+        focused?.let { strip.getChildAt(it.coerceAtMost(strip.childCount - 1)).requestFocus() }
+    }
+
+    private fun chip(label: String, current: Boolean, icon: Int = 0, onClick: () -> Unit) = Ui.text(context, 26, Ui.p.textMid).apply {
+        text = label
+        isFocusable = true
+        isClickable = true
+        maxLines = 1
+        maxWidth = 320.px
+        ellipsize = TextUtils.TruncateAt.END
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(28.px, 0, 28.px, 0)
+        background = android.graphics.drawable.StateListDrawable().apply {
+            addState(intArrayOf(android.R.attr.state_focused), Ui.rounded(Ui.p.focus, 44))
+            addState(intArrayOf(), if (current) Ui.rounded(Ui.p.fillFocused, 44, Ui.BRAND, 3) else Ui.rounded(Ui.p.fillFocused, 44))
+        }
+        if (icon != 0) { setCompoundDrawablesRelative(tinted(icon), null, null, null); compoundDrawablePadding = 12.px }
+        setOnFocusChangeListener { v, has ->
+            (v as TextView).setTextColor(if (has) Ui.p.onFocus else Ui.p.textMid)
+            v.compoundDrawablesRelative[0]?.setTint(if (has) Ui.p.onFocus else Ui.p.textMid)
+        }
+        setOnClickListener { onClick() }
+    }
+
     private fun tinted(res: Int) = context.getDrawable(res)?.mutate()?.apply {
         setBounds(0, 0, 40.px, 40.px)
         setTint(Ui.p.textMid)
+    }
+
+    private companion object {
+        const val ADDRESS_WIDE = 1100
+        const val ADDRESS_NARROW = 700
     }
 }

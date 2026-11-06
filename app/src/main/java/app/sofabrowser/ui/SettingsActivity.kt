@@ -209,7 +209,7 @@ class SettingsActivity : Activity() {
         switch(R.string.safe_browsing, R.string.safe_browsing_sub, prefs::safeBrowsing)
         row(getString(R.string.drm_setting), getString(R.string.drm_setting_sub), valueText(drmLabel())) { pickDrm() }
         row(getString(R.string.keep_history), getString(R.string.keep_history_sub), valueText(historyLabel())) { pickHistory() }
-        switch(R.string.clear_on_exit, R.string.clear_on_exit_sub, prefs::clearOnExit) { on -> if (on) prefs.lastPage = "" }
+        switch(R.string.clear_on_exit, R.string.clear_on_exit_sub, prefs::clearOnExit) { on -> if (on) { prefs.lastPage = ""; prefs.tabs = "" } }
         nav(R.string.clear_now, null) { clearNow() }
 
         // Only for copies that no app store keeps up to date (never in the Google Play build).
@@ -993,6 +993,8 @@ class SettingsActivity : Activity() {
                 app.sofabrowser.resumeStore(this).clear()
                 StreamCopyProvider.clear(this)
                 prefs.lastPage = ""
+                // The saved tab list too; tabs open now stay open, like the page in sight.
+                prefs.tabs = ""
                 Toast.makeText(this, R.string.cleared, Toast.LENGTH_SHORT).show()
             }.setNegativeButton(android.R.string.cancel, null).show()
     }

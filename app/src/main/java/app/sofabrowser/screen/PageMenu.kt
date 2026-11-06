@@ -23,8 +23,6 @@ class PageMenu(private val s: Screen, private val watch: Watch) : BrowserMenu.Ac
     private val prefs get() = s.prefs
     private val db by lazy { Db.get(activity) }
     private var menu: BrowserMenu? = null
-    /** The page's zoom, in steps of 25 % from where it loaded. */
-    private var zoomStep = 0
 
     val showing get() = menu?.isShowing == true
 
@@ -47,7 +45,7 @@ class PageMenu(private val s: Screen, private val watch: Watch) : BrowserMenu.Ac
 
     /** Another page started loading: its zoom starts over. */
     fun pageStarted() {
-        zoomStep = 0
+        s.tabs.current.zoomStep = 0
     }
 
     private fun state(): BrowserMenu.State {
@@ -65,10 +63,11 @@ class PageMenu(private val s: Screen, private val watch: Watch) : BrowserMenu.Ac
             blocked = browser.adBlocker.blockedCount,
             desktop = prefs.userAgent != "mobile",
             pointer = s.cursor.cursorEnabled,
-            zoomPercent = (100 * 1.25.pow(zoomStep)).roundToInt(),
+            zoomPercent = (100 * 1.25.pow(s.tabs.current.zoomStep)).roundToInt(),
             privateMode = browser.privateMode,
             allowPending = browser.pendingAllow() != null,
             autoWatchHere = WatchTarget.autoWatches(prefs.autoWatch, host, prefs.autoWatchSites),
+            tabs = s.tabs.list.map { BrowserMenu.TabChip(label(it), it === s.tabs.current) },
         )
     }
 
@@ -82,6 +81,31 @@ class PageMenu(private val s: Screen, private val watch: Watch) : BrowserMenu.Ac
     }
 
     override fun onAddress() = s.startSearch(voice = false, current = s.web?.url)
+
+    /** How the strip names [tab]: its page's title, else its address, else "New tab". */
+    private fun label(tab: Tab): String =
+        tab.title ?: tab.address?.let(UrlInput::display)?.takeIf { it.isNotEmpty() } ?: activity.getString(R.string.new_tab)
+
+    /** OK on another tab brings it into sight; on the one in sight, it asks what to close. */
+    override fun onTab(index: Int) {
+        val tab = s.tabs.list.getOrNull(index) ?: return
+        if (tab === s.tabs.current) onTabHeld(index) else s.selectTab(tab)
+    }
+
+    override fun onTabHeld(index: Int) {
+        val tab = s.tabs.list.getOrNull(index) ?: return
+        val others = s.tabs.list.filter { it !== tab }
+        val choices = listOfNotNull(
+            R.string.close_tab to { s.closeTabs(listOf(tab)) },
+            (R.string.close_other_tabs to { s.closeTabs(others) }).takeIf { others.isNotEmpty() },
+            R.string.close_all_tabs to { s.closeTabs(s.tabs.list.toList()) },
+        )
+        s.dialog().setTitle(label(tab))
+            .setItems(choices.map { activity.getString(it.first) }.toTypedArray()) { _, which -> choices[which].second() }
+            .show()
+    }
+
+    override fun onNewTab() = s.newTab()
 
     override fun onAction(action: BrowserMenu.Action) {
         val browser = s.browser
@@ -141,8 +165,8 @@ class PageMenu(private val s: Screen, private val watch: Watch) : BrowserMenu.Ac
                 s.toast(if (keys) R.string.pointer_off_toast else R.string.pointer_on_toast)
                 dismiss()
             }
-            BrowserMenu.Action.ZOOM_IN -> if (zoomStep < 6) { w.zoomBy(1.25f); zoomStep++ }
-            BrowserMenu.Action.ZOOM_OUT -> if (zoomStep > -4) { w.zoomBy(0.8f); zoomStep-- }
+            BrowserMenu.Action.ZOOM_IN -> s.tabs.current.let { t -> if (t.zoomStep < 6) { w.zoomBy(1.25f); t.zoomStep++ } }
+            BrowserMenu.Action.ZOOM_OUT -> s.tabs.current.let { t -> if (t.zoomStep > -4) { w.zoomBy(0.8f); t.zoomStep-- } }
             BrowserMenu.Action.SETTINGS -> { dismiss(); s.openSettings() }
             BrowserMenu.Action.DOWNLOADS -> { dismiss(); s.openDownloads() }
         }

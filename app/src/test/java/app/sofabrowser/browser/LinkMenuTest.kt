@@ -9,13 +9,13 @@ import org.junit.Test
 class LinkMenuTest {
 
     @Test
-    fun aWebLinkCanBeOpenedElsewhereCopiedAndShared() {
-        assertEquals(listOf(Action.OPEN_ELSEWHERE, Action.COPY_LINK, Action.SHARE_LINK), LinkMenu.actions("https://example.org/a", null))
+    fun aWebLinkCanBeOpenedInANewTabOrElsewhereCopiedAndShared() {
+        assertEquals(listOf(Action.OPEN_NEW_TAB, Action.OPEN_ELSEWHERE, Action.COPY_LINK, Action.SHARE_LINK), LinkMenu.actions("https://example.org/a", null))
     }
 
     @Test
     fun aLinkToAFileCanAlsoBeDownloaded() {
-        assertEquals(listOf(Action.OPEN_ELSEWHERE, Action.COPY_LINK, Action.SHARE_LINK, Action.DOWNLOAD_LINK),
+        assertEquals(listOf(Action.OPEN_NEW_TAB, Action.OPEN_ELSEWHERE, Action.COPY_LINK, Action.SHARE_LINK, Action.DOWNLOAD_LINK),
             LinkMenu.actions("https://example.org/files/film.mkv?token=1", null))
     }
 
@@ -33,13 +33,13 @@ class LinkMenuTest {
 
     @Test
     fun anImageLinkOffersBothTheLinkAndThePicture() {
-        assertEquals(listOf(Action.OPEN_ELSEWHERE, Action.COPY_LINK, Action.SHARE_LINK,
+        assertEquals(listOf(Action.OPEN_NEW_TAB, Action.OPEN_ELSEWHERE, Action.COPY_LINK, Action.SHARE_LINK,
             Action.OPEN_IMAGE, Action.DOWNLOAD_IMAGE, Action.COPY_IMAGE, Action.SHARE_IMAGE, Action.SET_BACKGROUND),
             LinkMenu.actions("https://example.org/a", "https://example.org/p.jpg"))
     }
 
     @Test
-    fun otherSchemesGoToOtherAppsButAreNotDownloads() {
+    fun otherSchemesGoToOtherAppsButAreNotTabsOrDownloads() {
         assertEquals(listOf(Action.OPEN_ELSEWHERE, Action.COPY_LINK, Action.SHARE_LINK), LinkMenu.actions("mailto:a@example.org", null))
     }
 

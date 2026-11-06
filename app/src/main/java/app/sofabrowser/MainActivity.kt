@@ -18,6 +18,7 @@ import android.view.View
 import android.view.WindowManager
 import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
+import android.webkit.WebView
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -51,6 +52,8 @@ import app.sofabrowser.screen.PadInput
 import app.sofabrowser.screen.PageDialogs
 import app.sofabrowser.screen.PageMenu
 import app.sofabrowser.screen.Screen
+import app.sofabrowser.screen.Tab
+import app.sofabrowser.screen.Tabs
 import app.sofabrowser.screen.VideoSession
 import app.sofabrowser.screen.Watch
 import app.sofabrowser.screen.padded
@@ -73,8 +76,8 @@ import app.sofabrowser.update.Updater
 
 /**
  * The single activity for the home screen and the browser; settings and lists are separate screens. The parts of the
- * browser screen are in [app.sofabrowser.screen]; this class holds the views, the keys, the start page and the page's
- * events, and passes each part's events on to it.
+ * browser screen are in [app.sofabrowser.screen]; this class holds the views, the keys, the start page, the tabs and
+ * their switching, and the page events of the tab in sight, and passes each part's events on to it.
  */
 class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.Listener, FindBar.Actions, Screen {
 
@@ -82,8 +85,9 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
     override lateinit var prefs: Prefs
         private set
     private val db by lazy { Db.get(this) }
-    override lateinit var browser: Browser
+    override lateinit var tabs: Tabs
         private set
+    override val browser: Browser get() = tabs.current.browser
 
     override lateinit var root: FrameLayout
         private set
@@ -107,8 +111,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
     private val dialogs = PageDialogs(this)
     private val pad by lazy { PadInput(this, video, watch) }
 
-    override var loading = false
-        private set
+    override val loading get() = tabs.current.loading
     private var lastBackOnHome = 0L
     /** The palette this screen was built with; Settings may switch the shared one. */
     private lateinit var palette: Palette
@@ -116,7 +119,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
     override val homeShown get() = home.visibility == View.VISIBLE
     override var started = false
         private set
-    private val recordHistory get() = HistoryRetention.records(prefs.historyDays) && !browser.privateMode
+    private fun recordsHistory(tab: Tab) = HistoryRetention.records(prefs.historyDays) && !tab.private
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -131,11 +134,13 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         prefs = Prefs(this)
         // Private mode is a session: a cold start always begins in normal mode, with nothing left over.
         prefs.privateMode = false
-        Browser.deletePrivateProfile()
+        Browser.deletePrivateProfiles(this)
         forgetPrivateAllows()
         // Copies for other players are needed only while one starts; a kill or crash may have left some.
         StreamCopyProvider.clear(this)
-        browser = Browser(this, prefs, this)
+        tabs = Tabs(this, prefs) { tab, private -> Browser(this, prefs, TabHost(tab), private) }
+        // The normal tabs come back unloaded: each page loads when it's chosen. Nothing is kept with "Clear data on exit".
+        if (!prefs.clearOnExit) tabs.restore(prefs.tabs)
         // Only a period prunes at start: "Never" removes saved pages when chosen in Settings, so updating from
         // 1.0.0 with history off (now "Never") keeps them, as 1.0.0 did.
         if (prefs.historyDays > 0) db.pruneHistory(prefs.historyDays)
@@ -176,10 +181,23 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         setContentView(root)
 
         if (!handleIntent(intent)) {
-            // Settings > Open at start; a link from another app always wins.
+            // Settings > Open at start; a link from another app always wins. A screen Android rebuilt shows what it showed.
             val at = OpenAtStart.address(prefs.openAtStart, prefs.startPage, prefs.lastPage, restored = savedInstanceState != null)
-            if (at != null) openUrl(at) else showHome()
+            when {
+                savedInstanceState?.getBoolean(STATE_PAGE_SHOWN) == true && tabs.current.address != null -> showPage()
+                at == null -> showHome()
+                tabs.current.address == at -> showPage()
+                // The chosen page gets a tab of its own, the same one each time when it's still on that site.
+                prefs.openAtStart == OpenAtStart.Choice.WEB_PAGE -> openInTab(tabs.list.firstOrNull { sameSite(it.address, at) }, at)
+                else -> openUrl(at)
+            }
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        // Not a private page: the next screen starts in normal browsing.
+        outState.putBoolean(STATE_PAGE_SHOWN, !homeShown && !tabs.privateShown)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -197,25 +215,34 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         // A link from another app (or a phone remote) may come while the menu is open: the page it opens gets the keys.
         menu.dismiss()
         if (findBar.showing) closeFind()
-        openUrl(url)
+        // It gets a tab of its own, so the page that was open stays; in the tab in sight when that one is empty or no
+        // other tab fits.
+        if (tabs.current.address == null) openUrl(url) else openInTab(null, url)
         return true
     }
 
     // Screens
 
+    /** The tab in sight has its WebView, and it's the one in the pointer's layout. */
     private fun ensureWeb() {
-        if (web != null) return
-        val view = browser.create(prefs.privateMode)
-        view.setFindListener { active, total, _ -> findBar.setMatches(active, total) }
+        val view = web ?: browser.create().also { v -> v.setFindListener { active, total, _ -> findBar.setMatches(active, total) } }
+        if (view.parent === cursor) return
+        (0 until cursor.childCount).map(cursor::getChildAt).filterIsInstance<WebView>().forEach(cursor::removeView)
         cursor.addView(view, 0, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
     }
 
     override fun openUrl(url: String) {
         if (url.isBlank()) return
+        // An unloaded page this tab kept is replaced too.
+        tabs.current.forget()
         ensureWeb()
         // What the resting page tried to open, and its paused sound, go with it: this address replaces it.
         browser.forgetHeld()
         showBrowser(wakeSound = false)
+        load(url)
+    }
+
+    private fun load(url: String) {
         browser.userNavigation()
         // Older WebViews can't add Sec-GPC to every request; at least send it with navigations we start.
         if (prefs.sendGpc && !WebViewFeature.isFeatureSupported(WebViewFeature.CUSTOM_REQUEST_HEADERS)) {
@@ -223,6 +250,137 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         } else {
             web?.loadUrl(url)
         }
+    }
+
+    /** Shows the tab in sight's page, loading it again when it was unloaded, or the start page when it has none. */
+    private fun showPage() {
+        val tab = tabs.current
+        if (tab.live) { ensureWeb(); showBrowser(); return }
+        val url = tab.address ?: return showHome()
+        ensureWeb()
+        // Whatever the unloaded page held is gone with it; it starts over now, in sight.
+        browser.forgetHeld()
+        showBrowser(wakeSound = false)
+        browser.userNavigation()
+        if (!tab.bringBack(web ?: return)) load(url)
+    }
+
+    // Tabs
+
+    /**
+     * Brings [tab] into sight. The tab before rests like a page behind the start page (its media, Web Audio, timers
+     * and navigations held) and its WebView is paused; its page stays loaded while the TV has room for it.
+     */
+    override fun selectTab(tab: Tab) {
+        if (tab !in tabs.list) return
+        if (tab !== tabs.current) {
+            leaveTab()
+            tabs.select(tab)
+        }
+        enterTab()
+    }
+
+    private fun leaveTab() {
+        menu.dismiss()
+        if (findBar.showing) closeFind()
+        watch.stop()
+        pageOutOfSight()
+        web?.onPause()
+        web?.let(cursor::removeView)
+    }
+
+    /** The tab now in sight takes the screen: its page, or the start page when it has none. */
+    private fun enterTab() {
+        val tab = tabs.current
+        progress.animate().cancel()
+        progress.visibility = if (tab.loading) View.VISIBLE else View.GONE
+        if (!tab.loading) progress.scaleX = 0f
+        if (cursor.scrollMode) cursor.setScrollMode(false)
+        cursor.cursorEnabled = Browser.hostOf(tab.address)?.let { !prefs.keysToPage(it) } ?: true
+        video.onPlaying(browser.playing)
+        if (tab.address == null) showHome() else showPage()
+        tabs.trim()
+    }
+
+    override fun newTab() {
+        val tab = tabs.add() ?: return toast(resources.getQuantityString(R.plurals.tabs_full, Tabs.MAX, Tabs.MAX))
+        selectTab(tab)
+    }
+
+    override fun openInNewTab(url: String) {
+        val tab = tabs.add(after = tabs.current) ?: return toast(resources.getQuantityString(R.plurals.tabs_full, Tabs.MAX, Tabs.MAX))
+        openInTab(tab, url)
+    }
+
+    /** Opens [url] in [tab]: a new one when null, or the tab in sight when the side is full. */
+    private fun openInTab(tab: Tab?, url: String) {
+        val target = tab ?: tabs.add(after = tabs.current) ?: tabs.current
+        if (target !== tabs.current) { leaveTab(); tabs.select(target) }
+        openUrl(url)
+        tabs.trim()
+    }
+
+    /** Closes [which]; when the tab in sight is among them, the one seen before it comes into sight. */
+    override fun closeTabs(which: List<Tab>) {
+        val inSight = tabs.current in which
+        if (inSight) leaveTab()
+        which.forEach(tabs::close)
+        if (inSight) enterTab() else menu.refresh()
+    }
+
+    private fun sameSite(a: String?, b: String): Boolean {
+        val x = Browser.hostOf(a)?.lowercase() ?: return false
+        val y = Browser.hostOf(b)?.lowercase() ?: return false
+        return Sites.same(x, y)
+    }
+
+    /**
+     * Each tab's page events. The tab in sight passes them on to the screen; one out of sight keeps its loading state
+     * and History, and refuses whatever would need the screen (a certificate question, DRM, fullscreen, a download).
+     */
+    private inner class TabHost(private val tab: Tab) : Browser.Host {
+        private val inSight get() = tabs.isCurrent(tab)
+
+        override fun onPageStarted(url: String) {
+            if (inSight) this@MainActivity.onPageStarted(url) else { tab.loading = true; tab.zoomStep = 0 }
+        }
+        override fun onPageFinished(url: String) {
+            if (inSight) this@MainActivity.onPageFinished(url) else tab.loading = false
+        }
+        override fun onProgress(percent: Int) {
+            if (inSight) this@MainActivity.onProgress(percent) else if (percent >= 100) tab.loading = false
+        }
+        override fun onVisited(url: String) = visited(tab, url)
+        override fun onTitle(url: String, title: String) = titled(tab, url, title)
+        override fun onIcon(url: String, icon: Bitmap) = iconed(tab, url, icon)
+        override fun onEnterFullscreen(view: View, callback: WebChromeClient.CustomViewCallback) {
+            if (inSight) this@MainActivity.onEnterFullscreen(view, callback) else callback.onCustomViewHidden()
+        }
+        override fun onExitFullscreen() { if (inSight) this@MainActivity.onExitFullscreen() }
+        override fun onVideoState(state: VideoState) { if (inSight) this@MainActivity.onVideoState(state) }
+        override fun onPlaying(playing: Boolean) { if (inSight) this@MainActivity.onPlaying(playing) }
+        override fun onVideoInfo(info: VideoInfo) { if (inSight) this@MainActivity.onVideoInfo(info) }
+        override fun onVideoCandidate(candidate: WatchTarget.Candidate) { if (inSight) this@MainActivity.onVideoCandidate(candidate) }
+        override fun onVideoSource(source: VideoSource) { if (inSight) this@MainActivity.onVideoSource(source) }
+        override fun onVideoFrameTimes(times: List<Double>) { if (inSight) this@MainActivity.onVideoFrameTimes(times) }
+        override fun onVideoStarted(frame: String) { if (inSight) this@MainActivity.onVideoStarted(frame) }
+        override fun onSslError(handler: SslErrorHandler, error: SslError) {
+            if (inSight) this@MainActivity.onSslError(handler, error) else handler.cancel()
+        }
+        override fun onProtectedMediaRequest(origin: String, grant: (Boolean) -> Unit) {
+            if (inSight) this@MainActivity.onProtectedMediaRequest(origin, grant) else grant(false)
+        }
+        override fun onSiteBlocked(url: String, list: FilterList, replaced: Boolean) {
+            if (inSight) this@MainActivity.onSiteBlocked(url, list, replaced)
+        }
+        override fun onDownload(url: String, userAgent: String?, contentDisposition: String?, mimeType: String?, length: Long) {
+            if (inSight) this@MainActivity.onDownload(url, userAgent, contentDisposition, mimeType, length)
+        }
+        override fun onBlockedLink(url: String) { if (inSight) this@MainActivity.onBlockedLink(url) }
+        override fun onPopupBlocked(url: String?) { if (inSight) this@MainActivity.onPopupBlocked(url) }
+        override fun onRedirectBlocked() { if (inSight) this@MainActivity.onRedirectBlocked() }
+        // The page renderer is shared, so every loaded tab hears of it: those out of sight keep only their address.
+        override fun onRendererGone() { if (inSight) this@MainActivity.onRendererGone() else tab.drop(history = false) }
     }
 
     private fun showBrowser(wakeSound: Boolean = true) {
@@ -264,8 +422,11 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         browserLayer.postDelayed(pauseTimers, TIMERS_PAUSE_MS)
     }
 
-    /** For every WebView of the app, which is fine: the start page and the rest of Sofa are native. */
-    private val pauseTimers = Runnable { if (browser.hidden) web?.pauseTimers() }
+    /**
+     * For every WebView of the app, which is fine: the start page and the rest of Sofa are native. Any loaded tab's view
+     * can ask, for a new tab on the start page has none of its own.
+     */
+    private val pauseTimers = Runnable { if (browser.hidden) (web ?: tabs.anyWeb)?.pauseTimers() }
 
     /** The page is in sight again; [sound] resumes the Web Audio that [pageOutOfSight] paused. */
     private fun pageInSight(sound: Boolean = true) {
@@ -326,7 +487,9 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         pad.motion(event) || super.dispatchGenericMotionEvent(event)
 
     private fun backOnHome() {
-        if (web?.url != null) { showBrowser(); return }
+        if (tabs.current.address != null) { showPage(); return }
+        // An empty tab next to others was a New tab nobody used: Back closes it again.
+        if (tabs.list.size > 1) { closeTabs(listOf(tabs.current)); return }
         val now = SystemClock.uptimeMillis()
         if (now - lastBackOnHome < 2500) finish()
         else Toast.makeText(this, R.string.back_again_to_exit, Toast.LENGTH_SHORT).show()
@@ -351,7 +514,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
 
     /** Settings may offer the open page (in sight or resting) as the one to open at start; never a private one. */
     override fun openSettings() = startActivity(Intent(this, SettingsActivity::class.java).apply {
-        web?.url?.takeIf { !browser.privateMode && Browser.isWebUrl(it) }?.let { putExtra(SettingsActivity.EXTRA_OPEN_PAGE, it) }
+        tabs.current.address?.takeIf { !tabs.current.private && Browser.isWebUrl(it) }?.let { putExtra(SettingsActivity.EXTRA_OPEN_PAGE, it) }
     })
 
     override fun openDownloads() = startActivity(Intent(this, DownloadsActivity::class.java))
@@ -382,10 +545,13 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
 
     private fun togglePrivate() {
         val entering = !prefs.privateMode
-        val wasIsolated = browser.isolated
-        // Leaving or entering private mode throws away the current page and, for private mode, everything in it.
-        browser.destroy()
-        if (!entering && !wasIsolated) WebViews.clearBrowsingData(this, null)
+        // The tabs of the side left rest out of sight: normal ones wait unloaded, private ones close with all they held.
+        leaveTab()
+        if (entering) { Browser.newPrivateSession(); tabs.enterPrivate() }
+        else {
+            tabs.leavePrivate()
+            if (Browser.profilesSupported) Browser.deletePrivateProfiles(this) else WebViews.clearBrowsingData(this, null)
+        }
         // Stream copies hold what was watched (signed stream addresses); none outlives either side of the switch.
         StreamCopyProvider.clear(this)
         video.takeover.forgetPrivateChoices()
@@ -463,7 +629,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
 
     override fun onPageStarted(url: String) {
         if (findBar.showing) closeFind()
-        loading = true
+        tabs.current.loading = true
         menu.pageStarted()
         progress.visibility = View.VISIBLE
         val host = Browser.hostOf(url)
@@ -474,7 +640,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
     }
 
     override fun onPageFinished(url: String) {
-        loading = false
+        tabs.current.loading = false
         progress.animate().cancel()
         progress.visibility = View.GONE
         progress.scaleX = 0f
@@ -487,16 +653,21 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         if (percent >= 100) onPageFinished(web?.url.orEmpty())
     }
 
-    override fun onVisited(url: String) {
-        if (recordHistory && Browser.isWebUrl(url)) db.recordVisit(web?.title?.takeIf { web?.url == url }.orEmpty(), url)
+    override fun onVisited(url: String) = visited(tabs.current, url)
+    override fun onTitle(url: String, title: String) = titled(tabs.current, url, title)
+    override fun onIcon(url: String, icon: Bitmap) = iconed(tabs.current, url, icon)
+
+    private fun visited(tab: Tab, url: String) {
+        val w = tab.browser.web
+        if (recordsHistory(tab) && Browser.isWebUrl(url)) db.recordVisit(w?.title?.takeIf { w.url == url }.orEmpty(), url)
     }
 
-    override fun onTitle(url: String, title: String) {
-        if (recordHistory) db.updateHistoryTitle(url, title)
+    private fun titled(tab: Tab, url: String, title: String) {
+        if (recordsHistory(tab)) db.updateHistoryTitle(url, title)
     }
 
-    override fun onIcon(url: String, icon: Bitmap) {
-        if (!browser.privateMode) Favicons.get(this).save(url, icon)
+    private fun iconed(tab: Tab, url: String, icon: Bitmap) {
+        if (!tab.private) Favicons.get(this).save(url, icon)
     }
 
     override fun onEnterFullscreen(view: View, callback: WebChromeClient.CustomViewCallback) = video.enter(view, callback)
@@ -522,10 +693,19 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
     override fun onRedirectBlocked() = toast(R.string.redirect_blocked_allow)
 
     override fun onRendererGone() {
+        if (BuildConfig.DEBUG) android.util.Log.d("SofaTabs", "renderer gone")
         val url = web?.url
         browser.destroy()
         cursor.removeAllViews()
         if (url != null) openUrl(url) else showHome()
+    }
+
+    /** Android is short of memory: the pages out of sight are unloaded first (each comes back when chosen). */
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (BuildConfig.DEBUG) android.util.Log.d("SofaTabs", "trim memory $level")
+        @Suppress("DEPRECATION") // the running levels still come on Android 13 and older
+        if (level >= TRIM_MEMORY_BACKGROUND || level == TRIM_MEMORY_RUNNING_LOW || level == TRIM_MEMORY_RUNNING_CRITICAL) tabs.trim(all = true)
     }
 
     // Picture-in-picture and keeping the TV awake
@@ -569,7 +749,9 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         applyKeepAwake()
         downloads.stopFollowing()
         // For "Where I left off": the TV may close Sofa in the background without another word.
-        prefs.lastPage = OpenAtStart.toRemember(prefs.openAtStart, if (homeShown) null else web?.url, browser.privateMode, prefs.clearOnExit)
+        prefs.lastPage = OpenAtStart.toRemember(prefs.openAtStart, if (homeShown) null else web?.url, tabs.current.private, prefs.clearOnExit)
+        // The normal tabs too, for the same reason; private ones never.
+        prefs.tabs = if (prefs.clearOnExit) "" else tabs.saved()
         super.onStop()
     }
 
@@ -580,7 +762,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         video.playIn.done()
         // A theme change in Settings rebuilds the screen (and the WebView, whose pages follow the theme).
         if (Ui.paletteFor(this, prefs.theme) !== palette) { recreate(); return }
-        browser.applySettings()
+        // Every loaded tab: one out of sight comes back with the settings of now.
+        tabs.list.forEach { it.browser.applySettings() }
         cursor.speedLevel = prefs.cursorSpeed
         // Cheap when nothing is due: it checks at most every few hours.
         browser.adBlocker.refreshIfDue(prefs.autoUpdateLists)
@@ -642,17 +825,18 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         browserLayer.removeCallbacks(pauseTimers)
         voiceInput.destroy()
         video.takeover.release()
+        // Private browsing without its own profile shared the normal one: it goes too, also when the screen is rebuilt
+        // (the next screen starts in normal browsing).
+        val wasPrivate = tabs.privateShown && !Browser.profilesSupported
+        // Every tab's WebView goes, for a rebuilt screen too; the next one brings the normal tabs back from Settings.
+        tabs.destroyAll()
         if (isFinishing) {
-            val wasPrivate = browser.privateMode && !browser.isolated
-            browser.destroy()
             StreamCopyProvider.clear(this)
-            if (prefs.clearOnExit || wasPrivate) {
-                WebViews.clearBrowsingData(this, null)
-                if (prefs.clearOnExit) { db.clearHistory(); resumeStore(this).clear() }
-            }
+            if (prefs.clearOnExit) { prefs.tabs = ""; db.clearHistory(); resumeStore(this).clear() }
             forgetPrivateAllows()
             prefs.privateMode = false
         }
+        if (isFinishing && prefs.clearOnExit || wasPrivate) WebViews.clearBrowsingData(this, null)
         super.onDestroy()
     }
 
@@ -671,6 +855,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
     private companion object {
         const val REQ_URL = 10
         const val REQ_MIC = 12
+        /** Saved with the screen: the page, not the start page, was in sight. */
+        const val STATE_PAGE_SHOWN = "page_shown"
         /** How long the page's frames get to rest ([VideoRelay]'s "rest") before its timers pause. */
         const val TIMERS_PAUSE_MS = 1000L
     }

@@ -35,10 +35,10 @@ import app.sofabrowser.adblock.Sites
 import java.io.ByteArrayInputStream
 
 /**
- * Owns the single WebView: creates it in the normal or private profile, applies settings and relays page events.
- * BrowsHere has no tabs either; one view keeps memory use low on TV hardware.
+ * One tab's page: creates its WebView in the normal or private profile, applies settings and relays page events. The
+ * WebView may be dropped and made again ([create], [destroy]) while the Browser, and the tab it belongs to, stays.
  */
-class Browser(private val context: Context, private val prefs: Prefs, private val host: Host) {
+class Browser(private val context: Context, private val prefs: Prefs, private val host: Host, val privateMode: Boolean) {
 
     interface Host {
         fun onPageStarted(url: String)
@@ -77,12 +77,15 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
 
     var web: WebView? = null
         private set
-    var privateMode = false
-        private set
 
     /** True when private browsing runs in its own WebView profile; false on WebViews too old for profiles. */
-    var isolated = false
-        private set
+    val isolated get() = privateMode && profilesSupported
+
+    /** Whether a video plays anywhere on the page. */
+    val playing get() = frames.anyPlaying
+
+    /** The private session this tab belongs to: its WebView, made again after being dropped, stays in that profile. */
+    private val profile = privateProfile
 
     /** Host of the page in the main frame, readable from WebView's network threads. */
     @Volatile var pageHost: String? = null
@@ -115,15 +118,13 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
 
     /** Creates (or re-creates) the WebView. Returns the new view; the caller attaches it to its layout. */
     @SuppressLint("SetJavaScriptEnabled", "RequiresFeature", "ClickableViewAccessibility") // MULTI_PROFILE: see profilesSupported
-    fun create(private: Boolean): WebView {
+    fun create(): WebView {
         destroy()
-        privateMode = private
-        isolated = private && profilesSupported
         if (app.sofabrowser.BuildConfig.DEBUG) WebView.setWebContentsDebuggingEnabled(true)
         val view = WebView(context)
         if (profilesSupported) {
             // Must happen before anything else touches the view.
-            WebViewCompat.setProfile(view, if (isolated) PRIVATE_PROFILE else androidx.webkit.Profile.DEFAULT_PROFILE_NAME)
+            WebViewCompat.setProfile(view, if (isolated) profile else androidx.webkit.Profile.DEFAULT_PROFILE_NAME)
         }
         view.isFocusable = true
         view.isFocusableInTouchMode = true
@@ -182,9 +183,6 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
         web = null
         frames.clear()
         host.onPlaying(false)
-        if (isolated) deletePrivateProfile()
-        privateMode = false
-        isolated = false
     }
 
     fun applySettings() {
@@ -341,7 +339,8 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
             val pressed = pressedLink(view)
             debug("window: gesture=$isUserGesture dialog=$isDialog link=$pressed")
             if (!isUserGesture) { adBlocker.countBlocked(); host.onPopupBlocked(null); return false }
-            // Open the target in the same view (no tabs): catch the first URL the throwaway view is sent to.
+            // Open the target in the same tab, so every window passes the pop-up rules below (only the user opens a new
+            // tab): catch the first URL the throwaway view is sent to.
             val catcher = WebView(view.context)
             // A page can script into a window it opened, so the throwaway view must not reach the normal profile's
             // cookies while browsing privately.
@@ -566,13 +565,39 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
 
         val profilesSupported get() = WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)
 
-        /** Deletes the private profile with all its cookies, storage and cache. Call only with no view using it. */
+        /**
+         * The profile of the private session under way. Each session gets a new one: WebView keeps a profile "in use" for
+         * a while after its last view is destroyed and refuses to delete it meanwhile, and a new session must never open
+         * an old one's cookies or storage.
+         */
+        private var privateProfile = PRIVATE_PROFILE
+
+        /** Private browsing starts: its tabs go into a profile of their own, made when the first one loads. */
+        fun newPrivateSession() {
+            privateProfile = PRIVATE_PROFILE + "-" + System.currentTimeMillis()
+        }
+
+        /**
+         * Deletes the private profiles, with all their cookies, storage and cache, except the one of the session under
+         * way when [keep]. WebView doesn't let go of a profile it loaded until Sofa's process ends, so the profile of a
+         * session that ended just now can't be deleted yet: its cookies, site storage and cache are erased instead
+         * ([context] makes the view that clears the cache), and the empty profile goes at the next start.
+         */
         @SuppressLint("RequiresFeature") // MULTI_PROFILE is checked via profilesSupported
-        fun deletePrivateProfile() {
+        fun deletePrivateProfiles(context: Context, keep: Boolean = false) {
             if (!profilesSupported) return
-            runCatching {
-                val store = ProfileStore.getInstance()
-                if (PRIVATE_PROFILE in store.allProfileNames) store.deleteProfile(PRIVATE_PROFILE)
+            val store = runCatching { ProfileStore.getInstance() }.getOrNull() ?: return
+            for (name in store.allProfileNames) {
+                if (name != PRIVATE_PROFILE && !name.startsWith("$PRIVATE_PROFILE-") || keep && name == privateProfile) continue
+                if (runCatching { store.deleteProfile(name) }.isSuccess) continue
+                if (app.sofabrowser.BuildConfig.DEBUG) android.util.Log.d("SofaPrivate", "profile $name in use: erasing it instead")
+                runCatching {
+                    val profile = store.getProfile(name) ?: return@runCatching
+                    profile.cookieManager.removeAllCookies(null)
+                    profile.cookieManager.flush()
+                    profile.webStorage.deleteAllData()
+                    WebView(context).apply { WebViewCompat.setProfile(this, name); clearCache(true); clearFormData(); destroy() }
+                }
             }
         }
 

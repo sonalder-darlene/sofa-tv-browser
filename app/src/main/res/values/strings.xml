@@ -60,6 +60,14 @@
 
     <!-- Browse -->
     <string name="home">Home</string>
+    <string name="new_tab">New tab</string>
+    <string name="close_tab">Close tab</string>
+    <string name="close_other_tabs">Close other tabs</string>
+    <string name="close_all_tabs">Close all tabs</string>
+    <plurals name="tabs_full">
+        <item quantity="one">Up to %1$d tab: close it to open another</item>
+        <item quantity="other">Up to %1$d tabs: close one to open another</item>
+    </plurals>
     <string name="back">Back</string>
     <string name="forward">Forward</string>
     <string name="reload">Reload</string>
@@ -144,6 +152,7 @@
     <string name="link">Link</string>
     <string name="image">Image</string>
     <string name="share">Share</string>
+    <string name="link_open_new_tab">Open in new tab</string>
     <string name="link_open_elsewhere">Open in another app</string>
     <string name="link_copy">Copy link</string>
     <string name="link_share">Share link</string>
