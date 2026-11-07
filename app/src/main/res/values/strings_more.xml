@@ -333,4 +333,42 @@
     <string name="error_not_found">There\'s nothing at this address (HTTP 404).</string>
     <string name="error_http">The server answered with an error (HTTP %d).</string>
     <string name="error_secure">Couldn\'t make a secure connection to the server.</string>
+
+    <!-- Settings: export and import as a file, protected with a password unless the user chooses not to -->
+    <string name="section_backup">Backup</string>
+    <string name="settings_export">Export settings</string>
+    <string name="settings_export_sub">Saves your settings, filter lists, allowed sites, Quick access and bookmarks in a file, for another TV or after a reset</string>
+    <string name="settings_import">Import settings</string>
+    <string name="settings_import_sub">From a file Sofa saved, on this TV or another one</string>
+    <string name="pin_title_import_settings">Import settings</string>
+    <string name="settings_export_password_message">Choose a password for the file. The file can only be imported with it, and Sofa can\'t find it again if it is forgotten. Your PIN, history and cookies are never in the file.</string>
+    <string name="settings_password_hint">Password, at least %d characters</string>
+    <string name="settings_password_short">The password needs at least %d characters.</string>
+    <string name="settings_export_go">Export</string>
+    <string name="settings_export_plain">No password</string>
+    <string name="settings_export_encrypting">Encrypting…</string>
+    <string name="settings_exported">Saved in %1$s as %2$s, protected with your password.</string>
+    <string name="settings_exported_plain">Saved in %1$s as %2$s, without a password: anyone who has the file can read the sites and bookmarks in it.</string>
+    <string name="settings_exported_no_picture">The start page picture isn\'t in the file: the start page will use the theme\'s background.</string>
+    <string name="settings_import_address_message">The address of a settings file that Sofa saved.</string>
+    <string name="settings_import_too_large">This file is too large to be a Sofa settings file.</string>
+    <string name="settings_import_not_settings">This isn\'t a Sofa settings file. Choose a file saved with Export settings.</string>
+    <string name="settings_import_newer">This file was saved by a newer version of Sofa. Update Sofa, then import it.</string>
+    <string name="settings_password_needed">This file is protected with a password.</string>
+    <string name="settings_password_wrong">Wrong password, or the file was changed after it was saved. Try again.</string>
+    <string name="settings_import_decrypting">Opening the file…</string>
+    <string name="settings_import_from_version">From Sofa %1$s</string>
+    <string name="settings_import_from_date">saved %1$s</string>
+    <string name="settings_import_confirm">Your settings become the file\'s. Its filter lists, allowed sites, Quick access and bookmarks are added to yours; nothing is removed. Your PIN, history and cookies stay as they are.</string>
+    <string name="settings_imported">Settings imported.</string>
+    <plurals name="settings_imported_tiles">
+        <item quantity="one">Added %d site to Quick access.</item>
+        <item quantity="other">Added %d sites to Quick access.</item>
+    </plurals>
+    <plurals name="settings_imported_left_out">
+        <item quantity="one">%d setting was left out: this TV or this version of Sofa can\'t use it.</item>
+        <item quantity="other">%d settings were left out: this TV or this version of Sofa can\'t use them.</item>
+    </plurals>
+    <string name="settings_imported_lists">Filter lists that are now on download in the background.</string>
+    <string name="settings_failed">Something went wrong. %1$s</string>
 </resources>

@@ -51,6 +51,15 @@
   bookmarks open at once and take little memory, and Delete all clears them in one go. The start page reads only the
   bookmarks it shows.
 
+**Settings backup**
+
+- **Export and import settings** (Settings → Backup): one file with your settings, filter lists, allowed sites,
+  Quick access and bookmarks, to set up another TV or to come back after a reset. It is protected with a password
+  you choose, with the encryption built into Android (PBKDF2-HMAC-SHA512 and AES-256-GCM), unless you choose "No
+  password". Import takes the file from the TV's file picker, a web address or a file Sofa saved: your settings
+  become the file's, and its lists, sites, Quick access and bookmarks are added to yours. Your PIN, history,
+  cookies, open tabs and start page picture are never in the file.
+
 **Start page**
 
 - **Arrange the start page** (Settings → Start page): reorder and hide its rows and buttons, and show up to 48

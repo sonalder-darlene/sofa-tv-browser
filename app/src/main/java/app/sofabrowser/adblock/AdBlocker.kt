@@ -541,6 +541,9 @@ object Allowlist {
         }.apply()
     }
 
+    /** The stored switches, by site; private browsing's are not among them. */
+    fun all(context: Context): List<String> = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).all.keys.sorted()
+
     /** Private browsing ended (or began, or Sofa started): its switches go. */
     fun forgetPrivate() = privateChoices.clear()
 

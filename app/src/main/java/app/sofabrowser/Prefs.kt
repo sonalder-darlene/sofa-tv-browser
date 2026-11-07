@@ -219,7 +219,10 @@ class Prefs(context: Context) {
     }
 
     companion object {
+        val THEMES = listOf("dark", "light", "system")
         val UA_MODES = listOf("desktop", "mobile", "webview", "ipad", "tv", "custom")
+        /** "Text size" in Settings, in percent. */
+        val TEXT_SIZES = listOf(80, 90, 100, 115, 130, 150, 175, 200)
         /** [videoPlayer] when the user wants Android's chooser every time. */
         const val ASK_EVERY_TIME = "ask"
 

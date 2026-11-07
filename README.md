@@ -20,6 +20,8 @@ called Sofa.
   your choice, or where you left off, instead.
 - **Bookmarks from your other browsers**: import the bookmarks file a desktop browser exports, from the TV's file
   picker, a web address or a file Sofa saved, and export yours the same way.
+- **Settings backup**: your settings, lists, allowed sites, Quick access and bookmarks in one password-protected
+  file, to set up another TV or to come back after a reset.
 - **Watch**: one press of Play finds the page's main video and plays it fullscreen.
 - **Sofa Player**: in fullscreen, Sofa plays the site's stream in its own player when it can, with 4K at full
   resolution, HDR, and a choice of quality, sound and subtitles that it keeps for the next videos. Otherwise the
@@ -62,7 +64,7 @@ Copies installed by an app store or by Obtainium never offer this; the store kee
 - **Nothing of its own:** no accounts, analytics, ads, crash reports or servers. Apart from the sites you visit,
   Sofa only contacts your search engine (for suggestions, if you turn them on), GitHub (for update checks, if
   you turn them on), the addresses of your filter lists (when you add or update them, or every few days if you
-  turn on automatic updates), the address of a bookmarks file you import from, and the DNS service you choose, if
+  turn on automatic updates), the address of a bookmarks file you import from or a settings file, and the DNS service you choose, if
   you choose one ([Custom DNS](#custom-dns)).
   Voice search uses the TV's speech service.
 - **Blocking:** ads and trackers are blocked on the TV (see [Ad blocking](#ad-blocking)), and third-party cookies
@@ -76,6 +78,9 @@ Copies installed by an app store or by Obtainium never offer this; the store kee
   exit".
   A video handed to another app (Play in…) may stay in that app's own history, which Sofa can't erase.
 - **History** is kept for as long as you choose: 7, 30 or 90 days (the default), always or never.
+- **Settings backups** (Settings → Backup) are protected with a password you choose unless you pick "No password":
+  PBKDF2-HMAC-SHA512 (210,000 rounds) makes a key from it and AES-256-GCM encrypts the file, both built into Android.
+  The file never holds your PIN, history, cookies, open tabs or start page picture.
 - **WebView reporting:** usage reports to Google are off, and so are Safe Browsing lookups unless you turn them on.
 
 ### Custom DNS

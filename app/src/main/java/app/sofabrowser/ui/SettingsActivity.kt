@@ -73,6 +73,8 @@ class SettingsActivity : Activity() {
     private var backgroundRow: TextView? = null
     /** Most visited's switch, which the Start page page also flips. */
     private var mostVisitedToggle: Toggle? = null
+    /** Export settings and Import settings; an import rebuilds the page, whose values it changed. */
+    private val transfer by lazy { SettingsTransfer(this) { recreate() } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -128,7 +130,7 @@ class SettingsActivity : Activity() {
         }, LinearLayout.LayoutParams(ROW_WIDTH.px, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = 24.px })
 
         section(R.string.section_appearance)
-        nav(R.string.theme, resources.getStringArray(R.array.themes)[THEMES.indexOf(prefs.theme).coerceAtLeast(0)]) { pickTheme() }
+        nav(R.string.theme, resources.getStringArray(R.array.themes)[Prefs.THEMES.indexOf(prefs.theme).coerceAtLeast(0)]) { pickTheme() }
         nav(R.string.text_size, getString(R.string.percent, prefs.textZoom)) { pickTextSize() }
         menuRow = valueText(menuValue())
         row(getString(R.string.menu_buttons), getString(R.string.menu_buttons_sub), menuRow) {
@@ -220,6 +222,10 @@ class SettingsActivity : Activity() {
             nav(R.string.check_updates_now, null) { Updater.checkNow(this) }
         }
 
+        section(R.string.section_backup)
+        row(getString(R.string.settings_export), getString(R.string.settings_export_sub), arrow()) { transfer.export() }
+        row(getString(R.string.settings_import), getString(R.string.settings_import_sub), arrow()) { transfer.import() }
+
         section(R.string.section_about)
         nav(R.string.about, getString(R.string.version, BuildConfig.VERSION_NAME)) { about() }
         // Not in the Google Play build, whose payment rules cover donations made from inside an app.
@@ -295,6 +301,7 @@ class SettingsActivity : Activity() {
         @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
         val uri = data?.data
+        if (requestCode == SettingsTransfer.REQUEST_FILE) { if (resultCode == RESULT_OK && uri != null) transfer.files.onPicked(uri); return }
         if (requestCode != BackgroundPage.REQUEST_PICTURE || resultCode != RESULT_OK || uri == null) return
         Toast.makeText(this, R.string.background_setting, Toast.LENGTH_SHORT).show()
         HomePicture.set(this, { contentResolver.openInputStream(uri) ?: throw java.io.IOException() }) { outcome ->
@@ -341,10 +348,10 @@ class SettingsActivity : Activity() {
 
     private fun pickTheme() {
         dialog().setTitle(R.string.theme)
-            .setSingleChoiceItems(R.array.themes, THEMES.indexOf(prefs.theme)) { d, which ->
+            .setSingleChoiceItems(R.array.themes, Prefs.THEMES.indexOf(prefs.theme)) { d, which ->
                 d.dismiss()
-                if (THEMES[which] != prefs.theme) {
-                    prefs.theme = THEMES[which]
+                if (Prefs.THEMES[which] != prefs.theme) {
+                    prefs.theme = Prefs.THEMES[which]
                     recreate()
                 }
             }.show()
@@ -532,7 +539,7 @@ class SettingsActivity : Activity() {
     private val openPage: String? get() = intent.getStringExtra(EXTRA_OPEN_PAGE)
 
     private fun pickTextSize() {
-        val sizes = intArrayOf(80, 90, 100, 115, 130, 150, 175, 200)
+        val sizes = Prefs.TEXT_SIZES
         dialog().setTitle(R.string.text_size)
             .setSingleChoiceItems(sizes.map { "$it%" }.toTypedArray(), sizes.indexOf(prefs.textZoom)) { d, which ->
                 prefs.textZoom = sizes[which]; d.dismiss(); build()
@@ -1095,7 +1102,6 @@ class SettingsActivity : Activity() {
 
     companion object {
         private const val ROW_WIDTH = 1400
-        private val THEMES = listOf("dark", "light", "system")
         private val DRM_MODES = listOf(ProtectedMedia.ASK, ProtectedMedia.ALLOW, ProtectedMedia.BLOCK)
         private const val PAGE = "page"
         /** The address of the page open in Sofa, offered as the page to open at start. */

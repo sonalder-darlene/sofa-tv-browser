@@ -41,6 +41,11 @@
             <action android:name="android.intent.action.OPEN_DOCUMENT" />
             <data android:mimeType="text/html" />
         </intent>
+        <!-- Settings: "Choose a file" for Import settings, likewise. -->
+        <intent>
+            <action android:name="android.intent.action.OPEN_DOCUMENT" />
+            <data android:mimeType="application/json" />
+        </intent>
     </queries>
 
     <!-- Picture-in-picture starts from the video bar or from Home (onUserLeaveHint), as on Android TV; lint's
