@@ -58,6 +58,7 @@ class SettingsActivity : Activity() {
     private val onMenuPage get() = intent.getStringExtra(PAGE) == PAGE_MENU
     private val onHomePage get() = intent.getStringExtra(PAGE) == PAGE_HOME
     private val onBackgroundPage get() = intent.getStringExtra(PAGE) == PAGE_BACKGROUND
+    private val onSupportPage get() = intent.getStringExtra(PAGE) == PAGE_SUPPORT
     /** The Filter lists row on the main page, whose rule count is refreshed on return. */
     private var listsRow: View? = null
     /** The Site filters row on the main page, whose value is refreshed on return. */
@@ -90,7 +91,7 @@ class SettingsActivity : Activity() {
             addView(list)
         }
         setContentView(FrameLayout(this).apply { background = Ui.background(false); addView(content) })
-        when { onMenuPage || onHomePage || onBackgroundPage -> Unit; onListsPage -> buildLists(); onSitesPage -> buildSites(); onDnsPage -> buildDns(); onDnsPickPage -> buildDnsPick(); else -> build() }
+        when { onMenuPage || onHomePage || onBackgroundPage -> Unit; onListsPage -> buildLists(); onSitesPage -> buildSites(); onDnsPage -> buildDns(); onDnsPickPage -> buildDnsPick(); onSupportPage -> buildSupport(); else -> build() }
     }
 
     override fun onStart() {
@@ -105,7 +106,7 @@ class SettingsActivity : Activity() {
             onListsPage -> buildLists()
             onSitesPage -> buildSites()
             onDnsPage -> buildDns()
-            onDnsPickPage || onMenuPage || onHomePage || onBackgroundPage -> Unit
+            onDnsPickPage || onMenuPage || onHomePage || onBackgroundPage || onSupportPage -> Unit
             else -> {
                 (listsRow as? TextView)?.text = rulesText(blocker.rules.rules)
                 (sitesRow as? TextView)?.text = sitesValue()
@@ -221,6 +222,10 @@ class SettingsActivity : Activity() {
 
         section(R.string.section_about)
         nav(R.string.about, getString(R.string.version, BuildConfig.VERSION_NAME)) { about() }
+        // Not in the Google Play build, whose payment rules cover donations made from inside an app.
+        if (BuildConfig.DONATIONS) row(getString(R.string.support_sofa), getString(R.string.support_sofa_sub), arrow()) {
+            startActivity(Intent(this, SettingsActivity::class.java).putExtra(PAGE, PAGE_SUPPORT))
+        }
 
         (list.getChildAt(focused)?.takeIf { it.isFocusable } ?: list.getChildAt(2))?.requestFocus()
     }
@@ -1021,6 +1026,57 @@ class SettingsActivity : Activity() {
             .show()
     }
 
+    // Support Sofa: one row per address (PAGE_SUPPORT), each opening its QR code
+
+    private fun buildSupport() {
+        list.removeAllViews()
+        pageTitle(R.string.support_sofa, R.string.support_intro)
+        Donations.coins.map { c -> row(getString(c.name), Donations.short(c.address), arrow()) { showCoin(c) } }.first().requestFocus()
+    }
+
+    /** The coin's QR code, big enough to scan from the sofa, with its address in full under it. */
+    private fun showCoin(coin: Donations.Coin) {
+        val bitmap = android.graphics.BitmapFactory.decodeResource(resources, coin.qr, android.graphics.BitmapFactory.Options().apply { inScaled = false })
+        // A whole number of pixels per module, unsmoothed, so every module stays sharp and the same size.
+        val modules = bitmap.width
+        val k = (480.px / modules).coerceAtLeast(1)
+        val qr = ImageView(this).apply {
+            setImageDrawable(android.graphics.drawable.BitmapDrawable(resources, bitmap).apply { isFilterBitmap = false })
+            scaleType = ImageView.ScaleType.FIT_XY
+            contentDescription = getString(R.string.donate_qr, getString(coin.name))
+        }
+        // White quiet zone of 4 modules around the code, which scanners need, in both themes.
+        val card = FrameLayout(this).apply {
+            background = Ui.rounded(android.graphics.Color.WHITE, 12)
+            setPadding(4 * k, 4 * k, 4 * k, 4 * k)
+            addView(qr, FrameLayout.LayoutParams(modules * k, modules * k))
+        }
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(48.px, 24.px, 48.px, 0)
+            addView(card, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+            addView(Ui.text(this@SettingsActivity, 26).apply {
+                text = coin.note?.let { getString(R.string.donate_scan) + " " + getString(it) } ?: getString(R.string.donate_scan)
+                gravity = Gravity.CENTER
+                setPadding(0, 24.px, 0, 0)
+            })
+            addView(Ui.text(this@SettingsActivity, 26).apply {
+                text = coin.address
+                typeface = android.graphics.Typeface.MONOSPACE
+                gravity = Gravity.CENTER
+                setPadding(0, 16.px, 0, 0)
+            }, LinearLayout.LayoutParams(720.px, LinearLayout.LayoutParams.WRAP_CONTENT))
+        }
+        dialog().setTitle(coin.name).setView(body)
+            .setPositiveButton(R.string.ok, null)
+            .setNeutralButton(R.string.copy_address) { _, _ ->
+                getSystemService(android.content.ClipboardManager::class.java)
+                    ?.setPrimaryClip(android.content.ClipData.newPlainText(getString(coin.name), coin.address))
+                Toast.makeText(this, R.string.address_copied, Toast.LENGTH_SHORT).show()
+            }.show()
+    }
+
     private fun showAsset(title: Int, name: String) {
         val text = runCatching { assets.open(name).bufferedReader().readText() }.getOrDefault("")
         dialog().setTitle(title).setMessage(text).setPositiveButton(R.string.ok, null).show()
@@ -1051,6 +1107,7 @@ class SettingsActivity : Activity() {
         private const val PAGE_MENU = "menu"
         private const val PAGE_HOME = "home"
         private const val PAGE_BACKGROUND = "background"
+        private const val PAGE_SUPPORT = "support"
         /** Which DNS the pick page chooses: [FALLBACK], or the main one. */
         private const val SLOT = "slot"
         private const val FALLBACK = "fallback"

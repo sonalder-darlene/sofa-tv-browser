@@ -64,10 +64,13 @@ android {
             dimension = "distribution"
             buildConfigField("String", "UPDATE_URL", "\"$updateUrl\"")
             buildConfigField("String", "RELEASE_CERT_SHA256", "\"$releaseCert\"")
+            buildConfigField("boolean", "DONATIONS", "true")
         }
-        // Google Play forbids apps that update themselves, so this build has no updater at all.
+        // Google Play forbids apps that update themselves, so this build has no updater at all. Its payment rules
+        // also cover donations made from inside an app, so Settings → Support Sofa is left out.
         create("play") {
             dimension = "distribution"
+            buildConfigField("boolean", "DONATIONS", "false")
         }
     }
 

@@ -230,6 +230,51 @@ the TV's settings or removing Sofa.
 
 Reader mode, typing from a phone, translations, and user scripts (planned: [docs/user-scripts.md](docs/user-scripts.md)).
 
+## Support Sofa
+
+Sofa is free, with no ads and no tracking. If you'd like to help it along, you can donate to one of these
+addresses. On the TV, Settings → Support Sofa shows the same codes, to scan with your phone's wallet app.
+
+**Bitcoin (BTC), silent payment**: needs a wallet that pays silent payment addresses.
+
+<img src="docs/donate/btc.svg" width="200" alt="QR code of the Bitcoin silent payment address">
+
+```
+sp1qqglkmsmm6fkxzmnjtzzlyfshur2w80zlmaddvq497lesc569aahekqe9h5fvpjn53yz9hfjgc5f872acxx8pqf2jp8pypl3vth4ten4a3s5p9jrv
+```
+
+**Bitcoin Lightning**: a Lightning address, which any Lightning wallet can pay.
+
+<img src="docs/donate/lightning.svg" width="200" alt="QR code of the Lightning address">
+
+```
+sonalder@cake.cash
+```
+
+**Monero (XMR)**
+
+<img src="docs/donate/xmr.svg" width="200" alt="QR code of the Monero address">
+
+```
+469dA6keA9w9EfensKZJnaZCmqQY4foXedwnN98Sm7QVeJeXTMR7EAU913oPqzFRVJes8uyYQWixm6oqH3i37Vyf1NbomdG
+```
+
+**Zcash (ZEC), shielded (Ironwood)**: needs a wallet updated for Zcash's Ironwood upgrade.
+
+<img src="docs/donate/zec.svg" width="200" alt="QR code of the Zcash shielded address">
+
+```
+u1paq3l7dms04sml8r4gp40hdh8wu73hlj70rafmyay23rx2rr6kynx2t0dgge2m6nsu6rcsl4xnhp255t3qv062jfrrw3jx4uygkasts8
+```
+
+**Ethereum (ETH)**
+
+<img src="docs/donate/eth.svg" width="200" alt="QR code of the Ethereum address">
+
+```
+0xC88455aa2b489Ba83Ed9606EA9627466C37C4D5a
+```
+
 ## For developers
 
 **Build**
