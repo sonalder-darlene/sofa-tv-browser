@@ -99,6 +99,12 @@
 - Fixed: private browsing's cookies, site storage and cache are erased as soon as it ends, not at the next start,
   and a second private session in the same run no longer finds the first one's cookies.
 
+**Support Sofa**
+
+- **Donation addresses** (Settings → About → Support Sofa, and the README): Bitcoin (silent payment), Lightning,
+  Monero, Zcash (shielded) and Ethereum. Each shows its QR code, large enough to scan with a phone's wallet app from
+  the sofa, with the full address and a Copy button. Nothing is sent anywhere. The Google Play build doesn't have it.
+
 **Smaller things**
 
 - Fixed: a pop-under that rides on a press on a picture link (a series card, a thumbnail) is blocked, and the link
