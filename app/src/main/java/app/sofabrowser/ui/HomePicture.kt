@@ -16,8 +16,9 @@ import java.util.concurrent.Executors
 
 /**
  * The start page's own picture: one file in the app's private storage, never sent anywhere, kept when browsing data
- * is cleared. Setting it makes a fresh copy ([PictureSize.stored], lossy WebP), which also drops the source's EXIF
- * data; showing it decodes only as many pixels as the screen has, into graphics memory where Android allows.
+ * is cleared. Setting it makes a fresh copy of the part a TV shows ([PictureSize.kept], [PictureSize.stored], lossy
+ * WebP), which also drops the source's EXIF data; showing it decodes only as many pixels as the screen has, into
+ * graphics memory where Android allows.
  */
 object HomePicture {
 
@@ -97,20 +98,28 @@ object HomePicture {
             }
             val orientation = PictureSize.jpegOrientation(head)
             val (turn, mirror) = PictureSize.turn(orientation)
-            val sideways = turn % 180 != 0
-            val upright = PictureSize.stored(if (sideways) h else w, if (sideways) w else h)
-            val targetW = if (sideways) upright.height else upright.width
-            val targetH = if (sideways) upright.width else upright.height
+            // Only the part the start page shows is kept, so the copy is never larger than what a TV draws.
+            val part = PictureSize.kept(w, h, sideways = turn % 180 != 0)
+            val partW = part[2] - part[0]
+            val partH = part[3] - part[1]
+            val target = PictureSize.stored(partW, partH)
             // Animated GIF and WebP: BitmapFactory gives the first frame.
             val decoded = BitmapFactory.decodeFile(source.path, BitmapFactory.Options().apply {
-                inSampleSize = PictureSize.sample(w, h, targetW, targetH)
+                inSampleSize = PictureSize.sample(partW, partH, target.width, target.height)
                 inPreferredConfig = Bitmap.Config.ARGB_8888
             }) ?: return Outcome.UNREADABLE
+            // The part in the decoded pixels, which are fewer when sampled down.
+            val fx = decoded.width / w.toFloat()
+            val fy = decoded.height / h.toFloat()
+            val x = (part[0] * fx).toInt().coerceIn(0, decoded.width - 1)
+            val y = (part[1] * fy).toInt().coerceIn(0, decoded.height - 1)
+            val cw = (partW * fx).toInt().coerceIn(1, decoded.width - x)
+            val ch = (partH * fy).toInt().coerceIn(1, decoded.height - y)
             val m = Matrix().apply {
-                postScale(targetW / decoded.width.toFloat() * (if (mirror) -1 else 1), targetH / decoded.height.toFloat())
+                postScale(target.width / cw.toFloat() * (if (mirror) -1 else 1), target.height / ch.toFloat())
                 postRotate(turn.toFloat())
             }
-            val copy = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, m, true)
+            val copy = Bitmap.createBitmap(decoded, x, y, cw, ch, m, true)
             if (copy !== decoded) decoded.recycle()
             val fresh = File(context.filesDir, "$NAME.new")
             val written = fresh.outputStream().use { copy.compress(webp(), QUALITY, it) }

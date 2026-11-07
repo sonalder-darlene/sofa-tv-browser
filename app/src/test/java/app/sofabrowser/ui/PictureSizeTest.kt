@@ -21,22 +21,39 @@ class PictureSizeTest {
         assertEquals(Size(3840, 2160), PictureSize.stored(3840, 2160))
         assertEquals(Size(3840, 2160), PictureSize.stored(7680, 4320))
         assertEquals(Size(3840, 2160), PictureSize.stored(5120, 2880))
+        // The 9:16 part of a photo taken sideways, before it is turned upright.
+        assertEquals(Size(2160, 3840), PictureSize.stored(4320, 7680))
+    }
+
+    /** The stored size of a [width] × [height] picture's kept part. */
+    private fun storedPart(width: Int, height: Int, sideways: Boolean = false) =
+        PictureSize.kept(width, height, sideways).let { PictureSize.stored(it[2] - it[0], it[3] - it[1]) }
+
+    @Test
+    fun onlyTheCentreATvShowsIsKept() {
+        // 16:9 already: all of it.
+        assertArrayEquals(intArrayOf(0, 0, 3840, 2160), PictureSize.kept(3840, 2160))
+        // 4:3: top and bottom go, as the start page would cut them; a full 4K width stays.
+        assertArrayEquals(intArrayOf(0, 375, 4000, 2625), PictureSize.kept(4000, 3000))
+        assertEquals(Size(3840, 2160), storedPart(4000, 3000))
+        // A wide photo: its sides go, then it comes down to 4K (keeping its shape, it would stay 4807 × 2160).
+        assertArrayEquals(intArrayOf(1017, 0, 9091, 4542), PictureSize.kept(10109, 4542))
+        assertEquals(Size(3840, 2160), storedPart(10109, 4542))
+        // A very wide panorama: a 16:9 band from its middle.
+        assertEquals(Size(3840, 2160), storedPart(20000, 3000))
+        // A phone's portrait photo: a band across the middle, under 4K across, so not scaled.
+        assertArrayEquals(intArrayOf(0, 1165, 3024, 2866), PictureSize.kept(3024, 4032))
+        assertEquals(Size(3024, 1701), storedPart(3024, 4032))
     }
 
     @Test
-    fun aPictureOfAnotherShapeKeepsItsShapeAndStillCoversAFourKScreen() {
-        // 4:3: the start page crops it to 16:9, so it keeps a full 4K width.
-        assertEquals(Size(3840, 2880), PictureSize.stored(4000, 3000))
-        // A phone's portrait photo is smaller than 4K across: kept whole.
-        assertEquals(Size(3024, 4032), PictureSize.stored(3024, 4032))
-        // Portrait and larger: down, keeping its shape, to at most twice 4K's pixels (a full 4K width would be more).
-        val tall = PictureSize.stored(6000, 8000)
-        assertEquals(Size(3527, 4703), tall)
-        assertTrue(tall.width.toLong() * tall.height <= PictureSize.MAX_PIXELS)
-        // A very wide panorama is held to twice 4K's pixels.
-        val pano = PictureSize.stored(20000, 3000)
-        assertTrue(pano.width.toLong() * pano.height <= PictureSize.MAX_PIXELS)
-        assertEquals(20000.0 / 3000, pano.width.toDouble() / pano.height, 0.01)
+    fun aPhotoTakenSidewaysIsCutAtNineBySixteenInItsFile() {
+        // The same portrait photo stored landscape with an EXIF quarter turn: the same band, turned.
+        val r = PictureSize.kept(4032, 3024, sideways = true)
+        assertArrayEquals(intArrayOf(1165, 0, 2866, 3024), r)
+        assertEquals(Size(1701, 3024), storedPart(4032, 3024, sideways = true))
+        // A large one comes down to 2160 × 3840, which turns into 3840 × 2160.
+        assertEquals(Size(2160, 3840), storedPart(8000, 6000, sideways = true))
     }
 
     @Test

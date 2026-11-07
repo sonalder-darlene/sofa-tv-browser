@@ -92,8 +92,8 @@ object HomeBackground {
     }
 
     /**
-     * A picture filling its bounds, centre-cropped (the stored file is never cut), on the theme's colour (for any
-     * transparent parts) and under a [scrim].
+     * A picture filling its bounds, centre-cropped to their shape (the stored picture is already 16:9, so a TV's
+     * screen cuts nothing more), on the theme's colour (for any transparent parts) and under a [scrim].
      */
     class Cover(private val bitmap: Bitmap, private val base: Int, private val scrim: Int) : Drawable() {
         private val paint = Paint(Paint.FILTER_BITMAP_FLAG)

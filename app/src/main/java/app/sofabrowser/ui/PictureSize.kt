@@ -3,28 +3,31 @@ package app.sofabrowser.ui
 /**
  * The size rules for the start page's own picture (HomePicture), as plain arithmetic so they are unit-tested.
  *
- * The stored copy keeps every pixel a 4K screen can show and no more: it is scaled down (never up) only as far as it
- * still covers 3840 × 2160, since the start page fills the screen with it, centre-cropped. A 4:3 photo so keeps a
- * full 4K width. The screen the picture is set on doesn't matter: the same file still looks right on a 4K TV later.
+ * The stored copy is the part a TV shows and no more: the picture's centre at a TV's shape, 16:9 (the start page
+ * would cut the rest away anyway), scaled down (never up) to at most 3840 × 2160. A 4K TV so gets every pixel it can
+ * show, and a 1080p screen decodes exactly 1920 × 1080 of it, whatever the photo's shape.
  */
 object PictureSize {
     const val MAX_WIDTH = 3840
     const val MAX_HEIGHT = 2160
-    /** A very wide or tall picture is kept smaller than this, though its crop is then a little under 4K. */
-    const val MAX_PIXELS = 2L * MAX_WIDTH * MAX_HEIGHT
     /** Larger pictures are refused: nothing a TV shows needs them, and decoding them takes too long. */
     const val MAX_SOURCE_PIXELS = 200_000_000L
     const val MAX_SOURCE_BYTES = 50L * 1024 * 1024
 
     data class Size(val width: Int, val height: Int)
 
-    /** The stored copy's size for a picture of [width] × [height]. */
+    /**
+     * The part of a [width] × [height] picture that is stored: its centre, 16:9 once upright. In the file of a photo
+     * [sideways] (turned a quarter by its EXIF orientation) that is a 9:16 part.
+     */
+    fun kept(width: Int, height: Int, sideways: Boolean = false): IntArray =
+        if (sideways) crop(width, height, MAX_HEIGHT, MAX_WIDTH) else crop(width, height, MAX_WIDTH, MAX_HEIGHT)
+
+    /** The stored copy's size for a [width] × [height] part from [kept]: scaled down to 4K's size, never up. */
     fun stored(width: Int, height: Int): Size {
-        if (width <= 0 || height <= 0) return Size(0, 0)
-        val cover = maxOf(MAX_WIDTH.toDouble() / width, MAX_HEIGHT.toDouble() / height)
-        val pixels = kotlin.math.sqrt(MAX_PIXELS.toDouble() / (width.toDouble() * height))
-        val scale = minOf(1.0, cover, pixels)
-        if (scale >= 1.0) return Size(width, height)
+        val long = maxOf(width, height)
+        if (long <= MAX_WIDTH) return Size(width, height)
+        val scale = MAX_WIDTH.toDouble() / long
         return Size(maxOf(1, Math.round(width * scale).toInt()), maxOf(1, Math.round(height * scale).toInt()))
     }
 
