@@ -89,6 +89,8 @@
 
 **Smaller things**
 
+- Fixed: a pop-under that rides on a press on a picture link (a series card, a thumbnail) is blocked, and the link
+  opens. Sofa now reads where a picture link goes; before, a press on one let any window through.
 - "Continue from" goes as soon as the video reaches that place, whether it played there or you skipped ahead.
 - Video info ends with the TV's own decoders: for AV1, HEVC, VP9 and H.264, the largest picture its hardware and
   software decoders take, as the TV reports it. A codec the TV has no decoder for but WebView decodes itself says so.

@@ -7,6 +7,8 @@ import android.graphics.Bitmap
 import android.hardware.display.DisplayManager
 import android.net.Uri
 import android.net.http.SslError
+import android.os.Handler
+import android.os.Looper
 import android.os.Message
 import android.os.SystemClock
 import android.view.Display
@@ -483,24 +485,38 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
     private var chainHost: String? = null
 
     /**
-     * What the last press landed on, from WebView's own hit test (no page script involved): a link's address, "" for an
-     * image link (WebView doesn't say where it goes), or null when it wasn't a link.
+     * What the last press landed on, from WebView's own hit test (no page script involved): a link's address (for a
+     * picture link, the link around the picture), "" when WebView doesn't say where it goes, or null when it wasn't a
+     * link.
      */
     private fun pressedLink(view: WebView): String? {
         val hit = view.hitTestResult
         return when (hit.type) {
             WebView.HitTestResult.SRC_ANCHOR_TYPE -> hit.extra.orEmpty()
-            WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE -> ""
+            WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE -> linkAroundPicture(view).orEmpty()
             else -> null
         }
     }
 
-    /** Whether a press on the link [this] (see [pressedLink]) explains going to [url]. */
-    private fun String?.leadsTo(url: String): Boolean = when {
-        this == null -> false
-        isEmpty() -> true
-        else -> substringBefore('#') == url.substringBefore('#') || hostOf(this)?.equals(hostOf(url), ignoreCase = true) == true
+    /**
+     * The address of the link around a pressed picture. The hit test only names the picture; WebView answers this
+     * second question from the same hit test, filling the message at once and only queueing it, so on the UI thread
+     * it is read here before anything handles it.
+     */
+    private fun linkAroundPicture(view: WebView): String? {
+        val msg = Message.obtain(noReply)
+        view.requestFocusNodeHref(msg)
+        return msg.data.getString("url")?.takeIf { it.isNotBlank() }
     }
+
+    private val noReply = Handler(Looper.getMainLooper()) { true }
+
+    /**
+     * Whether a press on the link [this] (see [pressedLink]) explains going to [url]. A link whose address isn't known
+     * explains nothing: pop-under scripts ride on presses on picture links, and their window goes elsewhere.
+     */
+    private fun String?.leadsTo(url: String): Boolean =
+        !isNullOrEmpty() && (substringBefore('#') == url.substringBefore('#') || hostOf(this)?.equals(hostOf(url), ignoreCase = true) == true)
 
     /** Pop-up and redirect decisions in the log of test builds, for sites that misbehave. */
     private fun debug(message: String) {
