@@ -285,7 +285,7 @@ nix develop -c ./gradlew testStandardDebugUnitTest testPlayDebugUnitTest lintSta
 ```
 
 Without Nix, use JDK 17 or newer and an Android SDK with platform 36 and build-tools 36.1.0 in `ANDROID_HOME`.
-The project uses AGP 9.4.1, Kotlin 2.4.21 and Gradle 9.8.1. The UI is plain framework views; the
+The project uses AGP 9.4.1, Kotlin 2.4.21 and Gradle 9.8.2. The UI is plain framework views; the
 dependencies are `androidx.webkit` and Media3 (ExoPlayer with HLS and DASH) for Sofa Player.
 
 **Two builds**

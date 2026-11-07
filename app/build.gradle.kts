@@ -141,7 +141,7 @@ androidComponents {
 
 dependencies {
     // Thin shim over system WebView features (profiles, document-start scripts, UA client hints, headers).
-    implementation("androidx.webkit:webkit:1.17.1")
+    implementation("androidx.webkit:webkit:1.18.0")
     // Sofa Player: ExoPlayer with HLS and DASH only (no UI, session or extension modules), Apache-2.0.
     implementation("androidx.media3:media3-exoplayer:1.11.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.11.1")

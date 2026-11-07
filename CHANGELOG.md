@@ -111,6 +111,7 @@
   stored, like a site let through Site filters there.
 - Notices over the video stay up longer when they say more (5 seconds, and a second more for every ten words), and
   the notice that a page tried to open a site while you were away stays up longer too.
+- The old-WebView warning now starts below version 144.
 
 ## 1.2.2 (2026-10-30)
 
