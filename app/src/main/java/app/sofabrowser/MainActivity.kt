@@ -308,8 +308,18 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         if (startPage || tab.address == null) showHome() else showPage()
         // Back on a tab whose page is still a blocked site's stand-in: its block screen again, not a blank page.
         if (!homeShown) web?.url?.let { url -> browser.adBlocker.siteListed(url)?.let { dialogs.siteBlocked(url, it, replaced = true) } }
-        tabs.trim()
+        trimTabs()
     }
+
+    /** Unloads the pages out of sight the TV has no room for, or that rested long enough, then waits for the next. */
+    private fun trimTabs() {
+        browserLayer.removeCallbacks(restTabs)
+        tabs.trim()
+        // A second late, so the next one is surely due.
+        tabs.nextRest()?.let { browserLayer.postDelayed(restTabs, it + 1000) }
+    }
+
+    private val restTabs = Runnable { trimTabs() }
 
     override fun newTab() {
         val tab = tabs.add() ?: return toast(resources.getQuantityString(R.plurals.tabs_full, Tabs.MAX, Tabs.MAX))
@@ -330,7 +340,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         if (target !== tabs.current) { leaveTab(); tabs.select(target) }
         openUrl(url)
         if (made) target.linkFrom = from
-        tabs.trim()
+        trimTabs()
     }
 
     /**
@@ -779,6 +789,8 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         started = true
         applyKeepAwake()
         downloads.follow()
+        // Android may have held Sofa's timers back meanwhile: pages that rested out of sight long enough go now.
+        trimTabs()
     }
 
     override fun onStop() {
@@ -865,6 +877,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         if (!::prefs.isInitialized) return super.onDestroy()
         // A screen rebuilt for a theme change must not have this one pause its timers afterwards.
         browserLayer.removeCallbacks(pauseTimers)
+        browserLayer.removeCallbacks(restTabs)
         voiceInput.destroy()
         video.takeover.release()
         // Private browsing without its own profile shared the normal one: it goes too, also when the screen is rebuilt

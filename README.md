@@ -8,8 +8,8 @@ called Sofa.
 - **A mouse pointer on the D-pad**, with hover, drag, and scrolling by pushing against the screen edge. Hold OK
   on a link or image to open it in a new tab or another app, copy or share its address, or download it.
 - **Tabs**, in a strip at the top of the menu: up to 10, with private ones kept apart. Only the tab you look at
-  runs; the others wait, and on a TV short of memory their pages load again when you come back to them. Tabs
-  with the same title show their addresses.
+  runs; the others wait, and a page left out of sight for 10 minutes, or on a TV short of memory, loads again when
+  you come back to it. Tabs with the same title show their addresses.
 - **Game pads** (Xbox, PlayStation, 8BitDo and others): the left stick moves the pointer, the right stick scrolls,
   and the buttons work as in a console browser. Settings → Game controller shows them all.
 - **A menu on the Back key**: address, Watch, back and forward, find in page, bookmarks, history, zoom, ad

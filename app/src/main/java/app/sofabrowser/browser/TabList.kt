@@ -3,13 +3,17 @@ package app.sofabrowser.browser
 /**
  * The tabs of one side (normal or private browsing): their order in the menu's strip, the one in sight, and the order
  * they were in sight in. That order decides where Sofa goes when a tab closes (the one in sight before it) and which
- * tabs keep their page loaded (the most recent). Plain Kotlin, so the rules are unit-tested.
+ * tabs keep their page loaded (the most recent, and none for long). Plain Kotlin, so the rules are unit-tested.
+ *
+ * [clock] is in milliseconds and stops while the TV sleeps, as Android's own timers do (System.nanoTime).
  */
-class TabList<T : Any>(val max: Int) {
+class TabList<T : Any>(val max: Int, private val clock: () -> Long = { System.nanoTime() / 1_000_000 }) {
 
     private val order = ArrayList<T>()
     /** Most recently in sight first; a tab added and never selected is the least recent. */
     private val recent = ArrayList<T>()
+    /** When each tab out of sight went out of sight, by [clock]. */
+    private val leftAt = HashMap<T, Long>()
 
     val items: List<T> get() = order
     val size get() = order.size
@@ -22,6 +26,7 @@ class TabList<T : Any>(val max: Int) {
         if (full || tab in order) return false
         val i = after?.let(order::indexOf) ?: -1
         if (i < 0) order.add(tab) else order.add(i + 1, tab)
+        if (recent.isNotEmpty()) leftAt[tab] = clock()
         recent.add(tab)
         return true
     }
@@ -29,14 +34,19 @@ class TabList<T : Any>(val max: Int) {
     /** [tab] comes into sight. */
     fun select(tab: T) {
         if (tab !in order) return
+        val was = current
         recent.remove(tab)
         recent.add(0, tab)
+        if (was != null && was !== tab) leftAt[was] = clock()
+        leftAt.remove(tab)
     }
 
     /** Takes [tab] out. Returns the tab now in sight: the one that was in sight before it, or null when none is left. */
     fun remove(tab: T): T? {
         order.remove(tab)
         recent.remove(tab)
+        leftAt.remove(tab)
+        current?.let(leftAt::remove)
         return current
     }
 
@@ -48,6 +58,18 @@ class TabList<T : Any>(val max: Int) {
      * to unload, the least recently seen last.
      */
     fun beyond(keep: Int, live: (T) -> Boolean): List<T> = background().filter(live).drop(keep.coerceAtLeast(0))
+
+    /** Of the tabs out of sight whose page is loaded ([live]), the ones out of sight for [restMs] or longer: to unload. */
+    fun rested(restMs: Long, live: (T) -> Boolean): List<T> {
+        val now = clock()
+        return background().filter { live(it) && now - (leftAt[it] ?: now) >= restMs }
+    }
+
+    /** How long until the next loaded tab out of sight has been out of sight for [restMs]; null when none is loaded. */
+    fun nextRest(restMs: Long, live: (T) -> Boolean): Long? {
+        val now = clock()
+        return background().filter(live).minOfOrNull { ((leftAt[it] ?: now) + restMs - now).coerceAtLeast(0) }
+    }
 
     companion object {
         /**

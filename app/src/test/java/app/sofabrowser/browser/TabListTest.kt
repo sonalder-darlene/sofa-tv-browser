@@ -105,6 +105,47 @@ class TabListTest {
         assertEquals(3, TabList.liveBackground(3_800 * mb, lowRam = false))
     }
 
+    @Test
+    fun aPageOutOfSightRestsTenMinutesThenGoes() {
+        var now = 0L
+        val l = TabList<String>(10) { now }
+        listOf("a", "b", "c").forEach { l.add(it); l.select(it) }
+        val live = { _: String -> true }
+        // c in sight; b left it at 0, a too (added at 0, then left).
+        assertEquals(emptyList<String>(), l.rested(600_000, live))
+        assertEquals(600_000L, l.nextRest(600_000, live))
+        now = 300_000
+        l.select("a")
+        // a in sight again, c left at 300 s; b has been out of sight since 0.
+        now = 600_000
+        assertEquals(listOf("b"), l.rested(600_000, live))
+        // Once b is unloaded, only c is loaded out of sight: due 300 s later.
+        assertEquals(300_000L, l.nextRest(600_000) { it == "c" })
+        now = 900_000
+        assertEquals(listOf("c"), l.rested(600_000) { it == "c" })
+        // The tab in sight never rests, however long it has been there.
+        assertEquals(emptyList<String>(), l.rested(600_000) { it == "a" })
+        assertNull(l.nextRest(600_000) { it == "a" })
+    }
+
+    @Test
+    fun aTabComingBackIntoSightStartsItsRestAgainWhenItLeaves() {
+        var now = 0L
+        val l = TabList<String>(10) { now }
+        listOf("a", "b").forEach { l.add(it); l.select(it) }
+        now = 500_000
+        l.select("a")
+        now = 550_000
+        l.select("b")
+        // a went out of sight at 550 s, not at 0.
+        now = 1_000_000
+        assertEquals(emptyList<String>(), l.rested(600_000) { true })
+        assertEquals(150_000L, l.nextRest(600_000) { true })
+        // Closing the tab in sight brings a back into sight: nothing out of sight is loaded.
+        l.remove("b")
+        assertNull(l.nextRest(600_000) { true })
+    }
+
     private fun names(vararg tabs: Pair<String?, String?>) =
         TabList.names(tabs.map { it.first }, tabs.map { it.second }, "New tab", { it.removePrefix("https://").removePrefix("www.").removeSuffix("/") })
 

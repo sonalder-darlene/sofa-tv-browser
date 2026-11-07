@@ -91,7 +91,8 @@ enum class LinkFrom { PAGE, START_PAGE }
 /**
  * The tabs of both sides: normal browsing, and private browsing, kept apart. Only one side shows at a time; while the
  * private side does, the normal tabs are unloaded and wait. Only the tab in sight runs: the others rest (see
- * MainActivity), and past [liveBackground] of them, or when Android runs short of memory, their pages are unloaded.
+ * MainActivity), and past [liveBackground] of them, after [restMs] out of sight, or when Android runs short of
+ * memory, their pages are unloaded.
  */
 class Tabs(private val context: Context, private val prefs: Prefs, private val newBrowser: (Tab, Boolean) -> Browser) {
 
@@ -116,6 +117,12 @@ class Tabs(private val context: Context, private val prefs: Prefs, private val n
         TabList.liveBackground(info.totalMem, am?.isLowRamDevice == true)
     }
 
+    /** How long a page stays loaded out of sight: [REST_MS], or a test build's `files/tab-rest` in seconds. */
+    private val restMs: Long by lazy {
+        if (BuildConfig.DEBUG) File(context.filesDir, "tab-rest").takeIf { it.exists() }?.readText()?.trim()?.toLongOrNull()?.let { return@lazy it * 1000 }
+        REST_MS
+    }
+
     private fun newTab() = Tab(privateShown, newBrowser)
 
     fun isCurrent(tab: Tab) = side.current === tab
@@ -134,10 +141,20 @@ class Tabs(private val context: Context, private val prefs: Prefs, private val n
         side.remove(tab)
     }
 
-    /** Unloads the pages out of sight past what the TV keeps; [all]: every one of them (Android is short of memory). */
+    /**
+     * Unloads the pages out of sight past what the TV keeps, and those out of sight for [restMs]; [all]: every one of
+     * them (Android is short of memory).
+     */
     fun trim(all: Boolean = false) {
         side.beyond(if (all) 0 else liveBackground) { it.live }.forEach { it.drop() }
+        side.rested(restMs) { it.live }.forEach {
+            if (BuildConfig.DEBUG) android.util.Log.d("SofaTabs", "out of sight ${restMs / 1000} s: unloaded")
+            it.drop()
+        }
     }
+
+    /** Milliseconds until [trim] has the next page out of sight to unload; null while none is loaded. */
+    fun nextRest(): Long? = side.nextRest(restMs) { it.live }
 
     /** Private browsing starts with one empty tab; the normal tabs are unloaded until it ends. */
     fun enterPrivate() {
@@ -176,5 +193,10 @@ class Tabs(private val context: Context, private val prefs: Prefs, private val n
     companion object {
         /** Tabs on one side. Few enough to tell apart in the strip; unloaded ones cost almost nothing. */
         const val MAX = 10
+        /**
+         * A page out of sight this long is unloaded: a hidden page's scripts still run (slowed to once a second) and
+         * hold memory, and one left for this long is rarely wanted right where it was. It loads again when chosen.
+         */
+        const val REST_MS = 10 * 60_000L
     }
 }

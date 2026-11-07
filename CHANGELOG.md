@@ -87,8 +87,9 @@
   of its own; OK on a tab brings it up; OK on the tab you are on, or holding OK on any tab, closes it, the others
   or all of them. Hold OK on a link for "Open in new tab". Up to 10 tabs.
 - **Light on memory**: only the tab you look at runs. The others rest like a page behind the start page: no sound,
-  videos paused, nothing opened on their own. Past what the TV has room for, or when Android runs short of memory,
-  a tab's page is unloaded, and loads again with its back and forward history when you come back to it.
+  videos paused, nothing opened on their own. Past what the TV has room for, after 10 minutes out of sight, or when
+  Android runs short of memory, a tab's page is unloaded (so its scripts stop too), and loads again with its back
+  and forward history when you come back to it.
 - Tabs with the same title, such as two pages of one site, show their addresses in the strip, shortened in the
   middle so the part where they differ shows.
 - **Private tabs kept apart**: private browsing has its own tabs, and your normal tabs wait until it ends.
