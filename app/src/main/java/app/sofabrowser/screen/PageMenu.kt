@@ -6,6 +6,7 @@ import app.sofabrowser.Prefs
 import app.sofabrowser.R
 import app.sofabrowser.adblock.Allowlist
 import app.sofabrowser.browser.Browser
+import app.sofabrowser.browser.TabList
 import app.sofabrowser.browser.UrlInput
 import app.sofabrowser.browser.WatchTarget
 import app.sofabrowser.browser.WebViews
@@ -67,7 +68,10 @@ class PageMenu(private val s: Screen, private val watch: Watch) : BrowserMenu.Ac
             privateMode = browser.privateMode,
             allowPending = browser.pendingAllow() != null,
             autoWatchHere = WatchTarget.autoWatches(prefs.autoWatch, host, prefs.autoWatchSites),
-            tabs = s.tabs.list.map { BrowserMenu.TabChip(label(it), it === s.tabs.current) },
+            tabs = s.tabs.list.let { tabs ->
+                TabList.names(tabs.map { it.title }, tabs.map { it.address }, activity.getString(R.string.new_tab), UrlInput::display)
+                    .mapIndexed { i, name -> BrowserMenu.TabChip(name, tabs[i] === s.tabs.current, address = tabs[i].address != null && name != tabs[i].title) }
+            },
         )
     }
 
@@ -82,7 +86,7 @@ class PageMenu(private val s: Screen, private val watch: Watch) : BrowserMenu.Ac
 
     override fun onAddress() = s.startSearch(voice = false, current = s.web?.url)
 
-    /** How the strip names [tab]: its page's title, else its address, else "New tab". */
+    /** How the close dialog names [tab]: its page's title, else its address, else "New tab". */
     private fun label(tab: Tab): String =
         tab.title ?: tab.address?.let(UrlInput::display)?.takeIf { it.isNotEmpty() } ?: activity.getString(R.string.new_tab)
 

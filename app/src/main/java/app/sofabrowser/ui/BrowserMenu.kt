@@ -33,8 +33,8 @@ class BrowserMenu(context: Context, private val actions: Actions, val layout: Ar
         fun onNewTab()
     }
 
-    /** A tab in the strip: what it's called, and whether it's the one in sight. */
-    data class TabChip(val label: String, val current: Boolean)
+    /** A tab in the strip: what it's called, whether it's the one in sight, and whether that name is its address. */
+    data class TabChip(val label: String, val current: Boolean, val address: Boolean = false)
 
     data class State(
         val address: String,
@@ -198,6 +198,8 @@ class BrowserMenu(context: Context, private val actions: Actions, val layout: Ar
         address.layoutParams = address.layoutParams.apply { width = (if (tabs.size > 1) ADDRESS_NARROW else ADDRESS_WIDE).px }
         if (tabs.size > 1) tabs.forEachIndexed { i, tab ->
             strip.addView(chip(tab.label, tab.current) { actions.onTab(i) }.apply {
+                // An address keeps its site and the end where it differs from the others.
+                if (tab.address) ellipsize = TextUtils.TruncateAt.MIDDLE
                 isLongClickable = true
                 setOnLongClickListener { actions.onTabHeld(i); true }
             }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, 88.px).apply { marginEnd = 16.px })

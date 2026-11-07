@@ -89,6 +89,8 @@
 - **Light on memory**: only the tab you look at runs. The others rest like a page behind the start page: no sound,
   videos paused, nothing opened on their own. Past what the TV has room for, or when Android runs short of memory,
   a tab's page is unloaded, and loads again with its back and forward history when you come back to it.
+- Tabs with the same title, such as two pages of one site, show their addresses in the strip, shortened in the
+  middle so the part where they differ shows.
 - **Private tabs kept apart**: private browsing has its own tabs, and your normal tabs wait until it ends.
 - **Tabs come back after a restart**, as addresses only: never private tabs, and none with "Clear browsing data on
   exit". Each page loads when you choose its tab. Open at start still decides what shows first: the start page,

@@ -51,6 +51,21 @@ class TabList<T : Any>(val max: Int) {
 
     companion object {
         /**
+         * The names of the strip's chips, in order, for tabs of these [titles] and [addresses]: the title, else the
+         * address in [short] form, else [newTab]. Tabs that would get the same name though their pages differ (two
+         * pages of one site often share a title) show their address instead; the strip cuts addresses in the middle,
+         * so both the site and the end where they differ show.
+         */
+        fun names(titles: List<String?>, addresses: List<String?>, newTab: String, short: (String) -> String): List<String> {
+            val plain = titles.indices.map { i -> titles[i] ?: addresses[i]?.let(short)?.takeIf { it.isNotEmpty() } ?: newTab }
+            return plain.mapIndexed { i, name ->
+                val address = addresses[i]
+                val clash = address != null && plain.indices.any { j -> j != i && plain[j] == name && addresses[j] != address }
+                if (clash) short(address!!) else name
+            }
+        }
+
+        /**
          * The tab list as Settings keeps it (`tabs`): the index of the tab in sight on the first line, then one web
          * address per line. Addresses only: never a page's content, its history or a private tab.
          */

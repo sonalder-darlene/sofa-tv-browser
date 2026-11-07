@@ -104,4 +104,26 @@ class TabListTest {
         assertEquals(2, TabList.liveBackground(2_900 * mb, lowRam = false))
         assertEquals(3, TabList.liveBackground(3_800 * mb, lowRam = false))
     }
+
+    private fun names(vararg tabs: Pair<String?, String?>) =
+        TabList.names(tabs.map { it.first }, tabs.map { it.second }, "New tab", { it.removePrefix("https://").removePrefix("www.").removeSuffix("/") })
+
+    @Test
+    fun tabsAreNamedByTitleThenAddress() {
+        assertEquals(listOf("News", "example.com/a", "New tab"),
+            names("News" to "https://news.example/", null to "https://example.com/a", null to null))
+    }
+
+    @Test
+    fun tabsWithTheSameNameShowWhereTheyDiffer() {
+        // Two pages of one site with one title: each shows its address (the strip cuts it in the middle).
+        assertEquals(listOf("video.example/watch/1", "video.example/watch/2", "Other"),
+            names("Video" to "https://video.example/watch/1", "Video" to "https://video.example/watch/2", "Other" to "https://o.example/"))
+        assertEquals(listOf("youtube.com/watch?v=dQw4w9WgXcQ", "youtube.com/watch?v=9bZkp7q19f0"),
+            names("YouTube" to "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "YouTube" to "https://www.youtube.com/watch?v=9bZkp7q19f0"))
+        // The same page twice: nothing to tell apart, so both keep the title.
+        assertEquals(listOf("Video", "Video"), names("Video" to "https://video.example/1", "Video" to "https://video.example/1"))
+        // Untitled tabs on the same address are the same page too.
+        assertEquals(listOf("a.example", "a.example"), names(null to "https://a.example/", null to "https://a.example/"))
+    }
 }
