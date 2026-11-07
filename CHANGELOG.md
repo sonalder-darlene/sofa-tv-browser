@@ -67,7 +67,7 @@
 - **A page you leave stays quiet**: behind the start page, and while Sofa is in the background, a page no longer
   plays sound through Web Audio, its videos pause in every frame, and its scripts stop. If it tries to go to another
   site meanwhile, it stays where it was; when you come back, a notice names the site and Allow once in the menu
-  opens it. Back to the page resumes its sound; videos stay paused where they were.
+  opens it. Back to the page resumes its sound; videos stay paused where they were, also after the remote's Home key.
 
 **Tabs**
 

@@ -67,8 +67,21 @@ object VideoRelay {
     } catch (e) {}
   }
   // "rest": the page went out of sight (start page, Sofa left). Every playing video and audio element pauses, as
-  // does every running audio context; "wake" resumes those contexts only. Media elements stay paused where they were.
+  // does every running audio context; "wake" resumes those contexts only. Media elements stay paused where they were:
+  // WebView pauses a page's video by itself when Sofa goes behind another app (the remote's Home key), often before
+  // "rest" arrives, and plays it again on return. So a video that starts while resting, or within QUIET_MS of waking,
+  // is paused again, unless the viewer pressed something on the page or Sofa itself asked it to play (endQuiet).
+  let quietUntil = 0;
+  const QUIET_MS = 1500;
+  const endQuiet = () => { quietUntil = 0; };
+  addEventListener('play', (ev) => {
+    const t = ev.target;
+    if (performance.now() < quietUntil && t && typeof t.pause === 'function') t.pause();
+  }, true);
+  addEventListener('pointerdown', endQuiet, true);
+  addEventListener('keydown', endQuiet, true);
   const rest = (on) => {
+    quietUntil = on ? Infinity : performance.now() + QUIET_MS;
     if (!on) { for (const c of hushed.splice(0)) if (c.state === 'suspended') c.resume().catch(() => {}); return; }
     for (const m of document.querySelectorAll('video,audio')) if (!m.paused) m.pause();
     for (let i = contexts.length - 1; i >= 0; i--) {
@@ -419,6 +432,7 @@ object VideoRelay {
         const v = m.fid === F && (m.cmd === 'go' ? largest() : started);
         if (!v) { if (m.fid !== F) toChildren(m); return; }
         if (m.cmd === 'start' && fsEl()) return;
+        endQuiet();
         v.play().catch(() => {});
         chosen = v;
         // The player box, as the site's own fullscreen button does: many players choose their quality from their
@@ -435,8 +449,8 @@ object VideoRelay {
     if (!v) { forward(m); return; }
     switch (m.cmd) {
       case 'watch': watch(v); break;
-      case 'toggle': if (v.paused) v.play(); else v.pause(); break;
-      case 'play': v.play(); break;
+      case 'toggle': endQuiet(); if (v.paused) v.play(); else v.pause(); break;
+      case 'play': endQuiet(); v.play(); break;
       case 'pause': v.pause(); break;
       case 'seekBy': v.currentTime = Math.max(0, Math.min(isFinite(v.duration) ? v.duration : 1e9, v.currentTime + m.v)); break;
       case 'seekTo': v.currentTime = m.v; break;
