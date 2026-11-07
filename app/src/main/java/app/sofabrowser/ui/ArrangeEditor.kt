@@ -65,7 +65,7 @@ class ArrangeEditor(
     init {
         orientation = VERTICAL
         gravity = Gravity.CENTER_HORIZONTAL
-        addView(Ui.text(context, 56, Ui.p.textMid, bold = true).apply { setText(texts.title) },
+        addView(Ui.title(context, color = Ui.p.textMid).apply { setText(texts.title) },
             LayoutParams(WIDTH.px, LayoutParams.WRAP_CONTENT).apply { topMargin = 64.px })
         addView(hint, LayoutParams(WIDTH.px, LayoutParams.WRAP_CONTENT).apply { topMargin = 16.px; bottomMargin = 24.px })
 
@@ -84,6 +84,7 @@ class ArrangeEditor(
         addView(FocusScrollView(context).apply { isVerticalScrollBarEnabled = false; clipChildren = false; addView(list) },
             LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
         addView(preview.view, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        A11y.skipAll(preview.view)
 
         refresh()
         post { rows.firstOrNull()?.main?.requestFocus() }
@@ -107,6 +108,12 @@ class ArrangeEditor(
             setOnKeyListener { _, code, ev -> carryKey(this@Row, code, ev) }
             setOnFocusChangeListener { _, has -> focusChanged(has) }
         }
+        init {
+            // Named by its item, with where it is and whether it shows as its state (bind); the switch beside it is a
+            // switch named by the item too, its text and drawing silent.
+            A11y.role(main, A11y.BUTTON, hint = { if (moving == null) context.getString(R.string.a11y_arrange_hint) else null })
+            A11y.skip(arrows)
+        }
         val state = Ui.text(context, 26, Ui.p.textMid)
         val toggle = Toggle(context, true)
         val switch = LinearLayout(context).apply {
@@ -118,6 +125,10 @@ class ArrangeEditor(
             addView(toggle)
             setOnClickListener { if (moving == null) showOrHide(this@Row) }
             setOnFocusChangeListener { _, has -> focusChanged(has) }
+        }
+        init {
+            A11y.role(switch, A11y.SWITCH, checked = { entry.shown })
+            A11y.skip(state)
         }
         val view = LinearLayout(context).apply {
             clipChildren = false
@@ -156,6 +167,12 @@ class ArrangeEditor(
             view.translationZ = if (carried) 8f else 0f
             view.scaleX = if (carried) 1.02f else 1f
             view.scaleY = view.scaleX
+            val name = context.getString(e.item.label)
+            val n = section.value.entries.size
+            A11y.state(main, name, if (carried) context.getString(R.string.a11y_moving, index + 1, n)
+                else context.getString(R.string.a11y_item_position, state.text, index + 1, n))
+            A11y.state(switch, name, null)
+            if (carried) A11y.changed(main)
         }
 
         /** Slides the row's content in from [rowsAway] rows away, so a swap reads as the two changing places. */

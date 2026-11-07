@@ -19,6 +19,7 @@ import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import app.sofabrowser.R
 import app.sofabrowser.player.PlayerSurface
+import app.sofabrowser.ui.A11y
 import app.sofabrowser.ui.Ui
 import app.sofabrowser.ui.px
 import org.json.JSONObject
@@ -701,6 +702,7 @@ class VideoBar(context: Context, private val actions: Actions) : LinearLayout(co
             setPadding(32.px, 0, 32.px, 0)
             background = Ui.fillSelector(0x33FFFFFF, Ui.DARK.focus, 36)
             setOnFocusChangeListener { v, has -> (v as TextView).setTextColor(if (has) Color.BLACK else Color.WHITE) }
+            A11y.role(this, A11y.BUTTON)
             setOnClickListener {
                 actions.command("seekTo", resumeAt)
                 visibility = GONE
@@ -728,9 +730,11 @@ class VideoBar(context: Context, private val actions: Actions) : LinearLayout(co
                 rateIndex = (rateIndex + 1) % RATES.size
                 actions.command("rate", RATES[rateIndex])
                 text = rateLabel(RATES[rateIndex])
+                describeSpeed()
             }
         }
         buttons.addView(speed, LayoutParams(120.px, 72.px).apply { marginStart = 16.px })
+        describeSpeed()
         tracks = button(R.drawable.ic_settings, R.string.tracks) { actions.tracks() }.apply { visibility = GONE }
         buttons.addView(tracks)
         // "Play in…": the player picked the first time, from then on; a long press (hold OK) picks again.
@@ -758,11 +762,15 @@ class VideoBar(context: Context, private val actions: Actions) : LinearLayout(co
         addView(buttons)
     }
 
+    /** "1.5x" alone says little: named for a screen reader, the speed its state. */
+    private fun describeSpeed() = A11y.state(speed, context.getString(R.string.a11y_speed), speed.text)
+
     private fun button(icon: Int, label: Int, onClick: () -> Unit) = ImageView(context).apply {
         setImageResource(icon)
         contentDescription = context.getString(label)
         isFocusable = true
         isClickable = true
+        A11y.role(this, A11y.BUTTON)
         setPadding(14.px, 14.px, 14.px, 14.px)
         background = Ui.fillSelector(Color.TRANSPARENT, Ui.DARK.focus, 36)
         setColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN)
@@ -815,13 +823,14 @@ class VideoBar(context: Context, private val actions: Actions) : LinearLayout(co
             if (showing) { removeCallbacks(hide); postDelayed(hide, 5000) }
         }
         playPause.setImageResource(if (s.paused) R.drawable.ic_play_arrow else R.drawable.ic_pause)
+        A11y.state(playPause, context.getString(R.string.play_pause), context.getString(if (s.paused) R.string.a11y_paused else R.string.a11y_playing))
         if (!scrub.scrubbing) {
             position.text = time(s.position)
             scrub.progress = if (s.duration > 0) (s.position / s.duration).toFloat() else 0f
         }
         durationText.text = if (s.duration > 0) time(s.duration) else context.getString(R.string.live)
         val i = RATES.indexOfFirst { abs(it - s.rate) < 0.01 }
-        if (i >= 0) { rateIndex = i; speed.text = rateLabel(RATES[i]) }
+        if (i >= 0) { rateIndex = i; speed.text = rateLabel(RATES[i]); describeSpeed() }
         // Hidden without text tracks; kept if it has focus, so focus never falls out of the bar.
         if (s.subtitleTracks > 0 || subtitles.hasFocus()) subtitles.visibility = VISIBLE else subtitles.visibility = GONE
         subtitles.alpha = if (s.subtitlesOn) 1f else 0.6f
@@ -848,8 +857,16 @@ class VideoBar(context: Context, private val actions: Actions) : LinearLayout(co
 
         init {
             isFocusable = true
-            setOnFocusChangeListener { _, _ -> invalidate() }
+            setOnFocusChangeListener { _, has -> invalidate(); if (has) describe() }
         }
+
+        init {
+            // A seek bar for a screen reader, its state the time: said on focus and at each step, not every second.
+            A11y.role(this, A11y.SEEK_BAR, hint = { context.getString(R.string.a11y_scrub_hint) })
+        }
+
+        fun describe() = A11y.state(this, context.getString(R.string.a11y_video_position),
+            context.getString(R.string.a11y_time_of, position.text, durationText.text))
 
         override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
             val dir = when (keyCode) { KeyEvent.KEYCODE_DPAD_LEFT -> -1; KeyEvent.KEYCODE_DPAD_RIGHT -> 1; else -> 0 }
@@ -860,6 +877,8 @@ class VideoBar(context: Context, private val actions: Actions) : LinearLayout(co
                 target = (target + dir * max(step, state.duration / 200)).coerceIn(0.0, state.duration)
                 progress = (target / state.duration).toFloat()
                 position.text = time(target)
+                describe()
+                A11y.changed(this)
                 removeCallbacks(commit)
                 postDelayed(commit, 700)
                 return true
@@ -918,6 +937,11 @@ class FullscreenLayer(context: Context, val bar: VideoBar) : FrameLayout(context
         visibility = GONE
     }
     private val hideNotice = Runnable { notice.visibility = GONE }
+
+    init {
+        // Said as it shows: it is there instead of a toast, which a screen reader would have said too.
+        A11y.announced(notice)
+    }
 
     /** Shows [text] over the video for a few seconds, more for a longer text ([NoticeTime]). */
     fun notice(text: String) {

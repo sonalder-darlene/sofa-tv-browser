@@ -24,6 +24,8 @@ class SiteCard(context: Context, val site: Site?, icon: Drawable? = null, label:
         foreground = Ui.focusBorder(24)
         setPadding(32.px, 0, 24.px, 0)
         layoutParams = LayoutParams(510.px, 116.px).apply { marginEnd = 40.px }
+        // Read as its title and site, then "button".
+        A11y.role(this, A11y.BUTTON)
 
         val iconView = ImageView(context).apply {
             setImageDrawable(icon ?: site?.let { Favicons.get(context).drawable(it.url, it.title, 96) })

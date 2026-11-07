@@ -371,4 +371,17 @@
     </plurals>
     <string name="settings_imported_lists">Filter lists that are now on download in the background.</string>
     <string name="settings_failed">Something went wrong. %1$s</string>
+
+    <!-- Screen reader (TalkBack): names, states and hints of the controls Sofa draws itself -->
+    <string name="a11y_pin_digit">Digit %1$d of %2$d</string>
+    <string name="a11y_pin_hint">Up and down change the digit, OK goes to the next one. Number keys work too.</string>
+    <string name="a11y_item_position">%1$s, %2$d of %3$d</string>
+    <string name="a11y_moving">Moving, %1$d of %2$d</string>
+    <string name="a11y_arrange_hint">OK picks it up, then up and down move it and OK puts it down. Right goes to the switch that shows or hides it.</string>
+    <string name="a11y_video_position">Position in the video</string>
+    <string name="a11y_time_of">%1$s of %2$s</string>
+    <string name="a11y_scrub_hint">Left and right move through the video, OK goes there at once.</string>
+    <string name="a11y_speed">Playback speed</string>
+    <string name="a11y_playing">Playing</string>
+    <string name="a11y_paused">Paused</string>
 </resources>

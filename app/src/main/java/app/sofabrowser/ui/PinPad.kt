@@ -79,17 +79,17 @@ class PinPad private constructor(
         }
         card.addView(FrameLayout(context).apply {
             background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Ui.BRAND and 0x00FFFFFF or 0x29000000) }
-            addView(ImageView(context).apply { setImageResource(R.drawable.ic_lock); setColorFilter(Ui.BRAND) },
+            addView(ImageView(context).apply { setImageResource(R.drawable.ic_lock); setColorFilter(Ui.BRAND); A11y.skip(this) },
                 FrameLayout.LayoutParams(52.px, 52.px, Gravity.CENTER))
         }, LinearLayout.LayoutParams(104.px, 104.px))
-        titleView = Ui.text(context, 44, p.text, bold = true).apply { gravity = Gravity.CENTER }
+        titleView = Ui.text(context, 44, p.text, bold = true).apply { gravity = Gravity.CENTER; A11y.heading(this) }
         card.addView(titleView, wide().apply { topMargin = 32.px })
-        subView = Ui.text(context, 26, p.textMid).apply { gravity = Gravity.CENTER; setLineSpacing(0f, 1.15f) }
+        subView = Ui.text(context, 26, p.textMid).apply { gravity = Gravity.CENTER; setLineSpacing(0f, 1.15f); A11y.announced(this) }
         card.addView(subView, wide().apply { topMargin = 14.px })
         row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; clipChildren = false; clipToPadding = false }
         cells.forEach { row.addView(it, LinearLayout.LayoutParams(136.px, 184.px).apply { marginStart = 14.px; marginEnd = 14.px }) }
         card.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = 52.px })
-        statusView = Ui.text(context, 26, p.textMid).apply { gravity = Gravity.CENTER; minLines = 1 }
+        statusView = Ui.text(context, 26, p.textMid).apply { gravity = Gravity.CENTER; minLines = 1; A11y.announced(this) }
         card.addView(statusView, wide().apply { topMargin = 40.px })
         hintView = Ui.text(context, 22, p.textWeak).apply { gravity = Gravity.CENTER; setLineSpacing(0f, 1.15f) }
         card.addView(hintView, wide().apply { topMargin = 16.px })
@@ -106,6 +106,7 @@ class PinPad private constructor(
 
         stage()
         hintView.text = context.getString(R.string.pin_hint)
+        A11y.skip(hintView)
         card.alpha = 0f
         card.scaleX = 0.94f
         card.scaleY = 0.94f
@@ -219,6 +220,14 @@ class PinPad private constructor(
             addView(below, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
             Ui.focusScale(this, 1.08f) { render() }
             setOnKeyListener { _, code, e -> key(code, e) }
+            // One name per wheel and its digit as its state, said as it turns (aloud, as Android's own PIN pad does
+            // with a screen reader: there's no other way to know what is set); the digits drawn around it stay silent.
+            listOf(above, digit, below).forEach(A11y::skip)
+            // Focus never reaches the title, and a TV's screen reader doesn't say this window's: the first wheel's hint says it.
+            A11y.role(this, A11y.SEEK_BAR, hint = {
+                val how = context.getString(R.string.a11y_pin_hint)
+                if (index == 0) "${titleView.text}. ${subView.text} $how" else how
+            })
             render()
         }
 
@@ -242,12 +251,15 @@ class PinPad private constructor(
             val weak = if (focused) Ui.p.onFocusWeak else Ui.p.textWeak
             above.setTextColor(weak)
             below.setTextColor(weak)
+            A11y.state(this, context.getString(R.string.a11y_pin_digit, index + 1, Pin.LENGTH), if (focused) value.toString() else null)
         }
 
         /** [dir] 1 turns up, -1 down, 0 a typed digit: the new digit slides in from that side. */
         private fun set(v: Int, dir: Int) {
             value = v
             render()
+            // A typed digit moves on to the next wheel at once, which is said instead.
+            if (dir != 0) A11y.changed(this)
             digit.translationY = dir * 34f.px
             digit.alpha = 0.3f
             digit.animate().translationY(0f).alpha(1f).setDuration(160).start()

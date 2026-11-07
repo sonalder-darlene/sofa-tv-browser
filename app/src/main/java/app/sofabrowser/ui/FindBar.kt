@@ -74,7 +74,7 @@ class FindBar(context: Context, private val actions: Actions) : LinearLayout(con
             }
         }
         addView(field, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
-        count = Ui.text(context, 26, Ui.p.textMid).apply { setPadding(16.px, 0, 16.px, 0) }
+        count = Ui.text(context, 26, Ui.p.textMid).apply { setPadding(16.px, 0, 16.px, 0); A11y.announced(this) }
         addView(count)
         mic = button(R.drawable.ic_mic, R.string.voice_search) { actions.findByVoice() }
         addView(mic)
@@ -89,6 +89,7 @@ class FindBar(context: Context, private val actions: Actions) : LinearLayout(con
         contentDescription = context.getString(label)
         isFocusable = true
         isClickable = true
+        A11y.role(this, A11y.BUTTON)
         setPadding(14.px, 14.px, 14.px, 14.px)
         background = Ui.fillSelector(android.graphics.Color.TRANSPARENT, Ui.p.focus, 36)
         setColorFilter(Ui.p.text)

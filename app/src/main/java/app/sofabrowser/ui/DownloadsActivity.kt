@@ -39,7 +39,8 @@ class DownloadsActivity : Activity() {
             setPadding(116.px, 72.px, 116.px, 0)
         }
         val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        header.addView(Ui.text(this, 56, p.text, bold = true).apply { text = getString(R.string.downloads) },
+        setTitle(R.string.downloads)
+        header.addView(Ui.title(this).apply { text = getString(R.string.downloads) },
             LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         header.addView(Ui.button(this, getString(R.string.clear_finished)) { DownloadEngine.clearFinished() })
         root.addView(header)
@@ -243,6 +244,7 @@ class DownloadsActivity : Activity() {
             img.setColorFilter(Ui.p.textMid)
             setOnFocusChangeListener { _, has -> img.setColorFilter(if (has) Ui.p.onFocus else Ui.p.textMid) }
             setOnClickListener { onClick() }
+            A11y.role(this, A11y.BUTTON)
         }
 
         fun set(icon: Int, label: Int, action: () -> Unit) {

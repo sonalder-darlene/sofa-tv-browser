@@ -102,6 +102,14 @@
 - Fixed: private browsing's cookies, site storage and cache are erased as soon as it ends, not at the next start,
   and a second private session in the same run no longer finds the first one's cookies.
 
+**TalkBack**
+
+- **Sofa's own screens work with a screen reader**: every button, tile and row says what it is, switches say on or
+  off, the tab in sight and the chosen colour say they are selected, the parental PIN's digits and a video's position
+  say their value as it changes, the Menu buttons and Start page editors say where an item is as you move it, and
+  notices over a video are read out. With TalkBack on, pages open without the pointer, so the arrows move between
+  links and fields and TalkBack reads them; Pointer in the menu still brings it back.
+
 **Support Sofa**
 
 - **Donation addresses** (Settings → About → Support Sofa, and the README): Bitcoin (silent payment), Lightning,

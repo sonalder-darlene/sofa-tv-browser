@@ -93,6 +93,8 @@ class SettingsActivity : Activity() {
             addView(list)
         }
         setContentView(FrameLayout(this).apply { background = Ui.background(false); addView(content) })
+        // The window title a screen reader says as a page opens; the other pages set theirs with their heading.
+        when { onMenuPage -> setTitle(R.string.menu_buttons); onHomePage -> setTitle(R.string.home_layout); onBackgroundPage -> setTitle(R.string.background_setting_title); else -> setTitle(R.string.settings) }
         when { onMenuPage || onHomePage || onBackgroundPage -> Unit; onListsPage -> buildLists(); onSitesPage -> buildSites(); onDnsPage -> buildDns(); onDnsPickPage -> buildDnsPick(); onSupportPage -> buildSupport(); else -> build() }
     }
 
@@ -240,6 +242,7 @@ class SettingsActivity : Activity() {
         list.addView(Ui.text(this, 28, Ui.p.textWeak).apply {
             text = getString(title)
             setPadding(27.px, 40.px, 0, 16.px)
+            A11y.heading(this)
         }, LinearLayout.LayoutParams(ROW_WIDTH.px, LinearLayout.LayoutParams.WRAP_CONTENT))
     }
 
@@ -266,6 +269,13 @@ class SettingsActivity : Activity() {
                 v.scaleX = if (has) 1.04f else 1f
                 v.scaleY = v.scaleX
             }
+        }
+        // Read as its title, subtitle and value; a row ending in a switch as a switch that is on or off, the ticked
+        // choice of a picker as the selected one.
+        when {
+            end is Toggle -> A11y.role(row, A11y.SWITCH, checked = { end.on })
+            end?.tag === CHECKED -> A11y.role(row, A11y.BUTTON, selected = { true })
+            else -> A11y.role(row, A11y.BUTTON)
         }
         list.addView(row, LinearLayout.LayoutParams(ROW_WIDTH.px, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = 2.px })
         return row
@@ -827,7 +837,9 @@ class SettingsActivity : Activity() {
 
     /** A page's big title and the explanation under it. */
     private fun pageTitle(title: Int, intro: Int) {
-        list.addView(Ui.text(this, 56, Ui.p.textMid, bold = true).apply {
+        // The window's title too: a screen reader says it when the page opens.
+        setTitle(title)
+        list.addView(Ui.title(this, color = Ui.p.textMid).apply {
             text = getString(title)
         }, LinearLayout.LayoutParams(ROW_WIDTH.px, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = 16.px })
         note(getString(intro))
@@ -897,6 +909,7 @@ class SettingsActivity : Activity() {
             list.addView(Ui.text(this, 28, tier.color, bold = true).apply {
                 text = getString(R.string.dns_tier_heading, getString(tier.label))
                 setPadding(27.px, 40.px, 0, 16.px)
+                A11y.heading(this)
             }, LinearLayout.LayoutParams(ROW_WIDTH.px, LinearLayout.LayoutParams.WRAP_CONTENT))
             DnsProviders.ALL.filter { it.tier == tier }.forEach { p ->
                 choice(p.name, getString(R.string.filter_list_sub, getString(p.variant), getString(p.about)), p.id)
@@ -910,7 +923,10 @@ class SettingsActivity : Activity() {
         (selected ?: first).requestFocus()
     }
 
-    private fun check() = ImageView(this).apply { setImageResource(R.drawable.ic_check); setColorFilter(Ui.p.textMid); layoutParams = LinearLayout.LayoutParams(40.px, 40.px) }
+    private fun check() = ImageView(this).apply {
+        setImageResource(R.drawable.ic_check); setColorFilter(Ui.p.textMid); layoutParams = LinearLayout.LayoutParams(40.px, 40.px)
+        tag = CHECKED
+    }
 
     private fun enterDnsAddress(fallback: Boolean, current: String) {
         val field = EditText(this).apply {
@@ -1102,6 +1118,8 @@ class SettingsActivity : Activity() {
 
     companion object {
         private const val ROW_WIDTH = 1400
+        /** Tags the tick of a picker's chosen row, so the row reads as selected. */
+        private val CHECKED = Any()
         private val DRM_MODES = listOf(ProtectedMedia.ASK, ProtectedMedia.ALLOW, ProtectedMedia.BLOCK)
         private const val PAGE = "page"
         /** The address of the page open in Sofa, offered as the page to open at start. */

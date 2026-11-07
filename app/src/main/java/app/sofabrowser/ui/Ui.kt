@@ -164,7 +164,11 @@ object Ui {
         setPadding(32.px, 14.px, 32.px, 14.px)
         setOnFocusChangeListener { v, has -> (v as TextView).setTextColor(if (has) p.onFocus else p.textMid) }
         setOnClickListener { onClick() }
+        A11y.role(this, A11y.BUTTON)
     }
+
+    /** A screen's big title: also a heading for a screen reader. */
+    fun title(context: Context, size: Int = 56, color: Int = p.text) = text(context, size, color, bold = true).apply { A11y.heading(this) }
 
     fun dialog(context: Context) = AlertDialog.Builder(context, p.dialogTheme)
 }

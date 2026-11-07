@@ -137,6 +137,7 @@ class SearchActivity : Activity() {
         isFocusable = true
         isClickable = true
         contentDescription = getString(label)
+        A11y.role(this, A11y.BUTTON)
         background = Ui.fillSelector(Ui.p.fill, Ui.p.focus, 12)
         val img = ImageView(context).apply { setImageResource(icon); setColorFilter(Ui.p.textMid, PorterDuff.Mode.SRC_IN) }
         addView(img, FrameLayout.LayoutParams(48.px, 48.px, Gravity.CENTER))

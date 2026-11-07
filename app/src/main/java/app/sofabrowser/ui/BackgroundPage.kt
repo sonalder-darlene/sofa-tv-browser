@@ -28,14 +28,14 @@ class BackgroundPage(private val activity: Activity, private val prefs: Prefs) :
     private val swatches = ArrayList<Pair<Choice, FrameLayout>>()
     private val pictureLine = LinearLayout(context).apply { clipChildren = false; clipToPadding = false }
     private val rows = LinearLayout(context).apply { orientation = VERTICAL; clipChildren = false }
-    private val preview = FrameLayout(context)
+    private val preview = FrameLayout(context).apply { A11y.skipAll(this) }
     private var thumbnail: Bitmap? = null
 
     init {
         orientation = VERTICAL
         gravity = Gravity.CENTER_HORIZONTAL
         clipChildren = false
-        addView(Ui.text(context, 56, Ui.p.textMid, bold = true).apply { setText(R.string.background_setting_title) },
+        addView(Ui.text(context, 56, Ui.p.textMid, bold = true).apply { setText(R.string.background_setting_title); A11y.heading(this) },
             LayoutParams(WIDTH.px, LayoutParams.WRAP_CONTENT).apply { topMargin = 64.px })
         addView(hint, LayoutParams(WIDTH.px, LayoutParams.WRAP_CONTENT).apply { topMargin = 16.px; bottomMargin = 24.px })
 
@@ -117,8 +117,12 @@ class BackgroundPage(private val activity: Activity, private val prefs: Prefs) :
             setColorFilter(Ui.p.text)
             background = Ui.rounded(if (Ui.p.dark) 0x99000000.toInt() else 0x99FFFFFF.toInt(), 18)
             setPadding(4.px, 4.px, 4.px, 4.px)
+            A11y.skip(this)
         }, FrameLayout.LayoutParams(36.px, 36.px, Gravity.CENTER))
         setOnClickListener { prefs.homeBackground = HomeBackground.encode(choice); refresh() }
+        // Only a colour to see: named for a screen reader, the chosen one selected (its tick stays silent).
+        contentDescription = name(choice)
+        A11y.role(this, A11y.BUTTON, selected = { current() == choice })
         setOnFocusChangeListener { v, has ->
             Ui.animateScale(v, if (has) 1.1f else 1f, has)
             if (has) hint.text = name(choice)

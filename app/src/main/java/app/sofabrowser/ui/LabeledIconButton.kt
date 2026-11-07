@@ -28,6 +28,9 @@ class LabeledIconButton(context: Context, icon: Int, label: String, onClick: () 
         clipChildren = false
         clipToPadding = false
         contentDescription = label
+        // The label under the icon only shows the name the button already has for a screen reader.
+        A11y.role(this, A11y.BUTTON)
+        A11y.skip(text)
         setOnClickListener { if (isEnabled) onClick() }
 
         circle.background = Ui.fillSelector(Color.TRANSPARENT, Ui.p.focus, 40)

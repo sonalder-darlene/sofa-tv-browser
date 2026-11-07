@@ -12,6 +12,9 @@ called Sofa.
   you come back to it. Tabs with the same title show their addresses.
 - **Game pads** (Xbox, PlayStation, 8BitDo and others): the left stick moves the pointer, the right stick scrolls,
   and the buttons work as in a console browser. Settings → Game controller shows them all.
+- **TalkBack**: Sofa's own screens work with the TV's screen reader. Buttons, tiles and switches say what they are
+  and whether they are on, the PIN and a video's position say their value as it changes, and with TalkBack on,
+  pages open without the pointer, so the arrows move between links.
 - **A menu on the Back key**: address, Watch, back and forward, find in page, bookmarks, history, zoom, ad
   blocking per site, and "Browse as" desktop, mobile or TV. Settings → Menu buttons puts its buttons in your order
   and hides the ones you don't use.

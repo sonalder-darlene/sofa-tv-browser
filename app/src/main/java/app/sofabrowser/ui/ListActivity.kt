@@ -53,7 +53,8 @@ class ListActivity : Activity() {
             setPadding(116.px, 72.px, 116.px, 0)
         }
         val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        header.addView(Ui.text(this, 56, Ui.p.text, bold = true).apply {
+        setTitle(if (history) R.string.history else R.string.bookmarks)
+        header.addView(Ui.title(this).apply {
             text = getString(if (history) R.string.history else R.string.bookmarks)
         }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         if (!history) header.addView(Ui.button(this, getString(R.string.bookmarks_transfer)) { transfer.showMenu() },
@@ -191,6 +192,8 @@ class ListActivity : Activity() {
             isFocusable = true
             isClickable = true
             contentDescription = context.getString(R.string.delete)
+            A11y.role(this, A11y.BUTTON)
+            A11y.skip(removeIcon)
             background = Ui.fillSelector(Ui.p.fillFocused, Ui.p.focus, 40)
             addView(removeIcon, FrameLayout.LayoutParams(40.px, 40.px, Gravity.CENTER))
             visibility = View.INVISIBLE

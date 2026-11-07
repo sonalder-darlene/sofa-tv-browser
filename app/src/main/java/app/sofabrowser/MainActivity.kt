@@ -58,6 +58,7 @@ import app.sofabrowser.screen.Tabs
 import app.sofabrowser.screen.VideoSession
 import app.sofabrowser.screen.Watch
 import app.sofabrowser.screen.padded
+import app.sofabrowser.ui.A11y
 import app.sofabrowser.ui.DownloadsActivity
 import app.sofabrowser.ui.FindBar
 import app.sofabrowser.ui.VoiceInput
@@ -303,7 +304,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         progress.visibility = if (tab.loading) View.VISIBLE else View.GONE
         if (!tab.loading) progress.scaleX = 0f
         if (cursor.scrollMode) cursor.setScrollMode(false)
-        cursor.cursorEnabled = Browser.hostOf(tab.address)?.let { !prefs.keysToPage(it) } ?: true
+        cursor.cursorEnabled = pointerOn(Browser.hostOf(tab.address))
         video.onPlaying(browser.playing)
         if (startPage || tab.address == null) showHome() else showPage()
         // Back on a tab whose page is still a blocked site's stand-in: its block screen again, not a blank page.
@@ -677,6 +678,13 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         if (requestCode == REQ_URL && resultCode == RESULT_OK) data?.getStringExtra(SearchActivity.EXTRA_URL)?.let(::openUrl)
     }
 
+    /**
+     * Whether a page on [host] starts with the pointer: unless the site gets the keys, or a screen reader is on. With one,
+     * the arrows go to the page, which moves between its links and fields and has them read; Pointer in the menu still
+     * brings the pointer for the page.
+     */
+    private fun pointerOn(host: String?) = !A11y.screenReaderOn(this) && (host == null || !prefs.keysToPage(host))
+
     // Browser events
 
     override fun onPageStarted(url: String) {
@@ -685,7 +693,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         menu.pageStarted()
         progress.visibility = View.VISIBLE
         val host = Browser.hostOf(url)
-        cursor.cursorEnabled = host == null || !prefs.keysToPage(host)
+        cursor.cursorEnabled = pointerOn(host)
         if (cursor.scrollMode) cursor.setScrollMode(false)
         watch.pageStarted(url)
         menu.refresh()

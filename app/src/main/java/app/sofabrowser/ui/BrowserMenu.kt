@@ -46,6 +46,8 @@ class BrowserMenu(context: Context, private val actions: Actions, val layout: Ar
         /** Requests, pop-ups and redirects blocked on this page. */
         val blocked: Int,
         val desktop: Boolean,
+        /** What "Browse as" is set to, as Settings names it, for a screen reader. */
+        val browseAs: String,
         val pointer: Boolean,
         val zoomPercent: Int,
         val privateMode: Boolean,
@@ -99,6 +101,7 @@ class BrowserMenu(context: Context, private val actions: Actions, val layout: Ar
                 v.compoundDrawablesRelative[0]?.setTint(if (has) Ui.p.onFocus else Ui.p.textMid)
             }
             setOnClickListener { dismiss(); actions.onAddress() }
+            A11y.role(this, A11y.BUTTON)
         }
         addressRow.addView(address, LinearLayout.LayoutParams(ADDRESS_WIDE.px, 88.px))
         strip = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
@@ -128,7 +131,7 @@ class BrowserMenu(context: Context, private val actions: Actions, val layout: Ar
         for (item in layout.shown) when (item) {
             MenuLayout.Item.ZOOM -> {
                 add(Action.ZOOM_OUT, R.drawable.ic_zoom_out, R.string.zoom_out)
-                zoomLabel = Ui.text(context, 26, Ui.p.textMid).apply { gravity = Gravity.CENTER; text = context.getString(R.string.percent, 100) }
+                zoomLabel = Ui.text(context, 26, Ui.p.textMid).apply { gravity = Gravity.CENTER; text = context.getString(R.string.percent, 100); A11y.skip(this) }
                 row.addView(zoomLabel, LinearLayout.LayoutParams(100.px, 80.px))
                 add(Action.ZOOM_IN, R.drawable.ic_zoom_in, R.string.zoom_in)
             }
@@ -182,9 +185,13 @@ class BrowserMenu(context: Context, private val actions: Actions, val layout: Ar
         }
         buttons[Action.USER_AGENT]?.set(if (s.desktop) R.drawable.ic_desktop_windows else R.drawable.ic_smartphone,
             context.getString(R.string.user_agent))
+        buttons[Action.USER_AGENT]?.let { A11y.state(it, context.getString(R.string.user_agent), s.browseAs) }
         buttons[Action.POINTER]?.set(if (s.pointer) R.drawable.ic_mouse else R.drawable.ic_keyboard,
             context.getString(if (s.pointer) R.string.pointer_on else R.string.pointer_off))
         zoomLabel?.text = context.getString(R.string.percent, s.zoomPercent)
+        // The zoom between the two buttons is said with each of them.
+        buttons[Action.ZOOM_OUT]?.let { A11y.state(it, context.getString(R.string.zoom_out), zoomLabel?.text) }
+        buttons[Action.ZOOM_IN]?.let { A11y.state(it, context.getString(R.string.zoom_in), zoomLabel?.text) }
     }
 
     /**
@@ -223,6 +230,8 @@ class BrowserMenu(context: Context, private val actions: Actions, val layout: Ar
             addState(intArrayOf(), if (current) Ui.rounded(Ui.p.fillFocused, 44, Ui.BRAND, 3) else Ui.rounded(Ui.p.fillFocused, 44))
         }
         if (icon != 0) { setCompoundDrawablesRelative(tinted(icon), null, null, null); compoundDrawablePadding = 12.px }
+        // The tab in sight is the selected one; New tab and the others just buttons.
+        A11y.role(this, A11y.BUTTON, selected = if (current) ({ true }) else null)
         setOnFocusChangeListener { v, has ->
             (v as TextView).setTextColor(if (has) Ui.p.onFocus else Ui.p.textMid)
             v.compoundDrawablesRelative[0]?.setTint(if (has) Ui.p.onFocus else Ui.p.textMid)

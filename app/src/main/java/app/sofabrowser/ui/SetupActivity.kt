@@ -53,8 +53,8 @@ class SetupActivity : Activity() {
         background = Ui.background(false)
         setPadding(96.px, 80.px, 96.px, 48.px)
         clipChildren = false
-        addView(ImageView(context).apply { setImageResource(R.mipmap.ic_launcher) }, LinearLayout.LayoutParams(88.px, 88.px))
-        addView(Ui.text(context, 56, p.text, bold = true).apply {
+        addView(ImageView(context).apply { setImageResource(R.mipmap.ic_launcher); A11y.skip(this) }, LinearLayout.LayoutParams(88.px, 88.px))
+        addView(Ui.title(context).apply {
             text = getString(title)
             gravity = Gravity.CENTER
             setPadding(0, 28.px, 0, 0)

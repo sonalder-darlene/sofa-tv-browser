@@ -14,7 +14,11 @@ class Toggle(context: Context, initial: Boolean) : View(context) {
         set(v) { field = v; invalidate() }
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-    init { layoutParams = LinearLayout.LayoutParams(80.px, 44.px).apply { marginStart = 24.px } }
+    init {
+        layoutParams = LinearLayout.LayoutParams(80.px, 44.px).apply { marginStart = 24.px }
+        // Drawn only: the row it ends reads as a switch instead (SettingsActivity, ArrangeEditor).
+        A11y.skip(this)
+    }
 
     override fun onDraw(c: Canvas) {
         val h = height.toFloat()

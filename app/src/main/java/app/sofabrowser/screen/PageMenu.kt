@@ -63,6 +63,7 @@ class PageMenu(private val s: Screen, private val watch: Watch) : BrowserMenu.Ac
             adBlockOn = prefs.adBlock && (host == null || !Allowlist.contains(activity, host)),
             blocked = browser.adBlocker.blockedCount,
             desktop = prefs.userAgent != "mobile",
+            browseAs = activity.resources.getStringArray(R.array.user_agents).getOrElse(Prefs.UA_MODES.indexOf(prefs.userAgent)) { "" },
             pointer = s.cursor.cursorEnabled,
             zoomPercent = (100 * 1.25.pow(s.tabs.current.zoomStep)).roundToInt(),
             privateMode = browser.privateMode,

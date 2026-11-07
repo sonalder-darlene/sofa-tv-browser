@@ -90,6 +90,7 @@ class HomeView(context: Context, private val listener: Listener) : FrameLayout(c
         }
         top.addView(ImageView(context).apply {
             setImageResource(R.mipmap.ic_launcher)
+            A11y.skip(this)
         }, LinearLayout.LayoutParams(64.px, 64.px).apply { marginEnd = 32.px; topMargin = 12.px })
 
         searchPill = LinearLayout(context).apply {
@@ -109,6 +110,7 @@ class HomeView(context: Context, private val listener: Listener) : FrameLayout(c
             }
             icon.setColorFilter(Ui.p.textWeak, PorterDuff.Mode.SRC_IN)
             setOnClickListener { listener.onSearch() }
+            A11y.role(this, A11y.BUTTON)
         }
         top.addView(searchPill, LinearLayout.LayoutParams(760.px, 88.px))
         fun button(icon: Int, label: Int, onClick: () -> Unit) = LabeledIconButton(context, icon, context.getString(label), onClick)
@@ -257,6 +259,7 @@ class HomeView(context: Context, private val listener: Listener) : FrameLayout(c
     private fun addRow(title: Int, sites: List<Site>, extra: ((SiteCard) -> Unit)? = null): LinearLayout {
         if (title != 0) rows.addView(Ui.text(context, 28, Ui.p.textMid).apply {
             text = context.getString(title)
+            A11y.heading(this)
             setPadding(0, 32.px, 0, 18.px)
         })
         val line = LinearLayout(context).apply {
@@ -265,6 +268,8 @@ class HomeView(context: Context, private val listener: Listener) : FrameLayout(c
             clipToPadding = false
             setPadding(8.px, 12.px, 96.px, 12.px)
         }
+        // Later lines of bookmarks have no title of their own; they are still Bookmarks.
+        A11y.row(line, context.getString(if (title != 0) title else R.string.bookmarks)) { line.childCount }
         val at = rows.childCount
         sites.forEach { site ->
             line.addView(SiteCard(context, site).apply {

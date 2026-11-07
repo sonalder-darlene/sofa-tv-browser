@@ -24,8 +24,9 @@ class NoEngineActivity : Activity() {
             background = Ui.background(false)
             setPadding(96.px, 80.px, 96.px, 48.px)
         }
-        root.addView(ImageView(this).apply { setImageResource(R.mipmap.ic_launcher) }, LinearLayout.LayoutParams(88.px, 88.px))
-        root.addView(Ui.text(this, 48, p.text, bold = true).apply {
+        root.addView(ImageView(this).apply { setImageResource(R.mipmap.ic_launcher); A11y.skip(this) }, LinearLayout.LayoutParams(88.px, 88.px))
+        setTitle(R.string.no_engine_title)
+        root.addView(Ui.title(this, 48).apply {
             text = getString(R.string.no_engine_title)
             gravity = Gravity.CENTER
             setPadding(0, 28.px, 0, 0)
