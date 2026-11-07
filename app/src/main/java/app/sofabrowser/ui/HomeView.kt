@@ -66,8 +66,12 @@ class HomeView(context: Context, private val listener: Listener) : FrameLayout(c
     /** When non-null, the tile being moved with Left/Right; OK or Back drops it. */
     private var moving: SiteCard? = null
 
-    /** The start page's own picture while it is on screen (only ever one), and what it was decoded for. */
+    /**
+     * The start page's own picture while it is on screen (only ever one), the layer under the rows that draws it, and
+     * what it was decoded for.
+     */
     private var picture: Bitmap? = null
+    private var pictureLayer: View? = null
     private var pictureFor: String? = null
     /** Counts picture loads, so a slow one that is no longer wanted is dropped. */
     private var pictureLoads = 0
@@ -157,20 +161,29 @@ class HomeView(context: Context, private val listener: Listener) : FrameLayout(c
             if (load != pictureLoads) return@load
             if (bitmap == null) { pictureFor = null; return@load }
             picture = bitmap
-            background = TransitionDrawable(arrayOf(Ui.background(false), Cover(bitmap, Ui.p.bgMid, HomeBackground.scrim(dim, Ui.p.dark)))).apply {
-                isCrossFadeEnabled = true
-                startTransition(180)
-            }
+            background = Ui.background(false)
+            pictureLayer = View(context).apply {
+                background = TransitionDrawable(arrayOf(Ui.background(false), Cover(bitmap, Ui.p.bgMid, HomeBackground.scrim(dim, Ui.p.dark)))).apply {
+                    isCrossFadeEnabled = true
+                    startTransition(180)
+                }
+            }.also { addView(it, 0, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)) }
         }
     }
 
-    /** Lets go of the start page's picture (a web page or a video is in front); the next [refresh] decodes it again. */
+    /**
+     * Lets go of the start page's picture (a web page or a video is in front); the next [refresh] decodes it again.
+     * The picture's layer is taken out rather than given a new background: this view is usually hidden by then, and a
+     * hidden view is not drawn again, so its last drawing would keep the picture's graphics memory. Taking the layer
+     * out drops that drawing, so the picture can go at once.
+     */
     fun releasePicture() {
         pictureLoads++
         pictureFor = null
-        if (picture == null) return
+        pictureLayer?.let { removeView(it) }
+        pictureLayer = null
+        picture?.recycle()
         picture = null
-        background = Ui.background(false)
     }
 
     /** Shows the accent dot on Downloads while something is downloading. */

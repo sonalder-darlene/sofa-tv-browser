@@ -58,7 +58,8 @@
 - **A background of your own** (Settings → Start page background): choose a colour, gradient or your own picture
   (up to 4K) for the start page. Hold OK on a picture on any page and choose "Set as start page background", or,
   on TVs that have one, pick a picture with the file picker. Sofa keeps its own copy on the TV, without the photo's
-  details (EXIF), and Dim keeps the titles readable over it. Private browsing keeps its own look.
+  details (EXIF), and Dim keeps the titles readable over it. The picture's memory is freed while a page is in
+  front. Private browsing keeps its own look.
 - **Open at start** (Settings → Open at start): Sofa can start on the start page (as before), on a web page you
   choose (typed once, or the page that is open), or where you left off, which also brings your page back when the
   TV closes Sofa in the background. A link sent from another app still opens first, and Home in the menu always
