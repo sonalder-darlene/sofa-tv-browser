@@ -9,6 +9,8 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.webkit.CookieManager
+import app.sofabrowser.R
+import app.sofabrowser.adblock.AdBlocker
 import app.sofabrowser.data.Db
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -334,6 +336,8 @@ object DownloadEngine {
         // Follow redirects ourselves: HttpURLConnection won't switch between http and https.
         while (true) {
             if (url.protocol != "http" && url.protocol != "https") throw PermanentError("Unsupported address")
+            // Each address, the redirects' included: HttpURLConnection is outside WebView's Site filters.
+            if (AdBlocker.get(app).siteListed(url.toString()) != null) throw PermanentError(app.getString(R.string.download_blocked_error, url.host))
             conn = url.openConnection() as HttpURLConnection
             conn.instanceFollowRedirects = false
             conn.connectTimeout = 20_000

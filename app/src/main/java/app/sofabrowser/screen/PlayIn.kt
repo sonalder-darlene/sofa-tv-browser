@@ -16,6 +16,7 @@ import app.sofabrowser.browser.StreamResolver
 import app.sofabrowser.browser.VideoRelay
 import app.sofabrowser.browser.VideoSource
 import app.sofabrowser.browser.WebViews
+import app.sofabrowser.ui.SettingsActivity
 import java.util.Locale
 import kotlin.concurrent.thread
 
@@ -88,23 +89,37 @@ class PlayIn(private val s: Screen, private val video: VideoSession) {
         // The page fetches its manifests again first; reading the rest takes the network: off the main thread, then back.
         browser.fetchInPage(StreamResolver.manifestsToRead(candidates), PAGE_FETCH_MS) { fromPage ->
             thread(name = "play-in") {
-                val resolved = if (candidates.isEmpty()) null
-                else StreamResolver(userAgent, cookies::getCookie, ::streamLog).resolve(candidates, fromPage, checkOutside = true)
-                s.activity.runOnUiThread { if (!s.activity.isDestroyed) open(source, resolved, userAgent, cookies::getCookie) }
+                val blocker = browser.adBlocker
+                val resolver = StreamResolver(userAgent, cookies::getCookie, ::streamLog) { blocker.siteListed(it) != null }
+                val resolved = if (candidates.isEmpty()) null else resolver.resolve(candidates, fromPage, checkOutside = true)
+                // Where the stream leads beyond the addresses Sofa holds (redirects, variant playlists): only with a
+                // Site filters list on, which is the only reason to look, so other presses cost no extra request.
+                val further = if (blocker.sitesOn && source?.protected != true) resolver.blockedAlong(direct, source?.page, resolved) else null
+                s.activity.runOnUiThread { if (!s.activity.isDestroyed) open(source, resolved, userAgent, cookies::getCookie, further) }
             }
         }
     }
 
     /** Why "Play in…" opened nothing: over the video when it is fullscreen, where a toast goes unseen. */
-    private fun message(res: Int) {
+    private fun message(res: Int) = message(s.activity.getString(res))
+
+    private fun message(text: String) {
         since = 0L
-        streamLog("Play in: ${s.activity.getString(res)}")
-        if (s.fullscreen.visibility == View.VISIBLE) s.fullscreen.notice(s.activity.getString(res)) else s.toast(res)
+        streamLog("Play in: $text")
+        if (s.fullscreen.visibility == View.VISIBLE) s.fullscreen.notice(text) else s.toast(text)
     }
 
-    private fun open(video: VideoSource?, resolved: StreamResolver.Resolved?, userAgent: String, cookie: (String) -> String?) {
+    /** [further]: an address beyond the stream's own that Site filters block ([StreamResolver.blockedAlong]), or null. */
+    private fun open(video: VideoSource?, resolved: StreamResolver.Resolved?, userAgent: String, cookie: (String) -> String?, further: String?) {
         val activity = s.activity
         val stream = video?.src?.takeIf(Browser::isWebUrl) ?: resolved?.url
+        // The other app fetches on its own, past Site filters: nothing that leads to a blocked site goes to it (the
+        // stream, its master's addresses, its subtitles, and [further]: redirects, variant playlists' segments).
+        val wanted = listOfNotNull(stream) + resolved?.let(::streamAddresses).orEmpty() + video?.subtitles.orEmpty().map { it.url }
+        s.browser.adBlocker.siteListedIn(wanted + listOfNotNull(further))?.let { (url, list) ->
+            message(activity.getString(R.string.video_site_blocked, Browser.hostOf(url) ?: url, SettingsActivity.siteListName(activity, list)))
+            return
+        }
         // What the page's player sent for this stream (PageHeaders), for players that read headers. Only on this press.
         val headers = stream?.let {
             if (resolved == null) PageHeaders.forRequest(it, video?.page, userAgent, cookie, media = true)
@@ -147,5 +162,9 @@ class PlayIn(private val s: Screen, private val video: VideoSession) {
         const val PAGE_FETCH_MS = 2500L
         /** Longest a press of "Play in…" keeps a second one out, should its stream search never answer (ms). */
         private const val PLAY_IN_BUSY_MS = 10_000L
+
+        /** The stream's address and, for HLS, every address its playlist lists: what Site filters must let through. */
+        fun streamAddresses(resolved: StreamResolver.Resolved): List<String> =
+            listOf(resolved.url) + resolved.playlist?.let(Playlist::addresses).orEmpty()
     }
 }

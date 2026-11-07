@@ -3,6 +3,7 @@ package app.sofabrowser.screen
 import android.os.SystemClock
 import android.view.View
 import app.sofabrowser.R
+import app.sofabrowser.adblock.FilterList
 import app.sofabrowser.browser.Browser
 import app.sofabrowser.browser.FrameRate
 import app.sofabrowser.browser.StreamResolver
@@ -12,6 +13,7 @@ import app.sofabrowser.browser.VideoState
 import app.sofabrowser.browser.WebViews
 import app.sofabrowser.player.PlayerChoices
 import app.sofabrowser.player.SofaPlayer
+import app.sofabrowser.ui.SettingsActivity
 import kotlin.concurrent.thread
 
 /**
@@ -139,12 +141,16 @@ class Takeover(private val s: Screen, private val video: VideoSession) {
         }
         val userAgent = w.settings.userAgentString.orEmpty()
         val cookies = WebViews.cookieManager(w)
+        val browser = s.browser
+        val blocked = { url: String -> browser.adBlocker.siteListed(url) != null }
         val direct = source.src.takeIf(Browser::isWebUrl)
         if (direct != null) {
-            start(SofaPlayer.Source(direct, StreamResolver.Kind.FILE, source.page, null, userAgent, cookies::getCookie, media = true, source.subtitles), source)
+            if (siteBlocked(listOf(direct) + source.subtitles.map { it.url })) return
+            val hops = StreamResolver(userAgent, cookies::getCookie, ::streamLog, blocked)
+            start(SofaPlayer.Source(direct, StreamResolver.Kind.FILE, source.page, null, userAgent, cookies::getCookie, media = true,
+                source.subtitles, blocked = blocked, blockedHop = { hops.blockedHop(it, source.page, media = true) }), source)
             return
         }
-        val browser = s.browser
         val candidates = browser.streams.candidates()
         if (candidates.none { it.manifest }) {
             // The page may fetch its stream a moment after it starts; look again a few times.
@@ -155,7 +161,7 @@ class Takeover(private val s: Screen, private val video: VideoSession) {
         }
         browser.fetchInPage(StreamResolver.manifestsToRead(candidates), PlayIn.PAGE_FETCH_MS) { fromPage ->
             thread(name = "sofa-player") {
-                val resolver = StreamResolver(userAgent, cookies::getCookie, ::streamLog)
+                val resolver = StreamResolver(userAgent, cookies::getCookie, ::streamLog, blocked)
                 val resolved = resolver.resolve(candidates, fromPage, checkOutside = false)
                     // Which pictures are HDR, when the master doesn't say, so Auto can keep to what the TV shows.
                     ?.let { r -> r.copy(playlist = r.playlist?.let { resolver.withReadRanges(it, r.frame) }) }
@@ -167,12 +173,27 @@ class Takeover(private val s: Screen, private val video: VideoSession) {
                         notForPlayer(activity.getString(if (resolved == null) R.string.sofa_player_why_unreadable else R.string.sofa_player_why_no_stream))
                         return@runOnUiThread
                     }
+                    if (siteBlocked(PlayIn.streamAddresses(resolved) + source.subtitles.map { it.url })) return@runOnUiThread
                     start(SofaPlayer.Source(resolved.url, resolved.kind, resolved.frame, resolved.playlist, userAgent,
-                        cookies::getCookie, media = false, source.subtitles, source.width, source.height), source)
+                        cookies::getCookie, media = false, source.subtitles, source.width, source.height, blocked,
+                        blockedHop = { resolver.blockedHop(it, resolved.frame, media = false) }), source)
                 }
             }
         }
     }
+
+    /**
+     * Whether Site filters block one of [urls] (the video, its playlists, its subtitles): then Sofa Player isn't
+     * started and the notice says why, over the video. The page's own requests for them are blocked already.
+     */
+    private fun siteBlocked(urls: List<String>): Boolean {
+        val (url, list) = s.browser.adBlocker.siteListedIn(urls) ?: return false
+        notForPlayer(blockedText(url, list), once = false)
+        return true
+    }
+
+    private fun blockedText(url: String, list: FilterList) =
+        activity.getString(R.string.video_site_blocked, Browser.hostOf(url) ?: url, SettingsActivity.siteListName(activity, list))
 
     private fun start(source: SofaPlayer.Source, page: VideoSource) {
         if (!inFullscreen) return
@@ -283,6 +304,15 @@ class Takeover(private val s: Screen, private val video: VideoSession) {
             notForPlayer(why, once = false)
             // Unseen: the page wakes, and its video plays on if Sofa paused it for the second try.
             if (!shown) backToPage(play = pausedForDecoder)
+        }
+
+        // A playlist or segment the stream lists (or a redirect) is on a blocked site. The page's own requests for it
+        // are blocked too, so its video doesn't play on: back to the page, paused, with the reason over it.
+        override fun onSiteBlocked(url: String) {
+            streamLog("Sofa Player stopped: Site filters $url")
+            val list = s.browser.adBlocker.siteListed(url)
+            backToPage(play = false)
+            if (list != null) notForPlayer(blockedText(url, list), once = false)
         }
 
         override fun onSteppedDown(failed: String, now: String, why: SofaPlayer.Step) {

@@ -329,6 +329,9 @@
     <string name="site_blocked_again">%s is blocked again</string>
     <string name="site_blocked_title">Sofa blocked this site</string>
     <string name="site_blocked_text">%1$s is on the %2$s list in Site filters.</string>
+    <string name="video_site_blocked">This video comes from %1$s, which is on the %2$s list in Site filters.</string>
+    <string name="download_site_blocked">%1$s is on the %2$s list in Site filters, so Sofa doesn\'t download from it.</string>
+    <string name="download_blocked_error">Blocked by Site filters (%s)</string>
     <string name="go_back">Go back</string>
     <string name="allow_this_site">Allow this site</string>
     <string name="site_allowed">%s allowed</string>

@@ -107,4 +107,15 @@ class PlaylistTest {
         assertEquals(null, Playlist.initSegment("#EXTM3U\n#EXTINF:6,\nseg1.ts", base))
         assertEquals(null, Playlist.initSegment("#EXTM3U\n#EXT-X-MAP:URI=\"file:///sdcard/x.mp4\"", base))
     }
+
+    @Test
+    fun addressesAreTheAddressLinesAndUriAttributes() {
+        // What Site filters check before Sofa Player or another app gets a stream: renditions, keys, init segments too.
+        val body = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"https://keys.test/k\"\n#EXT-X-MAP:URI=\"https://cdn.test/init.mp4\"\n" +
+            "#EXTINF:4,\n  https://cdn.test/0.m4s  \n\n#EXT-X-MEDIA:TYPE=AUDIO,URI=\"\"\n#EXT-X-ENDLIST"
+        assertEquals(listOf("https://keys.test/k", "https://cdn.test/init.mp4", "https://cdn.test/0.m4s"), Playlist.addresses(body))
+        assertEquals(listOf("https://vod3.cf.dmcdn.net/sec2(x)/video/fmp4/1/aac_q2_0/3/manifest.m3u8",
+            "https://vod3.cf.dmcdn.net/sec2(x)/video/fmp4/1/h264_fhd/3/manifest.m3u8#cell=cf3",
+            "https://www.dailymotion.com/cdn/subtitle/video/x/km.m3u8?sec=y"), Playlist.addresses(master))
+    }
 }

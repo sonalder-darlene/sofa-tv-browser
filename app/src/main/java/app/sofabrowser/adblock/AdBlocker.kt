@@ -111,6 +111,18 @@ class AdBlocker private constructor(private val context: Context) {
         return lists.firstOrNull { it.id == id }
     }
 
+    /** Whether any Site filters list is on (loaded): only then is it worth looking where a stream leads. */
+    val sitesOn: Boolean get() = sites.isNotEmpty()
+
+    /**
+     * The first of [urls] that a Site filters list blocks, with that list, or null. For what Sofa fetches outside
+     * WebView, which [intercept] never sees: Sofa Player, "Play in…", downloads.
+     */
+    fun siteListedIn(urls: Iterable<String>): Pair<String, FilterList>? {
+        for (url in urls) siteListed(url)?.let { return url to it }
+        return null
+    }
+
     /** The page's address and whether a @@…$document exception lets everything on it through, for [intercept]. */
     @Volatile private var page: Pair<String, Boolean>? = null
 

@@ -112,4 +112,13 @@ class StreamResolverTest {
         for (i in 1..8) sniffer.request("https://cdn.test/b/level$i.m3u8", listed = false)
         assertEquals("https://cdn.test/b/master.m3u8", resolved(sniffer))
     }
+
+    @Test
+    fun aManifestOnABlockedSiteIsNeverRead() {
+        // Not in fromPage, so it would be fetched: Site filters say no first, and no connection is opened.
+        val asked = ArrayList<String>()
+        val resolver = StreamResolver("ua", { null }) { url -> asked += url; true }
+        assertNull(resolver.resolve(listOf(s("https://blocked.test/master.m3u8")), emptyMap(), checkOutside = false))
+        assertEquals(listOf("https://blocked.test/master.m3u8"), asked)
+    }
 }

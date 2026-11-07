@@ -13,7 +13,9 @@ import java.util.concurrent.TimeUnit
  * refuses Android's own HTTP stack even with the same headers); others are fetched here as the page's player asked
  * ([PageHeaders]). Blocking: call it off the main thread.
  */
-class StreamResolver(private val userAgent: String, private val cookie: (String) -> String?, private val log: (String) -> Unit = {}) {
+/** [blocked]: addresses Site filters block, never read (nor used when a redirect lands on one). */
+class StreamResolver(private val userAgent: String, private val cookie: (String) -> String?, private val log: (String) -> Unit = {},
+                     private val blocked: (String) -> Boolean = { false }) {
 
     enum class Kind { HLS, DASH, FILE }
 
@@ -75,12 +77,14 @@ class StreamResolver(private val userAgent: String, private val cookie: (String)
 
     /** At most [max] bytes from the start of the answer, or null when the server refused. */
     private fun fetchBytes(url: String, headers: Map<String, String>, max: Int): ByteArray? = runCatching {
+        if (blocked(url)) { log("site filters $url"); return@runCatching null }
         val c = URL(url).openConnection() as HttpURLConnection
         try {
             c.connectTimeout = TIMEOUT_MS
             c.readTimeout = TIMEOUT_MS
             headers.forEach { (k, v) -> c.setRequestProperty(k, v) }
             if (c.responseCode !in 200..299) { log("refused ${c.responseCode} $url"); return@runCatching null }
+            if (blocked(c.url.toString())) { log("site filters ${c.url}"); return@runCatching null }
             c.inputStream.use { it.readNBytesCompat(max) }
         } finally {
             c.disconnect()
@@ -89,6 +93,7 @@ class StreamResolver(private val userAgent: String, private val cookie: (String)
 
     /** The final address and the text, or null when the server refused or it isn't a short text. */
     private fun fetch(url: String, headers: Map<String, String>): Pair<String, String>? = runCatching {
+        if (blocked(url)) { log("site filters $url"); return@runCatching null }
         val c = URL(url).openConnection() as HttpURLConnection
         try {
             c.connectTimeout = TIMEOUT_MS
@@ -96,11 +101,77 @@ class StreamResolver(private val userAgent: String, private val cookie: (String)
             c.instanceFollowRedirects = true
             headers.forEach { (k, v) -> c.setRequestProperty(k, v) }
             if (c.responseCode !in 200..299) { log("refused ${c.responseCode} ${c.getHeaderField("X-Error-Code").orEmpty()} $url"); return@runCatching null }
+            if (blocked(c.url.toString())) { log("site filters ${c.url}"); return@runCatching null }
             val bytes = c.inputStream.use { it.readNBytesCompat(MAX_BYTES) }
             c.url.toString() to String(bytes, Charsets.UTF_8)
         } finally {
             c.disconnect()
         }
+    }.onFailure { log("failed $it $url") }.getOrNull()
+
+    /**
+     * For "Play in…", whose app fetches everything itself, past Site filters: the first address that [blocked] names
+     * along the way, or null. For a file, where its redirects lead; for an HLS master, the playlists it lists and the
+     * segments, keys and init segments those list (the master's own addresses are the caller's to check). What can't
+     * be read in time counts as not blocked. DASH segments aren't followed (only Sofa Player checks those).
+     */
+    fun blockedAlong(direct: String?, page: String?, resolved: Resolved?): String? {
+        if (direct != null) return blockedHop(direct, page, media = true)
+        val master = resolved?.playlist?.takeIf { resolved.kind == Kind.HLS && Playlist.kind(it) == Playlist.Kind.MASTER } ?: return null
+        val lists = Playlist.addresses(master).filter { it.startsWith("http") }.distinct().take(MAX_LISTS_CHECKED)
+        if (lists.isEmpty()) return null
+        val pool = Executors.newFixedThreadPool(PROBES_AT_ONCE)
+        try {
+            val reads = lists.map { url ->
+                pool.submit<String?> {
+                    val reached = reach(url, resolved.frame, media = false, wantBody = true) ?: return@submit null
+                    reached.blockedAt ?: reached.body?.let { Playlist.addresses(Playlist.absolute(it, reached.url)).firstOrNull(blocked) }
+                }
+            }
+            val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(PROBE_DEADLINE_MS)
+            return reads.firstNotNullOfOrNull { read ->
+                runCatching { read.get(maxOf(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS) }.getOrNull()
+            }
+        } finally {
+            pool.shutdownNow()
+        }
+    }
+
+    /** The first of [url]'s redirects that [blocked] names, found without connecting to it; null when none or unread. */
+    fun blockedHop(url: String, frame: String?, media: Boolean): String? = reach(url, frame, media, wantBody = false)?.blockedAt
+
+    /** [blockedAt]: the first hop Site filters block (nothing more is fetched); else [url] is the last hop. */
+    private class Reached(val blockedAt: String?, val url: String, val body: String?)
+
+    /**
+     * Follows [url]'s redirects one by one, as players do (http and https both ways), checking each hop before it is
+     * requested. [wantBody]: read the text (a playlist), else ask for one byte (a video file). Null when it failed.
+     */
+    private fun reach(url: String, frame: String?, media: Boolean, wantBody: Boolean): Reached? = runCatching {
+        var at = url
+        repeat(MAX_REDIRECTS + 1) {
+            if (blocked(at)) { log("site filters $at"); return@runCatching Reached(at, at, null) }
+            if (!at.startsWith("https://") && !at.startsWith("http://")) return@runCatching null
+            val c = URL(at).openConnection() as HttpURLConnection
+            try {
+                c.connectTimeout = TIMEOUT_MS
+                c.readTimeout = TIMEOUT_MS
+                c.instanceFollowRedirects = false
+                PageHeaders.forRequest(at, frame, userAgent, cookie, media = media).forEach { (k, v) -> c.setRequestProperty(k, v) }
+                if (!wantBody) c.setRequestProperty("Range", "bytes=0-0")
+                val code = c.responseCode
+                if (code in 300..399) {
+                    at = URL(URL(at), c.getHeaderField("Location") ?: return@runCatching null).toString()
+                    return@repeat
+                }
+                if (code !in 200..299) return@runCatching null
+                val body = if (wantBody) String(c.inputStream.use { it.readNBytesCompat(MAX_BYTES) }, Charsets.UTF_8) else null
+                return@runCatching Reached(null, at, body)
+            } finally {
+                c.disconnect()
+            }
+        }
+        null
     }.onFailure { log("failed $it $url") }.getOrNull()
 
     private fun java.io.InputStream.readNBytesCompat(max: Int): ByteArray {
@@ -121,6 +192,9 @@ class StreamResolver(private val userAgent: String, private val cookie: (String)
         private const val INIT_BYTES = 4096
         private const val PROBES_AT_ONCE = 4
         private const val PROBE_DEADLINE_MS = 4000L
+        /** Variant and rendition playlists read by [blockedAlong]: a master rarely lists more. */
+        private const val MAX_LISTS_CHECKED = 24
+        private const val MAX_REDIRECTS = 8
 
         /**
          * The manifests worth reading, in order; ask the page for these. All that [StreamSniffer] keeps (15 at most):

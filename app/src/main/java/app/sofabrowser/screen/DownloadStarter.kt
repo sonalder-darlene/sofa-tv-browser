@@ -12,6 +12,7 @@ import app.sofabrowser.downloads.Download
 import app.sofabrowser.downloads.DownloadEngine
 import app.sofabrowser.downloads.Http
 import app.sofabrowser.downloads.Status
+import app.sofabrowser.ui.SettingsActivity
 import kotlin.concurrent.thread
 
 /**
@@ -36,6 +37,7 @@ class DownloadStarter(private val s: Screen, private val onActive: (Boolean) -> 
             ?: if (inPage) "download$extension" else URLUtil.guessFileName(url, contentDisposition, mimeType))
         val private = s.browser.privateMode
         val page = s.web?.url
+        val blockedBy = if (Browser.isWebUrl(url)) s.browser.adBlocker.siteListed(url) else null
         when {
             url.startsWith("data:") -> confirm(name, length, Browser.hostOf(page)) {
                 thread(name = "data-url") {
@@ -53,6 +55,9 @@ class DownloadStarter(private val s: Screen, private val onActive: (Boolean) -> 
                         .onFailure { s.toast(activity.getString(R.string.download_failed, it.message)) }
                 }
             }
+            // A link's own address (link menu, Download link) never reached Site filters; WebView's own downloads did.
+            blockedBy != null ->
+                s.toast(activity.getString(R.string.download_site_blocked, Browser.hostOf(url) ?: url, SettingsActivity.siteListName(activity, blockedBy)))
             Browser.isWebUrl(url) -> confirm(name, length, Browser.hostOf(url)) {
                 val web = s.web
                 val cookies = web?.let { WebViews.cookieManager(it).getCookie(url) }

@@ -47,6 +47,15 @@ object Playlist {
         }
     }
 
+    /** Every address in an HLS playlist: the address lines and the URI="…" attributes (renditions, keys, init segments). */
+    fun addresses(body: String): List<String> = body.lineSequence().map { it.trim() }.flatMap { line ->
+        when {
+            line.isEmpty() -> emptySequence()
+            !line.startsWith("#") -> sequenceOf(line)
+            else -> URI_ATTRIBUTE.findAll(line).map { it.groupValues[1] }.filter { it.isNotEmpty() }
+        }
+    }.toList()
+
     /**
      * An HLS master without the variants whose CODECS list one that [decodable] refuses (each codec as written, e.g.
      * "av01.0.12H.08"), so another player can't pick a picture the TV decodes too slowly; with none left, it is

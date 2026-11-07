@@ -67,6 +67,8 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
          * [ready] tells whether [onReady] had come.
          */
         fun onError(reason: String, detail: String?, ready: Boolean)
+        /** Playback stopped at [url], a file or playlist on a site that Site filters block (a redirect's end included). */
+        fun onSiteBlocked(url: String)
         /**
          * Sofa Player left a picture ([failed], as "AV1 3840 × 1632") and goes on with [now]: it didn't decode on this
          * TV, or would have played in software ([why]).
@@ -99,7 +101,8 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
      */
     class Source(val url: String, val kind: StreamResolver.Kind, val frame: String?, val playlist: String?,
                  val userAgent: String, val cookie: (String) -> String?, val media: Boolean,
-                 val subtitles: List<PlayerRequest.Subtitle> = emptyList(), val pageWidth: Int = 0, val pageHeight: Int = 0)
+                 val subtitles: List<PlayerRequest.Subtitle> = emptyList(), val pageWidth: Int = 0, val pageHeight: Int = 0,
+                 val blocked: (String) -> Boolean = { false }, val blockedHop: (String) -> String? = { null })
 
     val view = PlayerSurface(context)
     private var player: ExoPlayer? = null
@@ -144,7 +147,8 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
                 media = source.media) - "User-Agent")
         }
         val master = source.playlist?.toByteArray()
-        val dataSources = if (master == null) withHeaders else DataSource.Factory { PageCopyDataSource(Uri.parse(source.url), master, withHeaders.createDataSource()) }
+        val fromNetwork = DataSource.Factory { SiteFilteredDataSource(withHeaders.createDataSource(), source.blocked, source.blockedHop) }
+        val dataSources = if (master == null) fromNetwork else DataSource.Factory { PageCopyDataSource(Uri.parse(source.url), master, fromNetwork.createDataSource()) }
         val selector = DefaultTrackSelector(context)
         val p = ExoPlayer.Builder(context, renderers().setEnableDecoderFallback(true))
             .setTrackSelector(selector)
@@ -491,7 +495,9 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            if (!stepDown(error)) listener.onError(error.errorCodeName, failureDetail(error), ready)
+            val blocked = generateSequence(error.cause) { it.cause }.filterIsInstance<SiteBlockedException>().firstOrNull()
+            if (blocked != null) { listener.onSiteBlocked(blocked.url); return }
+            if (!stepDown(error))listener.onError(error.errorCodeName, failureDetail(error), ready)
         }
 
         override fun onVideoSizeChanged(size: VideoSize) = view.setVideoSize(size.width, size.height, size.pixelWidthHeightRatio)
@@ -853,6 +859,49 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
             java.util.Locale.forLanguageTag(c).let { it.getDisplayLanguage(it) }.replaceFirstChar { it.uppercase() }.ifEmpty { c }
         }
     }
+}
+
+/**
+ * Thrown for an address Site filters block. A FileNotFoundException, so Media3 doesn't retry it (its
+ * DefaultLoadErrorHandlingPolicy gives up at once on one) and playback stops with it as the cause.
+ */
+internal class SiteBlockedException(val url: String) : java.io.FileNotFoundException("Blocked by Site filters: $url")
+
+/**
+ * Refuses every address that [blocked] names, the playlists and segments the stream lists included, which WebView's
+ * Site filters never see. The address after the HTTP source's own redirects is checked too, before anything is read.
+ * When opening fails (a redirect to a blocked site that can't be reached, say), [blockedHop] walks the address's
+ * redirects by hand, never connecting to a listed site, so the failure is told as the block it is and not retried.
+ */
+@OptIn(UnstableApi::class)
+private class SiteFilteredDataSource(private val upstream: DataSource, private val blocked: (String) -> Boolean,
+                                     private val blockedHop: (String) -> String?) : DataSource {
+    override fun addTransferListener(transferListener: TransferListener) = upstream.addTransferListener(transferListener)
+
+    override fun open(dataSpec: DataSpec): Long {
+        val asked = dataSpec.uri.toString()
+        if (blocked(asked)) throw SiteBlockedException(asked)
+        val length = try {
+            upstream.open(dataSpec)
+        } catch (e: java.io.IOException) {
+            if (asked.startsWith("http")) blockedHop(asked)?.let { throw SiteBlockedException(it) }
+            throw e
+        }
+        val landed = upstream.uri?.toString()
+        if (landed != null && landed != asked && blocked(landed)) {
+            upstream.close()
+            throw SiteBlockedException(landed)
+        }
+        return length
+    }
+
+    override fun read(buffer: ByteArray, offset: Int, length: Int) = upstream.read(buffer, offset, length)
+
+    override fun getUri(): Uri? = upstream.uri
+
+    override fun getResponseHeaders(): Map<String, List<String>> = upstream.responseHeaders
+
+    override fun close() = upstream.close()
 }
 
 /** Serves the master playlist from the page's copy and everything else from the network. */
