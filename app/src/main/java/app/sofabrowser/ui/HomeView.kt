@@ -217,7 +217,7 @@ class HomeView(context: Context, private val listener: Listener) : FrameLayout(c
             }
             HomeLayout.Row.MOST_VISITED -> if (!privateMode) db.mostVisited(10).takeIf { it.isNotEmpty() }?.let { addRow(R.string.most_visited, it) }
             // One title over all the lines of bookmarks.
-            HomeLayout.Row.BOOKMARKS -> layout.bookmarkLines(db.bookmarks()).forEachIndexed { i, line ->
+            HomeLayout.Row.BOOKMARKS -> layout.bookmarkLines(db.bookmarks(layout.bookmarkSlots)).forEachIndexed { i, line ->
                 addRow(if (i == 0) R.string.bookmarks else 0, line)
             }
         }

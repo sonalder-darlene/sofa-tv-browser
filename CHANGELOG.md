@@ -45,6 +45,9 @@
   reads and writes. Export saves it in Download; import takes it from the TV's file picker where there is one, from
   a web address, or from a file Sofa saved. Bookmarks you have stay as they are, and copies are skipped. With a
   parental PIN, an import asks for it.
+- **Long lists stay quick:** Bookmarks and History make only the rows on screen, so thousands of imported
+  bookmarks open at once and take little memory, and Delete all clears them in one go. The start page reads only the
+  bookmarks it shows.
 
 **Start page**
 

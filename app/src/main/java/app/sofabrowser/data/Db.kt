@@ -84,9 +84,11 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, "sofa
 
     // Bookmarks
 
-    fun bookmarks(): List<Site> = query("SELECT id, title, url FROM bookmarks ORDER BY created DESC") {
-        Site(it.getLong(0), it.getString(1), it.getString(2))
-    }
+    /** Newest first; [limit] of them when the caller shows only a few (the start page), all when it is 0. */
+    fun bookmarks(limit: Int = 0): List<Site> =
+        query("SELECT id, title, url FROM bookmarks ORDER BY created DESC" + if (limit > 0) " LIMIT $limit" else "") {
+            Site(it.getLong(0), it.getString(1), it.getString(2))
+        }
 
     fun isBookmarked(url: String): Boolean =
         readableDatabase.rawQuery("SELECT 1 FROM bookmarks WHERE url = ?", arrayOf(url)).use { it.moveToFirst() }
@@ -99,6 +101,10 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, "sofa
 
     fun removeBookmark(url: String) {
         writableDatabase.delete("bookmarks", "url = ?", arrayOf(url))
+    }
+
+    fun clearBookmarks() {
+        writableDatabase.delete("bookmarks", null, null)
     }
 
     /** Every bookmark with the time it was added, newest first, for a bookmarks file. */
