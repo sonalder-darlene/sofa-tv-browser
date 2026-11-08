@@ -370,6 +370,7 @@
         <item quantity="other">%d settings were left out: this TV or this version of Sofa can\'t use them.</item>
     </plurals>
     <string name="settings_imported_lists">Filter lists that are now on download in the background.</string>
+    <string name="settings_lists_loading">The filter lists are still loading. Try again in a moment.</string>
     <string name="settings_failed">Something went wrong. %1$s</string>
 
     <!-- Screen reader (TalkBack): names, states and hints of the controls Sofa draws itself -->

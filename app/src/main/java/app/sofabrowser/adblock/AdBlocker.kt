@@ -18,8 +18,10 @@ import java.io.IOException
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -110,6 +112,15 @@ class AdBlocker private constructor(private val context: Context) {
         if (SiteAllowlist.contains(context, host)) return null
         return lists.firstOrNull { it.id == id }
     }
+
+    /**
+     * The lists as Settings shows them: once they have loaded and every change asked for before (a list switched on,
+     * added, updated) is made, since those run in turn on the worker. For the settings backup, which would otherwise
+     * save or compare the lists from before such a change. Waits at most [timeoutMs] behind a slow download, then
+     * gives the lists as they are; null if they haven't loaded by then. Never on the main thread.
+     */
+    fun settledLists(timeoutMs: Long = SETTLE_WAIT_MS): List<FilterList>? =
+        afterQueue(worker, timeoutMs) { lists }.takeIf { it.isNotEmpty() } // loaded lists always hold the bundled ones
 
     /** Whether any Site filters list is on (loaded): only then is it worth looking where a stream leads. */
     val sitesOn: Boolean get() = sites.isNotEmpty()
@@ -496,6 +507,8 @@ class AdBlocker private constructor(private val context: Context) {
         private const val CHECK_EVERY_MS = 6 * 60 * 60 * 1000L
         /** How long a page waits for Site filters as Sofa starts; loading them takes about a second on a slow TV. */
         private const val SITES_WAIT_MS = 10_000L
+        /** How long the settings backup waits for list changes in progress ([settledLists]). */
+        private const val SETTLE_WAIT_MS = 20_000L
         /** Stamp of a cache carried over from Sofa 1.1: domains only, kept until the list is downloaded. */
         private const val MIGRATED = -1L
         /** Larger than any common list (EasyList is about 2 MB), small enough for any TV. */
@@ -506,6 +519,15 @@ class AdBlocker private constructor(private val context: Context) {
 
         fun get(context: Context): AdBlocker = instance ?: synchronized(this) {
             instance ?: AdBlocker(context.applicationContext).also { instance = it }
+        }
+
+        /**
+         * [read] run on [worker] after the tasks already queued there, or run here instead when they take longer than
+         * [timeoutMs] (so it must be safe on any thread).
+         */
+        internal fun <T> afterQueue(worker: ExecutorService, timeoutMs: Long, read: () -> T): T {
+            val task = worker.submit(Callable(read))
+            return runCatching { task.get(timeoutMs, TimeUnit.MILLISECONDS) }.getOrElse { task.cancel(false); read() }
         }
 
         fun hostOf(url: String?): String? = url?.let { runCatching { Uri.parse(it).host }.getOrNull() }

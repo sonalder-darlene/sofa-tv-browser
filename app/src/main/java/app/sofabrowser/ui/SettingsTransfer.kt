@@ -108,8 +108,7 @@ class SettingsTransfer(private val activity: Activity, private val imported: () 
 
     /** What the file holds, unencrypted. Call on a worker thread. */
     private fun contents(): JSONObject {
-        // The lists load as Sofa starts; Settings is rarely open sooner.
-        repeat(50) { if (!blocker.ready) Thread.sleep(100) }
+        val lists = blocker.settledLists() ?: throw ListsLoading()
         val stored = activity.getSharedPreferences(SETTINGS, Context.MODE_PRIVATE).all
         val settings = JSONObject()
         for (key in SettingsFile.RULES.keys) settings.put(key, json(stored[key]))
@@ -120,7 +119,7 @@ class SettingsTransfer(private val activity: Activity, private val imported: () 
         val defaults = FilterList.defaults().map { it.id }.toSet()
         return header().put("app", BuildConfig.VERSION_NAME).put("saved", System.currentTimeMillis())
             .put("settings", settings)
-            .put("filter_lists", JSONArray(blocker.lists.filter { it.url != null }.map { l ->
+            .put("filter_lists", JSONArray(lists.filter { it.url != null }.map { l ->
                 JSONObject().put("id", l.id.takeIf { it in defaults }).put("url", l.url).put("on", l.enabled).put("site", l.site)
             }))
             .put("ad_blocking_off", JSONArray(Allowlist.all(activity)))
@@ -149,6 +148,8 @@ class SettingsTransfer(private val activity: Activity, private val imported: () 
 
     private class NotSettings : Exception()
     private class Newer : Exception()
+    /** The filter lists haven't loaded yet ([AdBlocker.settledLists]): export and import don't go ahead without them. */
+    private class ListsLoading : Exception()
 
     /** A file read, either the backup itself or its encrypted form. */
     private sealed interface Opened
@@ -242,6 +243,8 @@ class SettingsTransfer(private val activity: Activity, private val imported: () 
     // commit, not apply: on a worker thread, and what follows reads the settings back.
     @SuppressLint("ApplySharedPref")
     private fun apply(b: Backup) = work(R.string.settings_import, {
+        // Before anything changes, so a failure leaves this TV as it was.
+        val lists = blocker.settledLists() ?: throw ListsLoading()
         val edit = activity.getSharedPreferences(SETTINGS, Context.MODE_PRIVATE).edit()
         for ((key, value) in b.settings) when (value) {
             null -> edit.remove(key)
@@ -254,7 +257,7 @@ class SettingsTransfer(private val activity: Activity, private val imported: () 
         // What Settings does when these change by hand.
         if (prefs.clearOnExit) { prefs.lastPage = ""; prefs.tabs = "" }
         db.pruneHistory(prefs.historyDays)
-        val listsOn = applyLists(b.lists)
+        val listsOn = applyLists(b.lists, lists)
         b.adBlockingOff.forEach { Allowlist.set(activity, it, allowed = true, private = false) }
         b.allowedSites.forEach { SiteAllowlist.allow(activity, it, private = false) }
         val here = db.tiles().map { it.url }.toHashSet()
@@ -279,13 +282,13 @@ class SettingsTransfer(private val activity: Activity, private val imported: () 
 
     /**
      * Each list as the file has it on or off; a list the user added that isn't here is added when it is on (and
-     * downloaded, like one added by hand). Returns whether a list was switched on, so it is downloading.
+     * downloaded, like one added by hand), compared with the [lists] here. Returns whether a list was switched on, so
+     * it is downloading.
      */
-    private fun applyLists(choices: List<ListChoice>): Boolean {
-        repeat(50) { if (!blocker.ready) Thread.sleep(100) }
+    private fun applyLists(choices: List<ListChoice>, lists: List<FilterList>): Boolean {
         var switchedOn = false
         for (c in choices) {
-            val here = blocker.lists.firstOrNull { if (c.id != null) it.id == c.id else it.url == c.url && it.site == c.site }
+            val here = lists.firstOrNull { if (c.id != null) it.id == c.id else it.url == c.url && it.site == c.site }
             when {
                 here == null -> if (c.on) { blocker.add(c.url, c.site) {}; switchedOn = true }
                 here.site -> {
@@ -324,6 +327,7 @@ class SettingsTransfer(private val activity: Activity, private val imported: () 
                     val message = when (it) {
                         is NotSettings, is IllegalArgumentException -> activity.getString(R.string.settings_import_not_settings)
                         is Newer -> activity.getString(R.string.settings_import_newer)
+                        is ListsLoading -> activity.getString(R.string.settings_lists_loading)
                         else -> activity.getString(R.string.settings_failed, ErrorText.text(activity, it))
                     }
                     Ui.dialog(activity).setTitle(title).setMessage(message).setPositiveButton(R.string.ok, null).show()
