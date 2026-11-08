@@ -148,7 +148,7 @@ class Takeover(private val s: Screen, private val video: VideoSession) {
             if (siteBlocked(listOf(direct) + source.subtitles.map { it.url })) return
             val hops = StreamResolver(userAgent, cookies::getCookie, ::streamLog, blocked)
             start(SofaPlayer.Source(direct, StreamResolver.Kind.FILE, source.page, null, userAgent, cookies::getCookie, media = true,
-                source.subtitles, blocked = blocked, blockedHop = { hops.blockedHop(it, source.page, media = true) }), source)
+                source.subtitles, blocked = blocked, land = { if (browser.adBlocker.sitesOn) hops.land(it, source.page, media = true) else it }), source)
             return
         }
         val candidates = browser.streams.candidates()
@@ -176,7 +176,7 @@ class Takeover(private val s: Screen, private val video: VideoSession) {
                     if (siteBlocked(PlayIn.streamAddresses(resolved) + source.subtitles.map { it.url })) return@runOnUiThread
                     start(SofaPlayer.Source(resolved.url, resolved.kind, resolved.frame, resolved.playlist, userAgent,
                         cookies::getCookie, media = false, source.subtitles, source.width, source.height, blocked,
-                        blockedHop = { resolver.blockedHop(it, resolved.frame, media = false) }), source)
+                        land = { if (browser.adBlocker.sitesOn) resolver.land(it, resolved.frame, media = false) else it }), source)
                 }
             }
         }

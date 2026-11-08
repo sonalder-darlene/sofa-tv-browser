@@ -11,9 +11,11 @@ import android.os.SystemClock
 import android.webkit.CookieManager
 import app.sofabrowser.R
 import app.sofabrowser.adblock.AdBlocker
+import app.sofabrowser.adblock.SiteBlockedException
+import app.sofabrowser.adblock.SiteFilteredHttp
 import app.sofabrowser.data.Db
 import java.io.IOException
-import java.net.HttpURLConnection
+import app.sofabrowser.adblock.RedirectRefusedException
 import java.net.URL
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.concurrent.thread
@@ -330,37 +332,27 @@ object DownloadEngine {
     }
 
     private fun transfer(d: Download) {
-        var url = URL(d.url)
-        var redirects = 0
-        var conn: HttpURLConnection
-        // Follow redirects ourselves: HttpURLConnection won't switch between http and https.
-        while (true) {
-            if (url.protocol != "http" && url.protocol != "https") throw PermanentError("Unsupported address")
-            // Each address, the redirects' included: HttpURLConnection is outside WebView's Site filters.
-            if (AdBlocker.get(app).siteListed(url.toString()) != null) throw PermanentError(app.getString(R.string.download_blocked_error, url.host))
-            conn = url.openConnection() as HttpURLConnection
-            conn.instanceFollowRedirects = false
-            conn.connectTimeout = 20_000
-            conn.readTimeout = 30_000
-            conn.useCaches = false
-            // Identity encoding keeps byte counts and ranges meaningful.
-            conn.setRequestProperty("Accept-Encoding", "identity")
-            d.userAgent?.let { conn.setRequestProperty("User-Agent", it) }
-            d.referer?.takeIf { it.startsWith("http") }?.let { conn.setRequestProperty("Referer", it) }
-            d.cookies?.takeIf { url.toString() == d.url }?.let { conn.setRequestProperty("Cookie", it) }
-            if (d.done > 0 && d.target != null) {
-                conn.setRequestProperty("Range", "bytes=${d.done}-")
-                d.validator?.let { conn.setRequestProperty("If-Range", it) }
+        // Redirects followed one by one (HttpURLConnection won't switch between http and https), each address checked
+        // by Site filters before it is requested: HttpURLConnection is outside WebView's.
+        val conn = try {
+            SiteFilteredHttp.open(d.url, { AdBlocker.get(app).siteListed(it) != null }) { conn ->
+                conn.connectTimeout = 20_000
+                conn.readTimeout = 30_000
+                conn.useCaches = false
+                // Identity encoding keeps byte counts and ranges meaningful.
+                conn.setRequestProperty("Accept-Encoding", "identity")
+                d.userAgent?.let { conn.setRequestProperty("User-Agent", it) }
+                d.referer?.takeIf { it.startsWith("http") }?.let { conn.setRequestProperty("Referer", it) }
+                d.cookies?.takeIf { conn.url.toString() == d.url }?.let { conn.setRequestProperty("Cookie", it) }
+                if (d.done > 0 && d.target != null) {
+                    conn.setRequestProperty("Range", "bytes=${d.done}-")
+                    d.validator?.let { conn.setRequestProperty("If-Range", it) }
+                }
             }
-            val code = conn.responseCode
-            if (code in 300..399 && code != 304) {
-                val location = conn.getHeaderField("Location")
-                conn.disconnect()
-                if (location == null || ++redirects > 8) throw PermanentError("Too many redirects")
-                url = URL(url, location)
-                continue
-            }
-            break
+        } catch (e: SiteBlockedException) {
+            throw PermanentError(app.getString(R.string.download_blocked_error, URL(e.url).host))
+        } catch (e: RedirectRefusedException) {
+            throw PermanentError(e.message ?: "Unsupported address")
         }
         try {
             val code = conn.responseCode

@@ -322,6 +322,7 @@ class SettingsActivity : Activity() {
                 }
                 HomePicture.Outcome.TOO_LARGE -> Toast.makeText(this, R.string.background_too_large, Toast.LENGTH_LONG).show()
                 HomePicture.Outcome.UNREADABLE -> Toast.makeText(this, R.string.background_unreadable, Toast.LENGTH_LONG).show()
+                HomePicture.Outcome.BLOCKED -> Toast.makeText(this, R.string.background_blocked, Toast.LENGTH_LONG).show()
             }
             (content as? BackgroundPage)?.refresh()
         }

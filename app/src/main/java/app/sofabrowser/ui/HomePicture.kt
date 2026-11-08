@@ -7,11 +7,12 @@ import android.graphics.Matrix
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import app.sofabrowser.adblock.SiteBlockedException
+import app.sofabrowser.adblock.SiteFilteredHttp
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import java.net.HttpURLConnection
-import java.net.URL
 import java.util.concurrent.Executors
 
 /**
@@ -22,7 +23,7 @@ import java.util.concurrent.Executors
  */
 object HomePicture {
 
-    enum class Outcome { SET, TOO_LARGE, UNREADABLE }
+    enum class Outcome { SET, TOO_LARGE, UNREADABLE, BLOCKED }
 
     private const val NAME = "start-page.webp"
     private const val QUALITY = 90
@@ -43,19 +44,31 @@ object HomePicture {
     fun set(context: Context, open: () -> InputStream, done: (Outcome) -> Unit) {
         val app = context.applicationContext
         worker.execute {
-            val outcome = try { store(app, open) } catch (_: OutOfMemoryError) { Outcome.TOO_LARGE } catch (_: Exception) { Outcome.UNREADABLE }
+            val outcome = try {
+                store(app, open)
+            } catch (_: OutOfMemoryError) {
+                Outcome.TOO_LARGE
+            } catch (_: SiteBlockedException) {
+                Outcome.BLOCKED
+            } catch (_: Exception) {
+                Outcome.UNREADABLE
+            }
             main.post { done(outcome) }
         }
     }
 
-    /** The picture at [url], fetched without cookies, as a page would load it. Call on a worker thread. */
-    fun fetch(url: String, userAgent: String?, referer: String?): InputStream {
-        val conn = URL(url).openConnection() as HttpURLConnection
-        conn.connectTimeout = 15_000
-        conn.readTimeout = 30_000
-        userAgent?.let { conn.setRequestProperty("User-Agent", it) }
-        referer?.takeIf { it.startsWith("http") }?.let { conn.setRequestProperty("Referer", it) }
-        conn.setRequestProperty("Accept", "image/avif,image/webp,image/*,*/*;q=0.8")
+    /**
+     * The picture at [url], fetched without cookies, as a page would load it; its redirects are checked by Site
+     * filters ([blocked]) before each is followed, and none from https to http. Call on a worker thread.
+     */
+    fun fetch(url: String, userAgent: String?, referer: String?, blocked: (String) -> Boolean): InputStream {
+        val conn = SiteFilteredHttp.open(url, blocked, downgrade = false) { conn ->
+            conn.connectTimeout = 15_000
+            conn.readTimeout = 30_000
+            userAgent?.let { conn.setRequestProperty("User-Agent", it) }
+            referer?.takeIf { it.startsWith("http") }?.let { conn.setRequestProperty("Referer", it) }
+            conn.setRequestProperty("Accept", "image/avif,image/webp,image/*,*/*;q=0.8")
+        }
         if (conn.responseCode != HttpURLConnection.HTTP_OK) { conn.disconnect(); throw IOException("HTTP ${conn.responseCode}") }
         return conn.inputStream
     }

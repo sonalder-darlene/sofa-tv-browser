@@ -12,6 +12,9 @@ import android.widget.FrameLayout
 import android.widget.Toast
 import app.sofabrowser.BuildConfig
 import app.sofabrowser.R
+import app.sofabrowser.adblock.AdBlocker
+import app.sofabrowser.adblock.SiteBlockedException
+import app.sofabrowser.adblock.SiteFilteredHttp
 import app.sofabrowser.downloads.Download
 import app.sofabrowser.downloads.DownloadEngine
 import app.sofabrowser.downloads.DownloadStorage
@@ -19,7 +22,6 @@ import app.sofabrowser.downloads.Status
 import java.io.IOException
 import java.io.InputStream
 import java.net.HttpURLConnection
-import java.net.URL
 import kotlin.concurrent.thread
 
 /**
@@ -109,7 +111,8 @@ class FileImport(
                 if (activity.isFinishing || activity.isDestroyed) return@post
                 outcome.onSuccess(read).onFailure {
                     val message = if (it is TooLarge) activity.getString(tooLargeMessage)
-                    else activity.getString(R.string.bookmarks_import_failed, ErrorText.text(activity, it))
+                    else activity.getString(R.string.bookmarks_import_failed, if (it is SiteBlockedException)
+                        ErrorText.sentence(activity.getString(R.string.download_blocked_error, Uri.parse(it.url).host)) else ErrorText.text(activity, it))
                     Ui.dialog(activity).setTitle(title).setMessage(message).setPositiveButton(R.string.ok, null).show()
                 }
             }
@@ -130,13 +133,18 @@ class FileImport(
         return out.toByteArray()
     }
 
-    /** The file at [url], without cookies, as a list update fetches one. Call on a worker thread. */
+    /**
+     * The file at [url], without cookies, as a list update fetches one; Site filters checked at each redirect before
+     * it is followed, and none from https to http. Call on a worker thread.
+     */
     private fun fetch(url: String): InputStream {
-        val conn = URL(url).openConnection() as HttpURLConnection
-        conn.connectTimeout = 15_000
-        conn.readTimeout = 30_000
-        conn.useCaches = false
-        conn.setRequestProperty("User-Agent", "Mozilla/5.0")
+        val blocker = AdBlocker.get(activity.application)
+        val conn = SiteFilteredHttp.open(url, { blocker.siteListed(it) != null }, downgrade = false) { conn ->
+            conn.connectTimeout = 15_000
+            conn.readTimeout = 30_000
+            conn.useCaches = false
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0")
+        }
         if (conn.responseCode != HttpURLConnection.HTTP_OK) { conn.disconnect(); throw IOException("HTTP ${conn.responseCode}") }
         return object : java.io.FilterInputStream(conn.inputStream) {
             override fun close() { try { super.close() } finally { conn.disconnect() } }

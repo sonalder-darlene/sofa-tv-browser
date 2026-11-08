@@ -7,9 +7,11 @@
 - **Block whole sites by category** (Settings → Site filters, each off until turned on): adult sites, gambling (in
   three sizes, "More sites" recommended), unsafe sites (fake downloads and malware) and drugs, or any list of
   domains by its address. A blocked site is stopped however you reach it, a typed address, a bookmark, a link or a
-  redirect, and so is anything a page loads from it, with ad blocking on or off. So is what Sofa fetches itself: a
-  video from a blocked site doesn't play in Sofa Player, isn't handed to another app with "Play in…" (redirects and
-  a stream's playlists followed), and isn't downloaded; a notice says why. The block screen names the list
+  redirect, and so is anything a page loads from it, with ad blocking on or off. So is what Sofa fetches itself,
+  which never contacts a blocked site, not even when an allowed one redirects there: a video from a blocked site
+  doesn't play in Sofa Player, isn't handed to another app with "Play in…" (redirects and a stream's playlists
+  followed), and isn't downloaded, nor is a start page picture or a file imported from a web address; a notice says
+  why. The block screen names the list
   and offers Go back or Allow this site; Allowed sites in Settings takes a site back. Go back returns to the last
   page that isn't blocked, and a blocked link from another app, or opened in a new tab, shows the block screen over
   the page you're on without making a tab for it; a blocked site is never kept as a tab or as where you left off. A

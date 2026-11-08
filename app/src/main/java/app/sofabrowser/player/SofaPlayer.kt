@@ -39,6 +39,7 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.exoplayer.upstream.BandwidthMeter
 import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import app.sofabrowser.R
+import app.sofabrowser.adblock.SiteBlockedException
 import app.sofabrowser.browser.Decoders
 import app.sofabrowser.browser.FrameRate
 import app.sofabrowser.browser.PageHeaders
@@ -98,11 +99,13 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
     /**
      * What to play: the page's stream, its frame (for the headers), the master playlist text when one was read, the
      * page's own subtitle files ([PageSubtitles]), and the size of the picture the site's player showed (0 unknown).
+     * [blocked]: addresses Site filters block; [land]: where an address's redirects end, each hop checked
+     * ([StreamResolver.land]), the address itself when no list is on.
      */
     class Source(val url: String, val kind: StreamResolver.Kind, val frame: String?, val playlist: String?,
                  val userAgent: String, val cookie: (String) -> String?, val media: Boolean,
                  val subtitles: List<PlayerRequest.Subtitle> = emptyList(), val pageWidth: Int = 0, val pageHeight: Int = 0,
-                 val blocked: (String) -> Boolean = { false }, val blockedHop: (String) -> String? = { null })
+                 val blocked: (String) -> Boolean = { false }, val land: (String) -> String = { it })
 
     val view = PlayerSurface(context)
     private var player: ExoPlayer? = null
@@ -147,7 +150,7 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
                 media = source.media) - "User-Agent")
         }
         val master = source.playlist?.toByteArray()
-        val fromNetwork = DataSource.Factory { SiteFilteredDataSource(withHeaders.createDataSource(), source.blocked, source.blockedHop) }
+        val fromNetwork = DataSource.Factory { SiteFilteredDataSource(withHeaders.createDataSource(), source.blocked, source.land) }
         val dataSources = if (master == null) fromNetwork else DataSource.Factory { PageCopyDataSource(Uri.parse(source.url), master, fromNetwork.createDataSource()) }
         val selector = DefaultTrackSelector(context)
         val p = ExoPlayer.Builder(context, renderers().setEnableDecoderFallback(true))
@@ -862,33 +865,25 @@ class SofaPlayer(private val context: Context, private val listener: Listener) {
 }
 
 /**
- * Thrown for an address Site filters block. A FileNotFoundException, so Media3 doesn't retry it (its
- * DefaultLoadErrorHandlingPolicy gives up at once on one) and playback stops with it as the cause.
- */
-internal class SiteBlockedException(val url: String) : java.io.FileNotFoundException("Blocked by Site filters: $url")
-
-/**
  * Refuses every address that [blocked] names, the playlists and segments the stream lists included, which WebView's
- * Site filters never see. The address after the HTTP source's own redirects is checked too, before anything is read.
- * When opening fails (a redirect to a blocked site that can't be reached, say), [blockedHop] walks the address's
- * redirects by hand, never connecting to a listed site, so the failure is told as the block it is and not retried.
+ * Site filters never see. Media3's HTTP source follows redirects inside [open], past any check, so [land] walks them
+ * first, each hop checked before it is requested (a listed site is never contacted), and the source opens the address
+ * they end at. That costs one small request per address while a Site filters list is on; with none on, [land] gives
+ * the address back at once. The address after the source's own redirects is checked too, in case the server
+ * redirects the player's request where it didn't redirect the walk's.
  */
 @OptIn(UnstableApi::class)
 private class SiteFilteredDataSource(private val upstream: DataSource, private val blocked: (String) -> Boolean,
-                                     private val blockedHop: (String) -> String?) : DataSource {
+                                     private val land: (String) -> String) : DataSource {
     override fun addTransferListener(transferListener: TransferListener) = upstream.addTransferListener(transferListener)
 
     override fun open(dataSpec: DataSpec): Long {
         val asked = dataSpec.uri.toString()
         if (blocked(asked)) throw SiteBlockedException(asked)
-        val length = try {
-            upstream.open(dataSpec)
-        } catch (e: java.io.IOException) {
-            if (asked.startsWith("http")) blockedHop(asked)?.let { throw SiteBlockedException(it) }
-            throw e
-        }
+        val spec = if (asked.startsWith("http")) land(asked).let { if (it == asked) dataSpec else dataSpec.withUri(Uri.parse(it)) } else dataSpec
+        val length = upstream.open(spec)
         val landed = upstream.uri?.toString()
-        if (landed != null && landed != asked && blocked(landed)) {
+        if (landed != null && landed != spec.uri.toString() && blocked(landed)) {
             upstream.close()
             throw SiteBlockedException(landed)
         }

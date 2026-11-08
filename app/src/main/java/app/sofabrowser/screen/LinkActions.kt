@@ -95,6 +95,7 @@ class LinkActions(private val s: Screen, private val downloads: DownloadStarter)
                 HomePicture.Outcome.SET -> { s.prefs.homeBackground = HomeBackground.PICTURE; s.toast(R.string.background_set) }
                 HomePicture.Outcome.TOO_LARGE -> s.toast(R.string.background_too_large)
                 HomePicture.Outcome.UNREADABLE -> s.toast(R.string.background_unreadable)
+                HomePicture.Outcome.BLOCKED -> s.toast(R.string.background_blocked)
             }
         }
         when {
@@ -112,7 +113,7 @@ class LinkActions(private val s: Screen, private val downloads: DownloadStarter)
                     return
                 }
                 val agent = web?.settings?.userAgentString
-                HomePicture.set(activity, { HomePicture.fetch(image, agent, page) }, done)
+                HomePicture.set(activity, { HomePicture.fetch(image, agent, page) { blocker.siteListed(it) != null } }, done)
             }
             else -> return
         }
