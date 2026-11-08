@@ -1,44 +1,47 @@
-Sofa is a lightweight web browser made for the TV remote, with a mouse pointer, a menu on the Back key and a home screen of your own sites. It has no ads, analytics, accounts or servers of its own.
+Sofa is a lightweight web browser made for the TV remote, with a mouse pointer, tabs and a start page of your own. It has no ads, analytics, accounts or servers of its own.
 
 Remote-control browsing
-• The D-pad moves a mouse pointer that speeds up while held and stops dead on release. A quick tap nudges it a few pixels.
+• The D-pad moves a mouse pointer that speeds up while held and stops dead on release.
 • OK clicks, holding OK while moving drags, and hover works, so hover menus open.
-• Hold OK on a link or an image to open it in another app, copy or share its address, or download it.
-• Pushing the pointer against a screen edge scrolls the page, or whatever is under the pointer.
-• Scroll mode, and a D-pad mode for sites built for keyboard navigation.
-• The Back key opens a menu: address, Watch, navigation, find in page, bookmarks, history, ad blocking per site, "Browse as" (desktop, mobile, iPad, Smart TV or your own user agent), zoom and settings.
-• Game pads (Xbox, PlayStation, 8BitDo and others) work like in a console browser. Settings → Game controller shows every button.
+• Hold OK on a link or image to open it in a new tab or another app, copy, share or download it, or set a picture as the start page background.
+• Pushing the pointer against a screen edge scrolls, and there is a scroll mode and a D-pad mode.
+• The Back key opens a menu: address, tabs, Watch, navigation, find in page, bookmarks, history, ad blocking per site, "Browse as" (desktop, mobile, iPad, TV or your own), zoom and settings. Its buttons can be reordered and hidden.
+• Game pads (Xbox, PlayStation, 8BitDo and others) work like in a console browser.
+• TalkBack, the TV's screen reader, reads Sofa's menus, settings and dialogs.
 
-Home screen
-• Your own quick-access tiles, which you can add, edit and reorder.
-• Most visited sites, worked out on the TV from your history, and your recent bookmarks.
+Tabs and your start page
+• Up to 10 tabs at the top of the menu. Only the tab you look at runs, and one left alone for 10 minutes is unloaded until you pick it. Private browsing has its own tabs.
+• The start page has your quick-access tiles, your most visited sites (worked out on the TV) and up to 48 bookmarks. Reorder and hide its rows and buttons, and give it a colour, a gradient or your own picture.
+• Sofa can open on the start page, on a web page you choose, or where you left off.
+• Import and export bookmarks as the file every desktop browser uses, and back up your settings, lists and bookmarks to one password-protected file.
 
 Video
-• Watch: one press of Play (or Watch in the menu) finds the page's main video, even inside an embedded player, and plays it fullscreen. Videos you start yourself go straight to Sofa Player, and Watch can run by itself on sites you choose.
-• Sofa Player: in fullscreen, Sofa plays the site's stream in its own player when it can, with 4K at full resolution, HDR, and a choice of quality, sound and subtitles. Otherwise the site's player carries on.
-• Fullscreen video gets a control bar, even for videos embedded from other sites: back and forward 10 seconds, play/pause, a scrub bar, playback speed, subtitles, Video info and picture-in-picture on TVs that offer it.
-• Play in another app: send the stream, its subtitles and the position to VLC, Just Player or another player. Choose the app in Settings, or have Sofa ask every time.
-• Match frame rate (experimental, off by default): the TV switches to the video's frame rate in fullscreen, such as 24 per second for films.
-• The screen stays on while a video plays, and long films offer to continue where you stopped.
+• Watch: one press of Play finds the page's main video, even in an embedded player, and plays it fullscreen.
+• Sofa Player plays the site's stream in its own player when it can: 4K at full resolution, HDR, and a choice of quality, sound and subtitles that it remembers.
+• Fullscreen controls for every video: 10-second seek, pause, speed, subtitles, Video info and picture-in-picture.
+• Play in another app sends the stream, subtitles and position to VLC, Just Player or others.
+• Match frame rate (experimental) switches the TV to the video's rate, such as 24 for films. The screen stays on during video, and long films continue where you stopped.
 
-Search
-• At first start you choose the search engine yourself: Brave Search, DuckDuckGo, Ecosia, Google, Kagi, MetaGer, Mojeek, Murena Find, Qwant, Startpage, Swisscows or Uruky, or later any address you like.
-• Suggestions come from your bookmarks and history. Your engine's own suggestions are only used if you turn them on.
-• Voice search runs in Sofa's own search screen, and can be turned off.
+Search and downloads
+• Pick your engine at first start: Brave Search, DuckDuckGo, Ecosia, Google, Kagi, MetaGer, Mojeek, Murena Find, Qwant, Startpage, Swisscows, Uruky, or any address. Voice search, and suggestions from your bookmarks and history.
+• Downloads pause, resume and carry on in the background.
 
-Downloads
-• Up to three at once, with pause and resume, automatic retries, and downloads that carry on in the background.
+Blocking and safety
+• Ads and trackers are blocked on the TV with filter lists in uBlock Origin, Adblock Plus or hosts format, which also hide the empty boxes ads leave. One switch adds EasyList and EasyPrivacy.
+• Pop-ups are blocked even from ad networks no list knows yet. "Allow once" opens one you wanted.
+• Site filters (off until you choose) block whole sites by category, such as adult, gambling, unsafe sites or drugs, or with a list of your own.
+• A parental PIN (off until you set one) guards Settings and the blockers.
+• Custom DNS (off until you choose) looks sites up over DNS over HTTPS, with services ranked from most to least private.
 
 Privacy
-• Ads and trackers are blocked on the TV itself with filter lists in uBlock Origin, Adblock Plus or hosts format, which also hide the empty boxes ads leave. Sofa comes with the StevenBlack and HaGeZi Pop-Up Ads lists; one switch adds EasyList and EasyPrivacy.
-• Pop-ups are blocked even from ad networks no list knows yet. "Allow once" in the menu opens one you wanted.
-• Third-party cookies are blocked, and Sofa sends no Do Not Track and a desktop Chrome user agent by default, so it blends in with the most common browser.
-• Private browsing runs in a separate WebView profile where the TV's WebView supports it.
+• Third-party cookies are blocked, and Sofa blends in as desktop Chrome, without Do Not Track.
+• Private browsing has its own tabs, and its cookies and site data are erased when it ends.
+• A page you leave stays quiet: no sound, videos paused, nothing opened behind your back.
 • Pages never get the camera, microphone, location or your files.
-• You choose how long history is kept (7, 30 or 90 days, always or never) and whether protected (DRM) video asks first, always plays or never plays.
+• You choose how long history is kept and whether protected (DRM) video plays.
 • No crash reporting, remote configuration or cloud backup.
 
 Updates
-Copies installed from GitHub can check GitHub for new versions, but only if you say yes at first start. Copies installed from an app store never see this option.
+Copies from GitHub can check for updates if you say yes at first start; app store copies never do.
 
 Sofa uses the TV's system WebView. It needs Android 7.0 or newer and is made for Android TV and Google TV.
