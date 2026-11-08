@@ -4,11 +4,14 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.widget.Toast
 import androidx.webkit.ProxyConfig
 import androidx.webkit.ProxyController
 import androidx.webkit.WebViewFeature
 import app.sofabrowser.BuildConfig
 import app.sofabrowser.Prefs
+import app.sofabrowser.R
+import app.sofabrowser.SofaApp
 import java.io.IOException
 import java.net.InetAddress
 import java.net.InetSocketAddress
@@ -20,7 +23,8 @@ import kotlin.concurrent.thread
 
 /**
  * "Custom DNS": Sofa's host names are looked up over DNS over HTTPS with the main DNS, then the fallback, then the
- * device's own DNS if both fail. Off until the user picks a main DNS; then nothing changes for anyone else.
+ * device's own DNS if neither can be reached (or nothing, with "Never use your TV's DNS"); a notice says so when it
+ * happens. Off until the user picks a main DNS; then nothing changes for anyone else.
  *
  * WebView and HttpURLConnection can't be given a resolver, but both take a proxy: a [LoopbackProxy] on 127.0.0.1 does
  * the lookups, WebView is pointed at it with ProxyController, and every HttpURLConnection in the app (Sofa Player,
@@ -57,7 +61,10 @@ object SecureDns {
         }
         if (chosen.isEmpty() || unused != null) return stop()
 
-        val r = Resolver(chosen.map { s -> Resolver.Server { host, type -> s.query(host, type) } })
+        val strict = prefs.dnsStrict
+        val app = context.applicationContext
+        val r = Resolver(chosen.map { s -> Resolver.Server { host, type -> s.query(host, type) } }, strict = strict,
+            onUnreachable = { tellUnreachable(app, strict) })
         resolver = r
         val p = proxy ?: try { LoopbackProxy(r::lookup).also { it.start(); proxy = it } } catch (e: IOException) {
             Log.w(TAG, "No loopback proxy: $e"); return stop()
@@ -69,7 +76,17 @@ object SecureDns {
                 ProxyConfig.Builder().addProxyRule("127.0.0.1:${p.port}").build(), main::post) {}
             webViewOverridden = true
         }
-        if (BuildConfig.DEBUG) Log.d(TAG, "on: ${chosen.joinToString(" then ") { it.id }}, then the device DNS")
+        if (BuildConfig.DEBUG) Log.d(TAG, "on: ${chosen.joinToString(" then ") { it.id }}, then ${if (strict) "nothing" else "the device DNS"}")
+    }
+
+    /** "Custom DNS isn't answering", when someone can see it (lookups also run for list updates in the background). */
+    private fun tellUnreachable(app: Context, strict: Boolean): Boolean {
+        if (BuildConfig.DEBUG) Log.d(TAG, "unreachable: ${if (strict) "names fail" else "device DNS"}, on screen: ${SofaApp.onScreen}")
+        if (!SofaApp.onScreen) return false
+        main.post {
+            Toast.makeText(app, if (strict) R.string.dns_unreachable_strict else R.string.dns_unreachable, Toast.LENGTH_LONG).show()
+        }
+        return true
     }
 
     private fun stop() {

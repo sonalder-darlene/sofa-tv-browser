@@ -23,8 +23,10 @@
 - **DNS over HTTPS** (Settings → DNS, off until you choose): a main and a fallback DNS from services ranked in four
   groups, from most to least private (Private, Private with trade-offs, Limited privacy, Utility-first), each with
   what it blocks; filtered and unfiltered versions where a service has both; or any other service by its address.
-  It covers pages, Sofa Player, downloads and list updates. When neither service answers, the TV's own DNS takes
-  over so pages keep loading; home-network names always use it. Test shows how fast each one answers.
+  It covers pages, Sofa Player, downloads and list updates. When neither service can be reached, the TV's own DNS
+  takes over so pages keep loading, and a notice says so; with **Never use your TV's DNS** on, sites stop loading
+  instead. A site a service refuses or can't look up stays unresolved and never goes to the TV's DNS. Home-network
+  names always use the TV's DNS. Test shows how fast each one answers.
 
 **Parental PIN**
 

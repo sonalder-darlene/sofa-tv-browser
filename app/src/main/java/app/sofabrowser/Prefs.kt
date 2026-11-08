@@ -116,6 +116,8 @@ class Prefs(context: Context) {
      */
     var dnsMain by string("dns_main", "")
     var dnsFallback by string("dns_fallback", "")
+    /** "Never use your TV's DNS": when no chosen DNS can be reached, sites fail instead of using the device's DNS. */
+    var dnsStrict by boolean("dns_strict", false)
     /** Lets WebView darken pages that have no dark theme of their own. */
     var darkPages by boolean("dark_pages", false)
     var showMostVisited by boolean("most_visited", true)

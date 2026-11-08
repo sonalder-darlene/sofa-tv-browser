@@ -18,12 +18,18 @@ import java.util.concurrent.TimeUnit
  * "No such site" (NXDOMAIN) is a real answer and stops there. Answers are cached by their TTL, within bounds. Local
  * names (no dot, `.local`, `.lan`, `.home.arpa`…) and IP literals never leave the device. Thread-safe; host names are
  * never logged.
+ *
+ * With [strict], a name no chosen server could be asked about fails instead of going to the device's DNS. Either way,
+ * [onUnreachable] is told when that starts (it returns whether the user saw it): once until a chosen server answers
+ * again, and at most every [NOTICE_GAP_MS].
  */
 class Resolver(
     private val servers: List<Server>,
     private val system: (String) -> List<InetAddress> = { InetAddress.getAllByName(it).toList() },
     private val clock: () -> Long = System::currentTimeMillis,
     private val deadMs: Long = DEAD_MS,
+    private val strict: Boolean = false,
+    private val onUnreachable: (() -> Boolean)? = null,
 ) {
     /** One DoH server: anything that answers one A or AAAA query. */
     fun interface Server {
@@ -37,6 +43,9 @@ class Resolver(
     }
     private val inFlight = ConcurrentHashMap<String, FutureTask<List<InetAddress>>>()
     private val deadUntil = LongArray(servers.size)
+    /** The user was told the chosen servers can't be reached, and none has answered since. */
+    @Volatile private var told = false
+    private var lastTold: Long? = null
 
     /** The addresses for [host], IPv4 first; throws UnknownHostException when it doesn't exist or nothing answered. */
     fun lookup(host: String): List<InetAddress> {
@@ -67,6 +76,7 @@ class Resolver(
                 synchronized(deadUntil) { deadUntil[i] = clock() + deadMs }
                 return@forEachIndexed
             }
+            told = false // reachable again: a later outage is news
             if (answer == null) { errorAnswer = true; return@forEachIndexed }
             remember(name, answer.first, answer.second)
             return answer.first.ifEmpty { throw UnknownHostException(name) }
@@ -77,8 +87,20 @@ class Resolver(
             synchronized(cache) { cache[name] = Entry(emptyList(), clock() + ERROR_TTL_MS) }
             throw UnknownHostException(name)
         }
-        // No chosen server could be asked: the device's DNS, so browsing doesn't stop (not cached: it has its own cache).
+        // No chosen server could be asked: the device's DNS, so browsing doesn't stop (not cached: it has its own
+        // cache), unless the user chose never to use it.
+        tellUnreachable()
+        if (strict) throw UnknownHostException(name)
         return system(name)
+    }
+
+    private fun tellUnreachable() {
+        val tell = onUnreachable ?: return
+        synchronized(this) {
+            val now = clock()
+            if (told || lastTold?.let { now - it < NOTICE_GAP_MS } == true) return
+            if (tell()) { told = true; lastTold = now }
+        }
     }
 
     /**
@@ -110,6 +132,8 @@ class Resolver(
         private const val NEGATIVE_TTL_S = 60
         /** How long a name stays failed after an error answer: enough to spare the server a page's repeated asks. */
         const val ERROR_TTL_MS = 10_000L
+        /** The shortest time between two "Custom DNS isn't answering" notices, so a flaky network doesn't nag. */
+        const val NOTICE_GAP_MS = 5 * 60_000L
         private const val MAX_CACHE = 1000
         private val pool = Executors.newCachedThreadPool { r -> Thread(r, "sofa-dns").apply { isDaemon = true } }
 

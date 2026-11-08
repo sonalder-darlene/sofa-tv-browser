@@ -879,8 +879,9 @@ class SettingsActivity : Activity() {
             val fallback = prefs.dnsFallback
             row(getString(R.string.dns_fallback), dnsDetail(fallback) ?: getString(R.string.dns_fallback_sub),
                 valueText(dnsName(fallback) ?: getString(R.string.dns_none))) { pickDns(fallback = true) }
+            switch(R.string.dns_strict, R.string.dns_strict_sub, prefs::dnsStrict) { SecureDns.apply(applicationContext); buildDns() }
             row(getString(R.string.dns_test), getString(R.string.dns_test_sub), null) { testDns() }
-            note(getString(R.string.dns_last_step))
+            note(getString(if (prefs.dnsStrict) R.string.dns_last_step_strict else R.string.dns_last_step))
             when (SecureDns.unused) {
                 SecureDns.Unused.NETWORK_PROXY -> note(getString(R.string.dns_network_proxy), Ui.p.text)
                 SecureDns.Unused.NO_WEBVIEW_SUPPORT -> note(getString(R.string.dns_no_webview), Ui.p.text)
@@ -903,7 +904,7 @@ class SettingsActivity : Activity() {
         var selected: View? = null
         fun choice(title: String, sub: String, id: String, isCurrent: Boolean = id == current, onClick: () -> Unit = { chooseDns(fallback, id) }) =
             row(title, sub, if (isCurrent) check() else null, onClick).also { if (isCurrent) selected = it }
-        val first = if (fallback) choice(getString(R.string.dns_none), getString(R.string.dns_none_sub), "")
+        val first = if (fallback) choice(getString(R.string.dns_none), getString(if (prefs.dnsStrict) R.string.dns_none_sub_strict else R.string.dns_none_sub), "")
         else choice(getString(R.string.dns_device), getString(R.string.dns_device_sub), "")
         DnsProviders.Tier.entries.forEach { tier ->
             list.addView(Ui.text(this, 28, tier.color, bold = true).apply {

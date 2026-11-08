@@ -89,6 +89,7 @@ object SettingsFile {
         "auto_update_lists" to Bool,
         "dns_main" to Text(2_000, ::isDns),
         "dns_fallback" to Text(2_000, ::isDns),
+        "dns_strict" to Bool,
         "cookies" to Bool,
         "block_3p_cookies" to Bool,
         "send_gpc" to Bool,

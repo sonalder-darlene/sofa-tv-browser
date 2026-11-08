@@ -174,4 +174,64 @@ class ResolverTest {
         r.clear()
         assertTrue(v6 in r.lookup("example.com"))
     }
+
+    private var notices = 0
+    private var seen = true
+    private fun watched(strict: Boolean, vararg servers: Resolver.Server) =
+        Resolver(servers.toList(), system = { deviceAsked++; listOf(device) }, clock = { now }, strict = strict,
+            onUnreachable = { notices++; seen })
+
+    @Test
+    fun strictNeverUsesTheDeviceDnsButStillAsksTheChosenOnes() {
+        val main = Fake(down)
+        val fallback = Fake(down)
+        val r = watched(true, main, fallback)
+        assertFails(r, "one.example")
+        assertFails(r, "two.example")
+        assertEquals(0, deviceAsked)
+        assertEquals(1, main.asked)
+        main.answer = { ok(v4) }
+        now += Resolver.DEAD_MS + 1
+        assertEquals(listOf(v4), r.lookup("three.example")) // back once the minute is over
+        assertEquals(listOf(device), r.lookup("printer.local")) // home names still use the device's DNS
+    }
+
+    @Test
+    fun theUserIsToldOncePerOutageAndNotTooOften() {
+        val main = Fake(down)
+        val r = watched(false, main)
+        r.lookup("one.example")
+        r.lookup("two.example")
+        assertEquals(1, notices) // once, not for every name
+        now += Resolver.DEAD_MS + 1
+        main.answer = { ok(v4) }
+        r.lookup("three.example") // answers again: the outage is over
+        main.answer = down
+        now += Resolver.DEAD_MS + 1
+        r.lookup("four.example")
+        assertEquals(1, notices) // a new outage, but within five minutes of the last notice
+        now += Resolver.NOTICE_GAP_MS
+        main.answer = { ok(v4) }
+        r.lookup("five.example")
+        main.answer = down
+        r.lookup("six.example")
+        assertEquals(2, notices)
+    }
+
+    @Test
+    fun aNoticeNobodySawIsGivenAgain() {
+        seen = false // Sofa wasn't on screen (a list update in the background)
+        val r = watched(false, Fake(down))
+        r.lookup("one.example")
+        seen = true
+        r.lookup("two.example")
+        r.lookup("three.example")
+        assertEquals(2, notices)
+    }
+
+    @Test
+    fun anErrorAnswerIsNoOutage() {
+        watched(true, Fake { error(refused) }).let { assertFails(it, "blocked.example") }
+        assertEquals(0, notices)
+    }
 }
