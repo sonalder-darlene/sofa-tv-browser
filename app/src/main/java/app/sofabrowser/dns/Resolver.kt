@@ -62,7 +62,7 @@ class Resolver(
         }
     }
 
-    /** Forgets cached answers and failed servers (after the choice of DNS or the network changes). */
+    /** Forgets cached answers and failed servers, when the TV's network changes (a new choice of DNS is a new Resolver). */
     fun clear() {
         synchronized(cache) { cache.clear() }
         synchronized(deadUntil) { deadUntil.fill(0) }

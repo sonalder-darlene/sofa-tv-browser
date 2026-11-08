@@ -53,6 +53,23 @@ class ResolverTest {
     }
 
     @Test
+    fun clearAsksADeadMainAgainAndForgetsCachedAnswers() {
+        val main = Fake(down)
+        val r = resolver(main)
+        assertEquals(listOf(device), r.lookup("one.example")) // network down: marked dead, device DNS
+        main.answer = { ok(v4) }
+        assertEquals(listOf(device), r.lookup("two.example")) // still skipped
+        assertEquals(1, main.asked)
+        r.clear() // the network is back
+        assertEquals(listOf(v4), r.lookup("two.example"))
+        assertEquals(2, main.asked)
+        main.answer = { ok(v6) }
+        assertEquals(listOf(v4), r.lookup("two.example")) // cached
+        r.clear()
+        assertEquals(listOf(v6), r.lookup("two.example"))
+    }
+
+    @Test
     fun theDeviceDnsIsTheLastStep() {
         assertEquals(listOf(device), resolver(Fake(down), Fake(down)).lookup("example.com"))
         assertEquals(1, deviceAsked)

@@ -1,6 +1,10 @@
 package app.sofabrowser.dns
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.LinkProperties
+import android.net.Network
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -30,6 +34,9 @@ import kotlin.concurrent.thread
  * the lookups, WebView is pointed at it with ProxyController, and every HttpURLConnection in the app (Sofa Player,
  * downloads, filter lists, search suggestions, the updater) through the default ProxySelector. A network with its
  * own HTTP proxy keeps it, and Custom DNS stays unused there (that proxy does the lookups).
+ *
+ * While a DNS is chosen, a change of the TV's network (Wi-Fi back after sleep, another network) forgets the cached
+ * answers and the servers marked as not answering, and checks the network's proxy again.
  */
 object SecureDns {
 
@@ -40,6 +47,7 @@ object SecureDns {
     private var servers: List<Server> = emptyList()
     @Volatile private var resolver: Resolver? = null
     private var webViewOverridden = false
+    private var watching: ConnectivityManager.NetworkCallback? = null
 
     /** Why the chosen DNS is not in use, or null when it is (or none is chosen). */
     enum class Unused { NETWORK_PROXY, NO_WEBVIEW_SUPPORT }
@@ -56,9 +64,11 @@ object SecureDns {
             chosen.isEmpty() -> null
             // Throws when the TV has no WebView Android can load (Sofa then says so, NoEngineActivity).
             !runCatching { WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE) }.getOrDefault(false) -> Unused.NO_WEBVIEW_SUPPORT
-            networkProxy() -> Unused.NETWORK_PROXY
+            networkProxy(context) -> Unused.NETWORK_PROXY
             else -> null
         }
+        // Also while a network proxy keeps Custom DNS unused: it starts once the TV is on a network without one.
+        watchNetwork(context, chosen.isNotEmpty() && unused != Unused.NO_WEBVIEW_SUPPORT)
         if (chosen.isEmpty() || unused != null) return stop()
 
         val strict = prefs.dnsStrict
@@ -77,6 +87,38 @@ object SecureDns {
             webViewOverridden = true
         }
         if (BuildConfig.DEBUG) Log.d(TAG, "on: ${chosen.joinToString(" then ") { it.id }}, then ${if (strict) "nothing" else "the device DNS"}")
+    }
+
+    /**
+     * Follows the TV's default network while [on]. On a new network, answers cached on the old one may point
+     * elsewhere, and servers that couldn't be reached while the network was down would stay skipped for a minute
+     * (names then going to the TV's DNS with a needless notice). A proxy that appears or goes: [apply] again.
+     */
+    private fun watchNetwork(context: Context, on: Boolean) {
+        val cm = context.getSystemService(ConnectivityManager::class.java) ?: return
+        if (!on) {
+            watching?.let { runCatching { cm.unregisterNetworkCallback(it) } }
+            watching = null
+            return
+        }
+        if (watching != null) return
+        val app = context.applicationContext
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            private var current: Network? = null // ConnectivityThread only
+            override fun onAvailable(network: Network) {
+                // Also called once at registration, for the network already in use: nothing to forget then.
+                if (current != null && network != current) {
+                    resolver?.clear()
+                    if (BuildConfig.DEBUG) Log.d(TAG, "network changed: answers and failed servers forgotten")
+                }
+                current = network
+            }
+            override fun onLinkPropertiesChanged(network: Network, linkProperties: LinkProperties) {
+                main.post { if (watching === this && networkProxy(app) != (unused == Unused.NETWORK_PROXY)) apply(app) }
+            }
+        }
+        // Throws only past Android's limit of callbacks per app (never expected): Custom DNS then works as before.
+        if (runCatching { cm.registerDefaultNetworkCallback(callback) }.isSuccess) watching = callback
     }
 
     /** "Custom DNS isn't answering", when someone can see it (lookups also run for list updates in the background). */
@@ -140,8 +182,15 @@ object SecureDns {
         else -> DnsProviders.byId(choice)?.let { Server(it.id, it.endpoints) }
     }
 
-    /** The device's HTTP proxy setting (Android publishes it as system properties to every app). */
-    private fun networkProxy() = !System.getProperty("http.proxyHost").isNullOrEmpty()
+    /**
+     * The network's HTTP proxy (or a global one), as Android has it now: the system properties it also publishes to
+     * every app can lag behind a network change.
+     */
+    private fun networkProxy(context: Context): Boolean {
+        val info = runCatching { context.getSystemService(ConnectivityManager::class.java)?.defaultProxy }
+            .getOrElse { return !System.getProperty("http.proxyHost").isNullOrEmpty() }
+        return info != null && (!info.host.isNullOrEmpty() || info.pacFileUrl != Uri.EMPTY)
+    }
 
     /** Sends HttpURLConnection's http and https requests to the loopback proxy while Custom DNS is on. */
     private object Selector : ProxySelector() {
