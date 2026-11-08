@@ -58,18 +58,86 @@ class ResolverTest {
         assertEquals(1, deviceAsked)
     }
 
-    @Test
-    fun aServerFailureCountsAsDownButNoSuchSiteDoesNot() {
-        val main = Fake { DnsMessage.Answer(DnsMessage.SERVFAIL, emptyList(), 0) }
-        val fallback = Fake { DnsMessage.Answer(DnsMessage.NXDOMAIN, emptyList(), 0) }
-        val r = resolver(main, fallback)
+    private fun error(rcode: Int) = DnsMessage.Answer(rcode, emptyList(), 0)
+    private val refused = 5
+
+    private fun assertFails(r: Resolver, host: String) {
         try {
-            r.lookup("nothing.example")
+            r.lookup(host)
             fail()
         } catch (_: UnknownHostException) {
         }
+    }
+
+    @Test
+    fun anErrorAnswerAsksTheFallbackAndNoSuchSiteIsTheAnswer() {
+        val main = Fake { error(DnsMessage.SERVFAIL) }
+        val fallback = Fake { error(DnsMessage.NXDOMAIN) }
+        val r = resolver(main, fallback)
+        assertFails(r, "nothing.example")
         assertEquals(1, fallback.asked)
         assertEquals(0, deviceAsked) // NXDOMAIN is the answer: never asked again elsewhere
+    }
+
+    @Test
+    fun anErrorAnswerFailsThatNameOnlyAndNeverReachesTheDeviceDns() {
+        // A filtering DNS refusing a blocked name, or SERVFAIL for a name with broken DNSSEC.
+        for (rcode in listOf(refused, DnsMessage.SERVFAIL)) {
+            deviceAsked = 0
+            var bad = true
+            val main = Fake { if (bad) error(rcode) else ok(v4) }
+            val r = resolver(main)
+            assertFails(r, "blocked.example")
+            assertEquals(0, deviceAsked)
+            bad = false
+            assertEquals(listOf(v4), r.lookup("other.example")) // the server isn't marked dead
+            assertEquals(2, main.asked)
+            assertEquals(0, deviceAsked)
+        }
+    }
+
+    @Test
+    fun anErrorAnswerOnTheMainStillTakesTheFallbackForThatName() {
+        var bad = true
+        val main = Fake { if (bad) error(DnsMessage.SERVFAIL) else ok(v6) }
+        val fallback = Fake { ok(v4) }
+        val r = resolver(main, fallback)
+        assertEquals(listOf(v4), r.lookup("one.example"))
+        bad = false
+        assertEquals(listOf(v6), r.lookup("two.example")) // the main is asked first again
+        assertEquals(2, main.asked)
+        assertEquals(1, fallback.asked)
+    }
+
+    @Test
+    fun aDeadMainAndAnErrorAnswerOnTheFallbackFailTheName() {
+        val r = resolver(Fake(down), Fake { error(refused) })
+        assertFails(r, "blocked.example")
+        assertEquals(0, deviceAsked) // one chosen server answered: its answer stands
+    }
+
+    @Test
+    fun anErrorAnswerIsRememberedOnlyBriefly() {
+        var bad = true
+        val main = Fake { if (bad) error(DnsMessage.SERVFAIL) else ok(v4) }
+        val r = resolver(main)
+        assertFails(r, "flaky.example")
+        assertFails(r, "flaky.example") // a page asking again doesn't ask the server again
+        assertEquals(1, main.asked)
+        bad = false
+        now += Resolver.ERROR_TTL_MS + 1
+        assertEquals(listOf(v4), r.lookup("flaky.example"))
+        assertEquals(2, main.asked)
+    }
+
+    @Test
+    fun aTimeoutStillCountsAsDown() {
+        val main = Fake { throw java.net.SocketTimeoutException("read timed out") }
+        val r = resolver(main)
+        assertEquals(listOf(device), r.lookup("one.example"))
+        assertEquals(listOf(device), r.lookup("two.example"))
+        assertEquals(1, main.asked)
+        assertEquals(2, deviceAsked)
     }
 
     @Test

@@ -11,10 +11,13 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Looks host names up through [servers] in order (the main DNS, then the fallback), then through the device's own
- * DNS when every one of them fails. "Fails" means it couldn't be reached or answered badly or with SERVFAIL/REFUSED:
- * "no such site" (NXDOMAIN) is a real answer and stops there. A server that failed is skipped for [deadMs]. Answers
- * are cached by their TTL, within bounds. Local names (no dot, `.local`, `.lan`, `.home.arpa`…) and IP literals never
- * leave the device. Thread-safe; host names are never logged.
+ * DNS only when none of them could be asked: unreachable, timed out, or answering with something that isn't a DNS
+ * answer. Such a server is skipped for [deadMs]. A DNS error answer (SERVFAIL, REFUSED…) is that server's answer for
+ * that one name: the next chosen server is asked, and if none has an address the name fails for [ERROR_TTL_MS]. It
+ * never goes to the device's DNS, so one broken or blocked name can't switch a filtering DNS off for every site.
+ * "No such site" (NXDOMAIN) is a real answer and stops there. Answers are cached by their TTL, within bounds. Local
+ * names (no dot, `.local`, `.lan`, `.home.arpa`…) and IP literals never leave the device. Thread-safe; host names are
+ * never logged.
  */
 class Resolver(
     private val servers: List<Server>,
@@ -57,34 +60,42 @@ class Resolver(
     }
 
     private fun resolve(name: String): List<InetAddress> {
+        var errorAnswer = false
         servers.forEachIndexed { i, server ->
             if (synchronized(deadUntil) { deadUntil[i] > clock() }) return@forEachIndexed
             val answer = try { ask(server, name) } catch (_: IOException) {
                 synchronized(deadUntil) { deadUntil[i] = clock() + deadMs }
                 return@forEachIndexed
             }
+            if (answer == null) { errorAnswer = true; return@forEachIndexed }
             remember(name, answer.first, answer.second)
             return answer.first.ifEmpty { throw UnknownHostException(name) }
         }
-        // Every chosen server failed: the device's DNS, so browsing doesn't stop (not cached: it has its own cache).
+        if (errorAnswer) {
+            // A chosen server answered, with an error for this name: the name fails for a moment and stays off the
+            // device's DNS (a filter's REFUSED would be bypassed there, and the name would leak).
+            synchronized(cache) { cache[name] = Entry(emptyList(), clock() + ERROR_TTL_MS) }
+            throw UnknownHostException(name)
+        }
+        // No chosen server could be asked: the device's DNS, so browsing doesn't stop (not cached: it has its own cache).
         return system(name)
     }
 
-    /** A and AAAA at once; the server counts as failed only if the A query fails. Returns the addresses and TTL. */
-    private fun ask(server: Server, name: String): Pair<List<InetAddress>, Int> {
+    /**
+     * A and AAAA at once; the A query decides. Returns the addresses and TTL, or null when the server answered with a
+     * DNS error for this name; throws IOException when the server couldn't be asked.
+     */
+    private fun ask(server: Server, name: String): Pair<List<InetAddress>, Int>? {
         val v6 = FutureTask { server.query(name, DnsMessage.AAAA) }
         pool.execute(v6)
-        val v4 = try { server.query(name, DnsMessage.A).also(::check) } catch (e: Exception) { v6.cancel(true); throw e }
+        val v4 = try { server.query(name, DnsMessage.A) } catch (e: Exception) { v6.cancel(true); throw e }
+        if (v4.rcode != DnsMessage.NOERROR && v4.rcode != DnsMessage.NXDOMAIN) { v6.cancel(true); return null }
         val six = try { v6.get(DohClient.READ_TIMEOUT_MS * 2L, TimeUnit.MILLISECONDS).takeIf { it.rcode == DnsMessage.NOERROR } }
         catch (_: Exception) { v6.cancel(true); null }
         if (v4.rcode == DnsMessage.NXDOMAIN) return emptyList<InetAddress>() to NEGATIVE_TTL_S
         val all = (v4.addresses + (six?.addresses ?: emptyList())).distinct()
         val ttl = listOfNotNull(v4.ttl.takeIf { v4.addresses.isNotEmpty() }, six?.ttl?.takeIf { six.addresses.isNotEmpty() }).minOrNull() ?: NEGATIVE_TTL_S
         return all to ttl
-    }
-
-    private fun check(a: DnsMessage.Answer) {
-        if (a.rcode != DnsMessage.NOERROR && a.rcode != DnsMessage.NXDOMAIN) throw IOException("DNS error ${a.rcode}")
     }
 
     private fun remember(name: String, addresses: List<InetAddress>, ttlS: Int) {
@@ -97,6 +108,8 @@ class Resolver(
         private const val MIN_TTL_S = 60
         private const val MAX_TTL_S = 1800
         private const val NEGATIVE_TTL_S = 60
+        /** How long a name stays failed after an error answer: enough to spare the server a page's repeated asks. */
+        const val ERROR_TTL_MS = 10_000L
         private const val MAX_CACHE = 1000
         private val pool = Executors.newCachedThreadPool { r -> Thread(r, "sofa-dns").apply { isDaemon = true } }
 
