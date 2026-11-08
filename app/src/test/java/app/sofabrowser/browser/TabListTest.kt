@@ -79,10 +79,26 @@ class TabListTest {
     fun pagesThatArentOnTheWebAreNotSaved() {
         val saved = TabList.encode(listOf("about:blank", "https://a.example/", "file:///sdcard/x.html", "https://b.example/"), 3)
         assertEquals("1\nhttps://a.example/\nhttps://b.example/", saved)
-        // The tab in sight was not saved: the first one is in sight next time.
+        // The tab in sight was not saved: the saved one before it is in sight next time, else the one after.
         assertEquals("0\nhttps://a.example/", TabList.encode(listOf("https://a.example/", "data:text/html,x"), 1))
+        assertEquals("1\nhttps://a.example/\nhttps://b.example/\nhttps://c.example/",
+            TabList.encode(listOf("https://a.example/", "https://b.example/", "", "https://c.example/"), 2))
+        assertEquals("0\nhttps://a.example/\nhttps://b.example/",
+            TabList.encode(listOf("", "about:blank", "https://a.example/", "https://b.example/"), 1))
         assertEquals("", TabList.encode(listOf("about:blank"), 0))
         assertEquals("", TabList.encode(emptyList(), 0))
+    }
+
+    @Test
+    fun theTabInSightIsKeptByItsPlaceNotItsAddress() {
+        val a = "https://a.example/"
+        val b = "https://b.example/"
+        assertEquals("2\n$a\n$b\n$a", TabList.encode(listOf(a, b, a), 2))
+        assertEquals(listOf(a, b, a) to 2, TabList.decode(TabList.encode(listOf(a, b, a), 2), 10))
+        // Unsaved tabs before it don't shift it.
+        assertEquals("1\n$a\n$a", TabList.encode(listOf(a, "about:blank", a), 2))
+        // An index out of range (no tab in sight) clamps rather than failing.
+        assertEquals("0\n$a", TabList.encode(listOf(a), -1))
     }
 
     @Test

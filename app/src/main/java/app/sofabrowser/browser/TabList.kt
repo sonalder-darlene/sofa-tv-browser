@@ -90,11 +90,19 @@ class TabList<T : Any>(val max: Int, private val clock: () -> Long = { System.na
         /**
          * The tab list as Settings keeps it (`tabs`): the index of the tab in sight on the first line, then one web
          * address per line. Addresses only: never a page's content, its history or a private tab.
+         *
+         * The tab in sight is kept by its place, not its address, since two tabs may show the same page. When it isn't
+         * saved itself (a start page, a page not on the web), the saved tab next to it in the strip takes its place:
+         * the one before it, else the one after.
          */
         fun encode(addresses: List<String>, current: Int): String {
-            val kept = addresses.filter(Browser::isWebUrl).filter { '\n' !in it && '\r' !in it }
+            val keep = addresses.map { Browser.isWebUrl(it) && '\n' !in it && '\r' !in it }
+            val kept = addresses.filterIndexed { i, _ -> keep[i] }
             if (kept.isEmpty()) return ""
-            val at = addresses.getOrNull(current)?.let { kept.indexOf(it) }?.takeIf { it >= 0 } ?: 0
+            val c = current.coerceIn(addresses.indices)
+            val before = keep.subList(0, c).count { it }
+            // Saved tabs before the one in sight = its place among them; none saved before it = the first saved after.
+            val at = if (keep[c] || before == 0) before else before - 1
             return (listOf(at.toString()) + kept).joinToString("\n")
         }
 
