@@ -99,6 +99,24 @@ class HomeLayoutTest {
     }
 
     @Test
+    fun moreAtTheTopThanPlacesEndsWithAllBookmarks() {
+        // 5 folders and 40 bookmarks at the top; the caller reads only as many bookmarks as there are places.
+        val cards = (1..5).map { "folder $it" } + (1..12).map { "bookmark $it" }
+        val line = HomeLayout.DEFAULT.bookmarkLines(cards, total = 45, all = "all").single()
+        assertEquals(12, line.size)
+        assertEquals((1..5).map { "folder $it" } + (1..6).map { "bookmark $it" } + "all", line)
+        // Everything fits: no "All bookmarks" card.
+        assertEquals(listOf(listOf("a", "b")), HomeLayout.DEFAULT.bookmarkLines(listOf("a", "b"), total = 2, all = "all"))
+        assertEquals(12, HomeLayout.DEFAULT.bookmarkLines(cards.take(12), total = 12, all = "all").single().size)
+        assertFalse("all" in HomeLayout.DEFAULT.bookmarkLines(cards.take(12), total = 12, all = "all").single())
+        // More folders than places: folders fill all but the last place.
+        val lines = HomeLayout.DEFAULT.withBookmarkRows(2).bookmarkLines((1..30).map { "f$it" }, total = 30, all = "all")
+        assertEquals(listOf(12, 12), lines.map { it.size })
+        assertEquals("all", lines.last().last())
+        assertEquals("f23", lines.last()[10])
+    }
+
+    @Test
     fun aButtonNewInALaterVersionTakesItsDefaultPlace() {
         // Stored by a version without Downloads: it comes back after History, the button before it by default.
         val l = HomeLayout.decode(";exit,history,bookmarks,private,adblock,settings")

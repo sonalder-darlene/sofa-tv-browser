@@ -125,7 +125,12 @@ class SettingsTransfer(private val activity: Activity, private val imported: () 
             .put("ad_blocking_off", JSONArray(Allowlist.all(activity)))
             .put("allowed_sites", JSONArray(SiteAllowlist.all(activity)))
             .put("quick_access", JSONArray(db.tiles().map { JSONObject().put("title", it.title).put("url", it.url) }))
-            .put("bookmarks", JSONArray(db.bookmarksToExport().map { JSONObject().put("title", it.title).put("url", it.url).put("added", it.added) }))
+            .put("bookmarks", JSONArray(db.bookmarksToExport().map { e ->
+                JSONObject().put("title", e.title).put("url", e.url).put("added", e.added)
+                    .apply { if (e.folder.isNotEmpty()) put("folder", JSONArray(e.folder)) }
+            }))
+            // Every folder, so empty ones come back too; a bookmark names its own folder by path.
+            .put("folders", JSONArray(db.foldersToExport().map { JSONObject().put("path", JSONArray(it.path)).put("added", it.added) }))
     }
 
     private fun json(v: Any?): Any = when (v) {
@@ -164,6 +169,7 @@ class SettingsTransfer(private val activity: Activity, private val imported: () 
         val allowedSites: List<String>,
         val tiles: List<BookmarkFile.Entry>,
         val bookmarks: List<BookmarkFile.Entry>,
+        val folders: List<BookmarkFile.Folder>,
     ) : Opened
 
     private fun opened(bytes: ByteArray) = work(R.string.settings_import, { read(bytes, outer = true) }) { opened ->
@@ -199,6 +205,9 @@ class SettingsTransfer(private val activity: Activity, private val imported: () 
             allowedSites = SettingsFile.cleanNames(strings(o.optJSONArray("allowed_sites"))),
             tiles = SettingsFile.cleanEntries(entries(o.optJSONArray("quick_access")), SettingsFile.MAX_TILES),
             bookmarks = SettingsFile.cleanEntries(entries(o.optJSONArray("bookmarks")), BookmarkFile.MAX_ENTRIES),
+            folders = SettingsFile.cleanFolders(objects(o.optJSONArray("folders")).map { f ->
+                BookmarkFile.Folder(strings(f.optJSONArray("path")), f.optLong("added").takeIf { it > 0 }?.coerceAtMost(System.currentTimeMillis()))
+            }),
         )
     }
 
@@ -263,7 +272,7 @@ class SettingsTransfer(private val activity: Activity, private val imported: () 
         val here = db.tiles().map { it.url }.toHashSet()
         val tiles = b.tiles.filter { here.add(it.url) }
         tiles.forEach { db.addTile(it.title.ifBlank { it.url }, it.url) }
-        Applied(tiles.size, db.importBookmarks(b.bookmarks), listsOn)
+        Applied(tiles.size, db.importBookmarks(b.bookmarks, b.folders).bookmarks, listsOn)
     }) { a ->
         SecureDns.apply(activity.applicationContext)
         val r = activity.resources
@@ -353,7 +362,8 @@ class SettingsTransfer(private val activity: Activity, private val imported: () 
 
     private fun entries(a: JSONArray?): List<BookmarkFile.Entry> = objects(a).mapNotNull { e ->
         val url = e.optString("url").ifEmpty { return@mapNotNull null }
-        BookmarkFile.Entry(e.optString("title"), url, e.optLong("added").takeIf { it > 0 }?.coerceAtMost(System.currentTimeMillis()))
+        BookmarkFile.Entry(e.optString("title"), url, e.optLong("added").takeIf { it > 0 }?.coerceAtMost(System.currentTimeMillis()),
+            strings(e.optJSONArray("folder")))
     }
 
     private fun base64(b: ByteArray) = Base64.encodeToString(b, Base64.NO_WRAP)

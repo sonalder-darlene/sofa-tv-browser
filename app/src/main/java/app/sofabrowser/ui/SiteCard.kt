@@ -2,6 +2,7 @@ package app.sofabrowser.ui
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.PorterDuff
 import android.graphics.drawable.Drawable
 import android.text.TextUtils
 import android.view.Gravity
@@ -11,9 +12,23 @@ import app.sofabrowser.browser.UrlInput
 import app.sofabrowser.data.Favicons
 import app.sofabrowser.data.Site
 
-/** The 510x116 website card: icon, title and short address, with the white focus border. */
+/**
+ * The 510x116 website card: icon, title and short address, with the white focus border. A card that isn't a site (a
+ * bookmarks folder, "All bookmarks", "Add site") gives its [icon], [label] and, under it, [detail]; [tint] colours its
+ * icon as text is. [key] names the card for finding it again after the page is rebuilt: the site's address unless given.
+ */
 @SuppressLint("ViewConstructor")
-class SiteCard(context: Context, val site: Site?, icon: Drawable? = null, label: String? = null) : LinearLayout(context) {
+class SiteCard(
+    context: Context,
+    val site: Site?,
+    icon: Drawable? = null,
+    label: String? = null,
+    detail: String? = null,
+    tint: Boolean = false,
+    key: String? = null,
+) : LinearLayout(context) {
+
+    val key: String = key ?: site?.url ?: label.orEmpty()
 
     init {
         orientation = HORIZONTAL
@@ -30,6 +45,7 @@ class SiteCard(context: Context, val site: Site?, icon: Drawable? = null, label:
         val iconView = ImageView(context).apply {
             setImageDrawable(icon ?: site?.let { Favicons.get(context).drawable(it.url, it.title, 96) })
             scaleType = ImageView.ScaleType.FIT_CENTER
+            if (tint) setColorFilter(Ui.p.textMid, PorterDuff.Mode.SRC_IN)
         }
         addView(iconView, LayoutParams(48.px, 48.px).apply { marginEnd = 24.px })
 
@@ -39,15 +55,17 @@ class SiteCard(context: Context, val site: Site?, icon: Drawable? = null, label:
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
         })
-        if (site != null) {
+        val second = detail ?: site?.let { UrlInput.display(it.url).substringBefore('/') }
+        if (second != null) {
             texts.addView(Ui.text(context, 18, Ui.p.textWeak).apply {
-                text = UrlInput.display(site.url).substringBefore('/')
+                text = second
                 maxLines = 1
                 ellipsize = TextUtils.TruncateAt.END
                 setPadding(0, 8.px, 0, 0)
             })
         }
         addView(texts, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
-        Ui.focusScale(this)
+        if (tint) Ui.focusScale(this) { has -> iconView.setColorFilter(if (has) Ui.p.text else Ui.p.textMid, PorterDuff.Mode.SRC_IN) }
+        else Ui.focusScale(this)
     }
 }

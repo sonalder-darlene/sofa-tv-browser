@@ -19,11 +19,12 @@ Everything Sofa does, what it sends where, and how its blocking and video work. 
 - **A menu on the Back key**: address, Watch, back and forward, find in page, bookmarks, history, zoom, ad
   blocking per site, and "Browse as" desktop, mobile or TV. Settings → Menu buttons puts its buttons in your order
   and hides the ones you don't use.
-- **A home screen** with your own tiles, your most visited sites and your bookmarks. Settings → Start page
-  reorders and hides its rows and buttons, and shows up to 48 bookmarks; Settings → Start page background gives it
-  a colour, a gradient or your own picture (up to 4K). Settings → Open at start has Sofa start on a web page of
-  your choice, or where you left off, instead.
-- **Bookmarks from your other browsers**: import the bookmarks file a desktop browser exports, from the TV's file
+- **A home screen** with your own tiles, your most visited sites, and your bookmarks and their folders. Settings →
+  Start page reorders and hides its rows and buttons, and shows up to 48 bookmarks; Settings → Start page
+  background gives it a colour, a gradient or your own picture (up to 4K). Settings → Open at start has Sofa start
+  on a web page of your choice, or where you left off, instead.
+- **Bookmarks in folders, and from your other browsers**: keep bookmarks in folders, made, moved and renamed with
+  the remote alone; import the bookmarks file a desktop browser exports, folders and all, from the TV's file
   picker, a web address or a file Sofa saved, and export yours the same way.
 - **Settings backup**: your settings, lists, allowed sites, Quick access and bookmarks in one password-protected
   file, to set up another TV or to come back after a reset.

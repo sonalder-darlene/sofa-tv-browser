@@ -125,6 +125,27 @@ class SettingsFileTest {
         assertEquals(1, SettingsFile.cleanEntries(entries, max = 1).size)
     }
 
+    @Test fun folderPathsAreCleanedAndCapped() {
+        val deep = (1..30).map { "L$it" }
+        val e = SettingsFile.cleanEntries(listOf(
+            BookmarkFile.Entry("A", "https://a.example/", folder = listOf(" News ", "", "Tech\nand toys")),
+            BookmarkFile.Entry("B", "https://b.example/", folder = deep),
+        ), max = 10)
+        assertEquals(listOf("News", "Tech and toys"), e[0].folder)
+        assertEquals(FolderTree.MAX_DEPTH, e[1].folder.size)
+
+        val f = SettingsFile.cleanFolders(listOf(
+            BookmarkFile.Folder(listOf("News"), 5),
+            BookmarkFile.Folder(listOf(" News")),
+            BookmarkFile.Folder(listOf("  ", "")),
+            BookmarkFile.Folder(listOf("News", "Empty"), 6),
+        ))
+        assertEquals(listOf(listOf("News"), listOf("News", "Empty")), f.map { it.path })
+        assertEquals(5L, f[0].added)
+        val many = (0..BookmarkFile.MAX_FOLDERS + 9).map { BookmarkFile.Folder(listOf("F$it")) }
+        assertEquals(BookmarkFile.MAX_FOLDERS, SettingsFile.cleanFolders(many).size)
+    }
+
     @Test fun namesAreChecked() {
         assertEquals(listOf("a.example", "b.example"), SettingsFile.cleanNames(listOf("a.example", "", "b.example", "a.example", "c d")))
     }

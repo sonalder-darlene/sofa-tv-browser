@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+**Bookmark folders**
+
+- **Keep bookmarks in folders**, folders in folders. The Bookmarks screen shows one folder at a time: an "Up to…"
+  row, its folders A to Z, then its bookmarks, with the path in the heading ("Bookmarks › News › Tech"). New
+  folder, Move, Rename and Delete work with the remote's arrows, OK and Back alone: a row's buttons show their name
+  when focused, a long press of OK (or the Menu key) lists the same actions, and Move picks the folder from a list,
+  no typing. Back goes back through the folders you came through before it leaves the screen. Deleting a folder
+  deletes what is in it, after a question that says how many bookmarks go, with Cancel focused.
+- **The start page shows your folders** in the Bookmarks row before your bookmarks; a folder opens on the
+  Bookmarks screen, and Back returns to its card. When more is at the top than the row holds, its last card is
+  "All bookmarks".
+- **Import keeps the browser's folders.** What was on its bookmarks bar comes in at the top; its other folders
+  (Other bookmarks, Mobile bookmarks, Reading List…) come in as folders. A folder of the same name in the same place
+  is used again, so importing a file twice adds nothing, and the report says how many folders the new bookmarks went
+  into. Export writes the folders, so a desktop browser gets the same tree.
+- **Settings backup keeps the folders**, empty ones too. Sofa 1.3.0 reads a backup made with this version, but
+  puts every bookmark at the top; a 1.3.0 backup puts them at the top here.
+- Each address is bookmarked once, in one folder; the star in the page menu still adds to the top. Bookmarks
+  already there when you update stay at the top.
+
 ## 1.3.0 (2026-11-08)
 
 **Site filters**

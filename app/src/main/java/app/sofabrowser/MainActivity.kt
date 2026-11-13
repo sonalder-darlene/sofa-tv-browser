@@ -561,6 +561,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
     override fun onSearch() = startSearch(voice = false, current = null)
     override fun onVoiceSearch() = startSearch(voice = true, current = null)
     override fun onBookmarks() = openList(ListActivity.MODE_BOOKMARKS)
+    override fun onFolder(id: Long) = openList(ListActivity.MODE_BOOKMARKS, folder = id)
     override fun onHistory() = openList(ListActivity.MODE_HISTORY)
     override fun onSettings() = openSettings()
     override fun onDownloads() = openDownloads()
@@ -665,10 +666,14 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
             .putExtra(SearchActivity.EXTRA_CURRENT_URL, current), REQ_URL)
     }
 
-    override fun openList(mode: String) {
+    override fun openList(mode: String) = openList(mode, folder = null)
+
+    /** History or Bookmarks; Bookmarks open in [folder] when one is given (a start page folder card). */
+    private fun openList(mode: String, folder: Long?) {
         menu.dismiss()
         @Suppress("DEPRECATION")
-        startActivityForResult(Intent(this, ListActivity::class.java).putExtra(ListActivity.EXTRA_MODE, mode), REQ_URL)
+        startActivityForResult(Intent(this, ListActivity::class.java).putExtra(ListActivity.EXTRA_MODE, mode)
+            .apply { folder?.let { putExtra(ListActivity.EXTRA_FOLDER, it) } }, REQ_URL)
     }
 
     @Deprecated("Framework activity result API")

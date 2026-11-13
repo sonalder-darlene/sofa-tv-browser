@@ -46,9 +46,9 @@ class BookmarkTransfer(private val activity: Activity, private val changed: () -
             }
             main.post {
                 if (activity.isFinishing || activity.isDestroyed) return@post
-                outcome.onSuccess { (contents, added) ->
-                    if (added > 0) changed()
-                    report(contents, added)
+                outcome.onSuccess { (contents, imported) ->
+                    if (imported.bookmarks > 0) changed()
+                    report(contents, imported)
                 }.onFailure {
                     Ui.dialog(activity).setTitle(R.string.bookmarks_import)
                         .setMessage(activity.getString(R.string.bookmarks_import_failed, ErrorText.text(activity, it)))
@@ -58,11 +58,17 @@ class BookmarkTransfer(private val activity: Activity, private val changed: () -
         }
     }
 
-    private fun report(contents: BookmarkFile.Contents, added: Int) {
+    private fun report(contents: BookmarkFile.Contents, imported: Db.Imported) {
         val r = activity.resources
+        val added = imported.bookmarks
         val message = if (contents.entries.isEmpty()) activity.getString(R.string.bookmarks_import_none)
         else listOfNotNull(
-            if (added > 0) r.getQuantityString(R.plurals.bookmarks_imported, added, added) else activity.getString(R.string.bookmarks_import_nothing_new),
+            when {
+                added == 0 -> activity.getString(R.string.bookmarks_import_nothing_new)
+                imported.folders == 0 -> r.getQuantityString(R.plurals.bookmarks_imported, added, added)
+                else -> r.getQuantityString(R.plurals.bookmarks_imported_in_folders, added, added,
+                    r.getQuantityString(R.plurals.folder_count, imported.folders, imported.folders))
+            },
             (contents.entries.size - added).takeIf { it > 0 }?.let { r.getQuantityString(R.plurals.bookmarks_import_known, it, it) },
             contents.skipped.takeIf { it > 0 }?.let { r.getQuantityString(R.plurals.bookmarks_import_skipped, it, it) },
         ).joinToString(" ")
@@ -74,7 +80,7 @@ class BookmarkTransfer(private val activity: Activity, private val changed: () -
         if (entries.isEmpty()) { Toast.makeText(activity, R.string.bookmarks_export_none, Toast.LENGTH_SHORT).show(); return }
         DownloadEngine.init(activity)
         val name = "sofa-bookmarks-" + SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()) + ".html"
-        DownloadEngine.saveBytes(name, "text/html", BookmarkFile.write(entries).toByteArray(), "data:", private = false) { result ->
+        DownloadEngine.saveBytes(name, "text/html", BookmarkFile.write(entries, db.foldersToExport()).toByteArray(), "data:", private = false) { result ->
             if (activity.isFinishing || activity.isDestroyed) return@saveBytes
             result.onSuccess { d ->
                 val message = activity.resources.getQuantityString(R.plurals.bookmarks_exported, entries.size,

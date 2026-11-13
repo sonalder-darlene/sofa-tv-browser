@@ -41,8 +41,14 @@ data class HomeLayout(val rows: Arrangement<Row>, val buttons: Arrangement<Butto
     /** How many bookmarks the page shows at most. */
     val bookmarkSlots get() = bookmarkRows * PER_ROW
 
-    /** The start page's lines of bookmarks: [bookmarks] in their order, [PER_ROW] to a line, none empty. */
-    fun <T> bookmarkLines(bookmarks: List<T>): List<List<T>> = bookmarks.take(bookmarkSlots).chunked(PER_ROW)
+    /**
+     * The start page's lines of bookmarks: [items] (the top level's folders, then its bookmarks) in their order,
+     * [PER_ROW] to a line, none empty. When the top level holds more than the lines have room for ([total] counts it
+     * all), the last place goes to [all], a card that opens every bookmark: what doesn't fit is one press away.
+     */
+    fun <T> bookmarkLines(items: List<T>, total: Int = items.size, all: T? = null): List<List<T>> =
+        (if (all != null && total > bookmarkSlots) items.take(bookmarkSlots - 1) + all else items.take(bookmarkSlots))
+            .chunked(PER_ROW)
 
     fun withBookmarkRows(n: Int) = copy(bookmarkRows = n.coerceIn(1, MAX_BOOKMARK_ROWS))
 

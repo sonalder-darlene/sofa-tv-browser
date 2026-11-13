@@ -158,12 +158,24 @@ object SettingsFile {
     /** Site names a file lists (sites with ad blocking off, sites let through Site filters), checked and capped. */
     fun cleanNames(names: List<String>): List<String> = names.filter(::isName).distinct().take(MAX_SITES)
 
-    /** Quick access tiles or bookmarks a file lists: web addresses only, first copy of each, titles capped. */
+    /**
+     * Quick access tiles or bookmarks a file lists: web addresses only, first copy of each, titles capped, folder names
+     * cleaned as typed ones are and paths no deeper than Sofa keeps.
+     */
     fun cleanEntries(entries: List<BookmarkFile.Entry>, max: Int): List<BookmarkFile.Entry> {
         val seen = HashSet<String>()
         return entries.filter { isWebAddress(it.url) && seen.add(it.url) }.take(max)
-            .map { it.copy(title = it.title.replace('\n', ' ').trim().take(MAX_TITLE)) }
+            .map { it.copy(title = it.title.replace('\n', ' ').trim().take(MAX_TITLE), folder = cleanPath(it.folder)) }
     }
+
+    /** The bookmark folders a file lists by path (empty ones too), paths cleaned as [cleanEntries] cleans them, capped. */
+    fun cleanFolders(folders: List<BookmarkFile.Folder>): List<BookmarkFile.Folder> {
+        val seen = HashSet<List<String>>()
+        return folders.map { it.copy(path = cleanPath(it.path)) }.filter { it.path.isNotEmpty() && seen.add(it.path) }
+            .take(BookmarkFile.MAX_FOLDERS)
+    }
+
+    private fun cleanPath(path: List<String>) = path.map(FolderTree::cleanName).filter { it.isNotEmpty() }.take(FolderTree.MAX_DEPTH)
 
     fun isWebAddress(url: String) = url.length <= MAX_URL && BookmarkFile.isWeb(url) && url.none(Char::isWhitespace)
 

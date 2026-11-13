@@ -33,6 +33,8 @@ class HomeView(context: Context, private val listener: Listener) : FrameLayout(c
         fun onSearch()
         fun onVoiceSearch()
         fun onBookmarks()
+        /** A bookmarks folder's card: the Bookmarks screen opens in that folder. */
+        fun onFolder(id: Long)
         fun onHistory()
         fun onTogglePrivate()
         fun onToggleAdBlock()
@@ -193,7 +195,10 @@ class HomeView(context: Context, private val listener: Listener) : FrameLayout(c
         if (active) R.drawable.ic_downloading else R.drawable.ic_download,
         context.getString(if (active) R.string.downloads_active else R.string.downloads))
 
-    /** The card that opened a page, as its row's place in [rows] and its address: focused again when the page is left. */
+    /**
+     * The card that opened a page or a screen, as its row's place in [rows] and its [SiteCard.key]: focused again when
+     * the page is left.
+     */
     private var opened: Pair<Int, String>? = null
 
     fun refresh(privateMode: Boolean, adBlock: Boolean) {
@@ -217,7 +222,9 @@ class HomeView(context: Context, private val listener: Listener) : FrameLayout(c
         adBlockButton.set(if (adBlock) R.drawable.ic_shield_filled else R.drawable.ic_shield,
             context.getString(if (adBlock) R.string.adblock_on_short else R.string.adblock_off_short))
         setDownloadsActive(app.sofabrowser.downloads.DownloadEngine.activeCount > 0)
-        val focusedUrl = (findFocus() as? SiteCard)?.site?.url
+        val focusedCard = findFocus() as? SiteCard
+        val focusedKey = focusedCard?.key
+        val focusedRow = focusedCard?.let { rowOf(it) } ?: -1
         rows.removeAllViews()
         rows.setPadding(96.px, 24.px, 0, 64.px)
 
@@ -232,13 +239,15 @@ class HomeView(context: Context, private val listener: Listener) : FrameLayout(c
             }
             HomeLayout.Row.MOST_VISITED -> if (!privateMode) db.mostVisited(10).takeIf { it.isNotEmpty() }?.let { addRow(R.string.most_visited, it) }
             // One title over all the lines of bookmarks.
-            HomeLayout.Row.BOOKMARKS -> layout.bookmarkLines(db.bookmarks(layout.bookmarkSlots)).forEachIndexed { i, line ->
-                addRow(if (i == 0) R.string.bookmarks else 0, line)
+            HomeLayout.Row.BOOKMARKS -> bookmarkCards(layout).forEachIndexed { i, line ->
+                addCards(if (i == 0) R.string.bookmarks else 0, line)
             }
         }
 
-        // Back on the card that had focus; else the first card, or the search pill when no row is shown.
-        val restore = focusedUrl?.let { url -> findCard { it.site?.url == url } }
+        // Back on the card that had focus; else the first card of its row (a folder deleted on the Bookmarks screen),
+        // else the first card, or the search pill when no row is shown.
+        val restore = focusedKey?.let { key -> findCard { it.key == key } }
+            ?: (rows.getChildAt(focusedRow) as? ViewGroup)?.let { row -> findCard(row) { true } }
         (restore ?: if (findFocus() == null) firstFocus() else null)?.requestFocus()
     }
 
@@ -249,14 +258,55 @@ class HomeView(context: Context, private val listener: Listener) : FrameLayout(c
     }
 
     private fun firstFocus(): View {
-        val back = opened?.let { (at, url) ->
-            (rows.getChildAt(at) as? ViewGroup)?.let { row -> findCard(row) { it.site?.url == url } } ?: findCard { it.site?.url == url }
+        val back = opened?.let { (at, key) ->
+            (rows.getChildAt(at) as? ViewGroup)?.let { row -> findCard(row) { it.key == key } } ?: findCard { it.key == key }
         }
         return back ?: findCard { true } ?: searchPill
     }
 
-    /** A row of cards, under [title] (0: none, for the second and later lines of bookmarks). */
-    private fun addRow(title: Int, sites: List<Site>, extra: ((SiteCard) -> Unit)? = null): LinearLayout {
+    /** A row of site cards, under [title] (0: none); OK on a card opens its page. */
+    private fun addRow(title: Int, sites: List<Site>, extra: ((SiteCard) -> Unit)? = null): LinearLayout =
+        addCards(title, sites.map { site ->
+            SiteCard(context, site).apply {
+                opens(this) { listener.onOpen(site.url) }
+                extra?.invoke(this)
+            }
+        })
+
+    /**
+     * The start page's Bookmarks cards, as lines: the top level's folders A to Z, then its bookmarks newest first, and
+     * "All bookmarks" in the last place when they don't all fit ([HomeLayout.bookmarkLines]).
+     */
+    private fun bookmarkCards(layout: HomeLayout): List<List<SiteCard>> {
+        val tree = db.folderTree()
+        val counts = db.bookmarkCounts()
+        val folders = tree.children(null)
+        val cards = folders.map { f ->
+            val detail = FolderText.contents(context, tree.children(f.id).size, counts[f.id] ?: 0)
+            SiteCard(context, null, context.getDrawable(R.drawable.ic_folder), f.title, detail, tint = true, key = "folder:${f.id}").apply {
+                contentDescription = "${f.title}, ${context.getString(R.string.folder_word)}, $detail"
+                opens(this) { listener.onFolder(f.id) }
+            }
+        } + db.bookmarks(null, layout.bookmarkSlots).map { site ->
+            SiteCard(context, site).apply { opens(this) { listener.onOpen(site.url) } }
+        }
+        val all = SiteCard(context, null, context.getDrawable(R.drawable.ic_bookmarks), context.getString(R.string.all_bookmarks),
+            tint = true, key = "all-bookmarks").apply { opens(this) { listener.onBookmarks() } }
+        return layout.bookmarkLines(cards, folders.size + (counts[null] ?: 0), all)
+    }
+
+    /** OK on [card] runs [open], and the card is remembered so that coming back focuses it again. */
+    private fun opens(card: SiteCard, open: () -> Unit) = card.setOnClickListener {
+        if (moving != null) return@setOnClickListener
+        opened = rowOf(card) to card.key
+        open()
+    }
+
+    /** The place in [rows] of the row [card] is in. */
+    private fun rowOf(card: View): Int = rows.indexOfChild(card.parent?.parent as? View)
+
+    /** A row of [cards], under [title] (0: none, for the second and later lines of bookmarks). */
+    private fun addCards(title: Int, cards: List<SiteCard>): LinearLayout {
         if (title != 0) rows.addView(Ui.text(context, 28, Ui.p.textMid).apply {
             text = context.getString(title)
             A11y.heading(this)
@@ -270,17 +320,7 @@ class HomeView(context: Context, private val listener: Listener) : FrameLayout(c
         }
         // Later lines of bookmarks have no title of their own; they are still Bookmarks.
         A11y.row(line, context.getString(if (title != 0) title else R.string.bookmarks)) { line.childCount }
-        val at = rows.childCount
-        sites.forEach { site ->
-            line.addView(SiteCard(context, site).apply {
-                setOnClickListener {
-                    if (moving != null) return@setOnClickListener
-                    opened = at to site.url
-                    listener.onOpen(site.url)
-                }
-                extra?.invoke(this)
-            })
-        }
+        cards.forEach(line::addView)
         rows.addView(HorizontalScrollView(context).apply {
             isHorizontalScrollBarEnabled = false
             clipChildren = false

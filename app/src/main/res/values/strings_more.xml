@@ -323,6 +323,49 @@
         <item quantity="one">Saved %1$d bookmark in %2$s as %3$s. Desktop browsers import this file, and so does Sofa on another TV.</item>
         <item quantity="other">Saved %1$d bookmarks in %2$s as %3$s. Desktop browsers import this file, and so does Sofa on another TV.</item>
     </plurals>
+    <plurals name="bookmarks_imported_in_folders">
+        <item quantity="one">Added %1$d bookmark in %2$s.</item>
+        <item quantity="other">Added %1$d bookmarks in %2$s.</item>
+    </plurals>
+
+    <!-- Bookmark folders: on the Bookmarks screen and the start page -->
+    <string name="folder_new">New folder</string>
+    <string name="folder_new_in">New folder…</string>
+    <string name="folder_delete_this">Delete folder</string>
+    <string name="folder_rename">Rename</string>
+    <string name="folder_rename_title">Rename folder</string>
+    <string name="folder_save">Save</string>
+    <string name="folder_up">Up to %1$s</string>
+    <string name="folder_word">folder</string>
+    <string name="folder_empty">This folder is empty. Use Move on a bookmark to put it here.</string>
+    <string name="folder_empty_short">Empty</string>
+    <string name="folder_name_taken">There is already a folder called %1$s here</string>
+    <plurals name="folder_too_deep">
+        <item quantity="one">Folders can go %d level deep at most</item>
+        <item quantity="other">Folders can go %d levels deep at most</item>
+    </plurals>
+    <plurals name="folder_count">
+        <item quantity="one">%d folder</item>
+        <item quantity="other">%d folders</item>
+    </plurals>
+    <plurals name="bookmark_count">
+        <item quantity="one">%d bookmark</item>
+        <item quantity="other">%d bookmarks</item>
+    </plurals>
+    <!-- "3 folders, 12 bookmarks" under a folder's name -->
+    <string name="folder_contents">%1$s, %2$s</string>
+    <!-- "Delete News and the 2 folders and 12 bookmarks in it?" -->
+    <string name="folder_delete_confirm">Delete %1$s and the %2$s in it?</string>
+    <string name="folder_and">%1$s and %2$s</string>
+    <string name="folder_deleted">Folder deleted</string>
+    <string name="folder_moved_to">Moved to %1$s</string>
+    <string name="folder_move_title">Move “%1$s” to</string>
+    <string name="folder_top">Bookmarks (top)</string>
+    <string name="folder_here_now">here now</string>
+    <!-- TalkBack, in the Move list: "Tech, in News" -->
+    <string name="folder_in">%1$s, in %2$s</string>
+    <string name="all_bookmarks">All bookmarks</string>
+    <string name="confirm_clear_bookmarks_folders">Delete all bookmarks and folders?</string>
 
     <!-- A failed download in plain words (ErrorText): each one sentence, after "Couldn't add the list." and the like. -->
     <string name="error_no_address">%s wasn\'t found. Check the address.</string>

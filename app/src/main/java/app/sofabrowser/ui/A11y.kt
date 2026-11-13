@@ -78,16 +78,18 @@ object A11y {
 
     /**
      * [v] is a row of [count] items called [name] (a start page row): a screen reader names it as focus comes into it,
-     * since its title above is plain text that focus never reaches.
+     * since its title above is plain text that focus never reaches. A [vertical] one is a list (the Bookmarks screen in
+     * a folder), its items one under the other.
      */
-    fun row(v: View, name: CharSequence, count: () -> Int) {
+    fun row(v: View, name: CharSequence, vertical: Boolean = false, count: () -> Int) {
         v.contentDescription = name
         v.accessibilityDelegate = object : View.AccessibilityDelegate() {
             override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfo) {
                 super.onInitializeAccessibilityNodeInfo(host, info)
                 val n = count()
-                info.collectionInfo = if (Build.VERSION.SDK_INT >= 33) AccessibilityNodeInfo.CollectionInfo(1, n, false)
-                    else @Suppress("DEPRECATION") AccessibilityNodeInfo.CollectionInfo.obtain(1, n, false)
+                val (rows, columns) = if (vertical) n to 1 else 1 to n
+                info.collectionInfo = if (Build.VERSION.SDK_INT >= 33) AccessibilityNodeInfo.CollectionInfo(rows, columns, false)
+                    else @Suppress("DEPRECATION") AccessibilityNodeInfo.CollectionInfo.obtain(rows, columns, false)
             }
         }
     }

@@ -16,7 +16,7 @@ Sofa is free and about 2 MB. It has no ads and no tracking, and it blocks other 
 - **No ads, no pop-ups.** Blocked on the TV itself, with lists you can add to.
 - **Safer for kids.** Block whole kinds of sites, such as adult or gambling sites, and lock Settings with a PIN.
 - **Make it yours.** Arrange the start page and the menu, and put a colour or your own photo behind the start page.
-- **Bring your bookmarks** from a computer's browser, and back up your settings to a file.
+- **Bring your bookmarks** from a computer's browser, folders and all, and back up your settings to a file.
 - **Works with TalkBack.** The TV's screen reader reads Sofa's own screens aloud.
 
 It also has voice search, downloads that keep going in the background, and dark and light themes. You choose the
