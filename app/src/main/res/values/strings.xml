@@ -337,7 +337,7 @@
     <string name="site_allowed">%s allowed</string>
     <string name="site_allowed_private">%s allowed until you leave private browsing</string>
     <string name="dns">DNS</string>
-    <string name="dns_intro">DNS turns a site\'s name into the address Sofa connects to. Sofa uses your TV\'s own DNS unless you choose a service here. These services use DNS over HTTPS: lookups are encrypted, so the network can\'t read or change them, but the service you choose sees the name of every site Sofa opens. Covers pages, Sofa Player, downloads and list updates.</string>
+    <string name="dns_intro">DNS turns a site\'s name into the address Sofa connects to. Sofa uses your TV\'s own DNS unless you choose a service here. The services listed use DNS over HTTPS: lookups are encrypted, so the network can\'t read or change them, but the service you choose sees the name of every site Sofa opens. An address you type in can also use DNS over TLS, encrypted too, or plain DNS, which isn\'t. Covers pages, Sofa Player, downloads and list updates.</string>
     <string name="dns_main">Main DNS</string>
     <string name="dns_fallback">Fallback DNS</string>
     <string name="dns_fallback_sub">Used when the main DNS doesn\'t answer</string>
@@ -362,9 +362,13 @@
     <string name="dns_no_webview">This TV\'s Android System WebView is too old to use the DNS chosen here. Update it to use Custom DNS.</string>
     <string name="dns_pick_intro">Ranked from most to least private, from each service\'s own privacy policy. Services that block sites stop them loading on top of Sofa\'s own blocking.</string>
     <string name="dns_custom">Custom address</string>
-    <string name="dns_custom_sub">Any DNS over HTTPS service, by its https:// address</string>
-    <string name="dns_custom_message">The service\'s DNS over HTTPS address, such as https://dns.example/dns-query:</string>
-    <string name="dns_custom_invalid">That isn\'t a DNS over HTTPS address: it must start with https://</string>
+    <string name="dns_custom_sub">DNS over HTTPS, DNS over TLS or plain DNS, by its address</string>
+    <string name="dns_custom_message">The service\'s address, in one of these forms:\nhttps://dns.example/dns-query for DNS over HTTPS\ntls://dns.example for DNS over TLS\n192.0.2.53 for plain DNS, not encrypted</string>
+    <string name="dns_custom_hint">https://…, tls://… or an IP address</string>
+    <string name="dns_custom_invalid">Sofa can\'t use that address: it must start with https:// or tls://, or be an IP address</string>
+    <string name="dns_kind_https">Encrypted (DNS over HTTPS)</string>
+    <string name="dns_kind_tls">Encrypted (DNS over TLS)</string>
+    <string name="dns_kind_plain">Not encrypted: your network can see and change lookups</string>
     <string name="dns_tier_heading">● %s</string>
     <string name="dns_tier_private">Private</string>
     <string name="dns_tier_trade_offs">Private with trade-offs</string>

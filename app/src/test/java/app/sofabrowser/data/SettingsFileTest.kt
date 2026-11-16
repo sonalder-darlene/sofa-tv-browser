@@ -35,6 +35,15 @@ class SettingsFileTest {
         assertEquals("color:ocean", taken["home_background"])
     }
 
+    @Test fun takesEveryFormOfCustomDns() {
+        for (dns in listOf("quad9", "https://dns.example/dns-query", "tls://dns.example", "tls://dns.example:8853", "192.0.2.53",
+            "[2001:db8::53]:5353")) {
+            val (taken, leftOut) = SettingsFile.clean(mapOf("dns_main" to dns))
+            assertEquals(dns, 0, leftOut)
+            assertEquals(dns, taken["dns_main"])
+        }
+    }
+
     @Test fun nullMeansTheDefault() {
         val (taken, leftOut) = SettingsFile.clean(mapOf("theme" to null, "dns_main" to null))
         assertEquals(0, leftOut)
@@ -50,7 +59,8 @@ class SettingsFileTest {
             "adblock" to "yes",
             "custom_search" to "http://plain.example/?q=%s",
             "search_engine" to "nowhere",
-            "dns_main" to "8.8.8.8",
+            "dns_main" to "udp://192.0.2.53",
+            "dns_fallback" to "tls://dns.example/dns-query",
             "start_page" to "javascript:alert(1)",
             "home_background" to "image",
             "user_agent" to "custom\nX-Header: 1",

@@ -4,9 +4,9 @@ import java.io.ByteArrayOutputStream
 import java.net.InetAddress
 
 /**
- * The DNS wire format (RFC 1035), just enough for DNS over HTTPS (RFC 8484): one A or AAAA question out, the
- * addresses and the shortest TTL back. A CNAME chain needs no work: a resolver puts the final addresses in the answer
- * section too, so every A or AAAA record in it is taken.
+ * The DNS wire format (RFC 1035), just enough for Custom DNS: one A or AAAA question out, the addresses and the
+ * shortest TTL back. A CNAME chain needs no work: a resolver puts the final addresses in the answer section too, so
+ * every A or AAAA record in it is taken.
  */
 object DnsMessage {
 
@@ -20,12 +20,13 @@ object DnsMessage {
     class Answer(val rcode: Int, val addresses: List<InetAddress>, val ttl: Int)
 
     /**
-     * A query for [host]'s [type] records with recursion desired. The id is 0, as RFC 8484 asks, so that identical
-     * queries are cached alike; a name that can't be encoded (an empty or over-long label) throws.
+     * A query for [host]'s [type] records with recursion desired. Over HTTPS the [id] is 0, as RFC 8484 asks, so that
+     * identical queries are cached alike; plain DNS and DNS over TLS use a random one. A name that can't be encoded (an
+     * empty or over-long label) throws.
      */
-    fun query(host: String, type: Int): ByteArray {
+    fun query(host: String, type: Int, id: Int = 0): ByteArray {
         val out = ByteArrayOutputStream(32 + host.length)
-        out.write(byteArrayOf(0, 0, 0x01, 0, 0, 1, 0, 0, 0, 0, 0, 0)) // id 0, RD, one question
+        out.write(byteArrayOf((id shr 8).toByte(), id.toByte(), 0x01, 0, 0, 1, 0, 0, 0, 0, 0, 0)) // id, RD, one question
         host.trimEnd('.').split('.').forEach { label ->
             val bytes = label.toByteArray(Charsets.US_ASCII)
             require(bytes.size in 1..63) { "Bad name: $host" }
@@ -70,6 +71,27 @@ object DnsMessage {
         }
         return Answer(rcode, addresses, if (addresses.isEmpty()) 0 else ttl)
     }
+
+    /** A message's id. */
+    fun id(msg: ByteArray) = (msg[0].toInt() and 0xFF shl 8) or (msg[1].toInt() and 0xFF)
+
+    /** Whether a response says it was cut short (the TC bit): plain DNS then asks again over TCP. */
+    fun isTruncated(msg: ByteArray) = msg.size >= 12 && msg[2].toInt() and 0x02 != 0
+
+    /**
+     * Whether [response] is a response to [query] (made by [DnsMessage.query]): the same id and the same one question,
+     * the name compared without regard to case. Plain DNS drops anything else, so a forged answer has to guess both.
+     */
+    fun answers(query: ByteArray, response: ByteArray): Boolean {
+        if (response.size < query.size || response[0] != query[0] || response[1] != query[1]) return false
+        if (response[2].toInt() and 0x80 == 0) return false // not a response
+        if (response[4] != 0.toByte() || response[5] != 1.toByte()) return false // exactly one question
+        // The question: labels (lengths ≤ 63, below 'A'), then type and class (below 'A' for A and AAAA).
+        for (i in 12 until query.size) if (lower(response[i]) != lower(query[i])) return false
+        return true
+    }
+
+    private fun lower(b: Byte): Int = (b.toInt() and 0xFF).let { if (it in 'A'.code..'Z'.code) it + 32 else it }
 
     /** The index just past the name at [start]: labels, ending in a zero byte or a two-byte pointer. */
     private fun skipName(msg: ByteArray, start: Int): Int {

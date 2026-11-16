@@ -2,6 +2,7 @@ package app.sofabrowser.dns
 
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayOutputStream
@@ -60,6 +61,33 @@ class DnsMessageTest {
     @Test(expected = IllegalArgumentException::class)
     fun aQueryEchoedBackIsNotAnAnswer() {
         DnsMessage.parse(DnsMessage.query("example.com", DnsMessage.A))
+    }
+
+    @Test
+    fun aQueryCarriesTheIdGiven() {
+        val q = DnsMessage.query("example.com", DnsMessage.A, 0xBEEF)
+        assertEquals(0xBEEF, DnsMessage.id(q))
+        assertArrayEquals(DnsMessage.query("example.com", DnsMessage.A).copyOfRange(2, q.size), q.copyOfRange(2, q.size))
+    }
+
+    @Test
+    fun anAnswerMatchesOnlyItsOwnQuery() {
+        val q = DnsMessage.query("example.com", DnsMessage.A, 0x1234)
+        val ok = PlainDnsClientTest.answer(q, byteArrayOf(1, 2, 3, 4))
+        assertTrue(DnsMessage.answers(q, ok))
+        assertFalse(DnsMessage.answers(q, PlainDnsClientTest.answer(DnsMessage.query("example.com", DnsMessage.A, 0x1235), byteArrayOf(1, 2, 3, 4))))
+        assertFalse(DnsMessage.answers(q, PlainDnsClientTest.answer(DnsMessage.query("example.com", DnsMessage.AAAA, 0x1234), byteArrayOf(1, 2, 3, 4))))
+        assertFalse(DnsMessage.answers(q, PlainDnsClientTest.answer(DnsMessage.query("example.net", DnsMessage.A, 0x1234), byteArrayOf(1, 2, 3, 4))))
+        assertFalse("the query itself", DnsMessage.answers(q, q))
+        assertFalse("too short", DnsMessage.answers(q, ok.copyOf(20)))
+        assertTrue("case", DnsMessage.answers(DnsMessage.query("eXample.COM", DnsMessage.A, 0x1234), ok))
+    }
+
+    @Test
+    fun theTruncatedBitIsRead() {
+        val r = response(rcode = 0, records = emptyList())
+        assertFalse(DnsMessage.isTruncated(r))
+        assertTrue(DnsMessage.isTruncated(r.copyOf().also { it[2] = (it[2].toInt() or 0x02).toByte() }))
     }
 
     private val Char.b get() = code.toByte()

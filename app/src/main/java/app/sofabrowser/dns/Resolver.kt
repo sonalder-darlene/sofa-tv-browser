@@ -31,7 +31,7 @@ class Resolver(
     private val strict: Boolean = false,
     private val onUnreachable: (() -> Boolean)? = null,
 ) {
-    /** One DoH server: anything that answers one A or AAAA query. */
+    /** One chosen DNS: anything that answers one A or AAAA query. */
     fun interface Server {
         fun query(host: String, type: Int): DnsMessage.Answer
     }
@@ -112,7 +112,7 @@ class Resolver(
         pool.execute(v6)
         val v4 = try { server.query(name, DnsMessage.A) } catch (e: Exception) { v6.cancel(true); throw e }
         if (v4.rcode != DnsMessage.NOERROR && v4.rcode != DnsMessage.NXDOMAIN) { v6.cancel(true); return null }
-        val six = try { v6.get(DohClient.READ_TIMEOUT_MS * 2L, TimeUnit.MILLISECONDS).takeIf { it.rcode == DnsMessage.NOERROR } }
+        val six = try { v6.get(DnsWire.READ_TIMEOUT_MS * 2L, TimeUnit.MILLISECONDS).takeIf { it.rcode == DnsMessage.NOERROR } }
         catch (_: Exception) { v6.cancel(true); null }
         if (v4.rcode == DnsMessage.NXDOMAIN) return emptyList<InetAddress>() to NEGATIVE_TTL_S
         val all = (v4.addresses + (six?.addresses ?: emptyList())).distinct()

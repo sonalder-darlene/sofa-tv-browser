@@ -113,6 +113,6 @@ object DnsProviders {
 
     fun byId(id: String) = ALL.firstOrNull { it.id == id }
 
-    /** A DoH address typed by the user, stored as itself. */
-    fun isCustom(choice: String) = choice.startsWith("https://")
+    /** An address typed by the user (DNS over HTTPS, DNS over TLS or plain DNS, see CustomDns), stored as itself. */
+    fun isCustom(choice: String) = CustomDns.parse(choice) != null
 }

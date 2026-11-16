@@ -111,8 +111,9 @@ class Prefs(context: Context) {
     var clearOnExit by boolean("clear_on_exit", false)
     var safeBrowsing by boolean("safe_browsing", false)
     /**
-     * Custom DNS (SecureDns): the main and the fallback DNS, each a DnsProviders id or a DoH address ("https://…"), or
-     * "" for the device's own DNS. Both empty by default: Sofa then contacts no DNS provider of its own.
+     * Custom DNS (SecureDns): the main and the fallback DNS, each a DnsProviders id, an address typed in (CustomDns:
+     * "https://…", "tls://…" or an IP address), or "" for the device's own DNS. Both empty by default: Sofa then
+     * contacts no DNS provider of its own.
      */
     var dnsMain by string("dns_main", "")
     var dnsFallback by string("dns_fallback", "")

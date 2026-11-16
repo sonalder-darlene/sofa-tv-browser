@@ -42,8 +42,8 @@ Everything Sofa does, what it sends where, and how its blocking and video work. 
 - **Site filters** (off until you choose): block whole sites by category, such as adult, gambling or unsafe sites,
   or with a list of your own.
 - **Parental PIN** (off until you set one): a PIN before Settings open or a blocker is turned off.
-- **Custom DNS** (off until you choose): look sites up over DNS over HTTPS with a main and a fallback service,
-  picked from a list ranked from most to least private, or your own.
+- **Custom DNS** (off until you choose): look sites up with a main and a fallback service, picked from a list ranked
+  from most to least private (DNS over HTTPS), or your own: DNS over HTTPS, DNS over TLS or plain DNS.
 - **Search** with the engine you choose at first start, and voice search.
 - **Downloads** that pause, resume and carry on in the background.
 - **Dark and Light themes.**
@@ -79,9 +79,9 @@ Everything Sofa does, what it sends where, and how its blocking and video work. 
 ### Custom DNS
 
 Sofa looks sites up with the TV's own DNS until you choose a **main DNS** in Settings → DNS. From then on, every
-site name is looked up over DNS over HTTPS: encrypted, so the network can't read or change the lookups. That covers
-pages, Sofa Player, downloads and list updates. A **fallback DNS** is asked when the main one doesn't answer, and the
-TV's own DNS when neither does, so pages keep loading. A name that doesn't exist isn't asked again elsewhere. Names
+site name is looked up with it; the listed services use DNS over HTTPS: encrypted, so the network can't read or
+change the lookups. That covers pages, Sofa Player, downloads and list updates. A **fallback DNS** is asked when the
+main one doesn't answer, and the TV's own DNS when neither does, so pages keep loading. A name that doesn't exist isn't asked again elsewhere. Names
 on the home network (no dot, or `.local`, `.lan`, `.home.arpa` and the like) always use the TV's DNS. **Test** times
 a lookup with each one.
 
@@ -95,8 +95,22 @@ Each row says what it blocks, and services that offer a filtered and an unfilter
 | Limited privacy | Bancuh, Tiarap, Control D |
 | Utility-first | Google Public DNS, DNS4EU, OpenDNS, DNS for Family |
 
-Any other service can be added by its DNS over HTTPS address (`https://…`). The service you choose sees the name of
-every site Sofa opens; that is what a DNS does. A service that blocks sites stops them on top of Sofa's own blocking.
+Any other service can be added by its address, in one of three forms:
+
+| Form | Example | Lookups |
+|---|---|---|
+| DNS over HTTPS | `https://dns.example/dns-query` | Encrypted |
+| DNS over TLS | `tls://dns.example`, port 853 unless given: `tls://dns.example:8853` | Encrypted |
+| Plain DNS | `192.0.2.53` or `2001:db8::53`, port 53 unless given: `192.0.2.53:5353`, `[2001:db8::53]:5353` | Not encrypted |
+
+A DNS over TLS server must show a certificate for its name, or for its IP address when it is given by address
+(`tls://192.0.2.53`). The name of a DNS over HTTPS or DNS over TLS server typed in is looked up with the TV's own
+DNS. Plain DNS suits a DNS on your own network, such as one that filters; the network can read and change its
+lookups, so Sofa asks each time with a random query id from a new random port, takes only an answer to that exact
+question, and asks again over TCP when an answer is too long for UDP.
+
+The service you choose sees the name of every site Sofa opens; that is what a DNS does. A service that blocks sites
+stops them on top of Sofa's own blocking.
 
 WebView has no DNS setting, so Sofa runs a small proxy inside the app, reachable only from the TV itself
 (127.0.0.1), that looks each site up and passes the connection through. HTTPS stays encrypted end to end between

@@ -22,6 +22,19 @@
 - Each address is bookmarked once, in one folder; the star in the page menu still adds to the top. Bookmarks
   already there when you update stay at the top.
 
+**Custom DNS**
+
+- **DNS over TLS and plain DNS** can be typed in as a custom address, next to DNS over HTTPS: `tls://dns.example`
+  (port 853 unless one is given) or an IP address such as `192.0.2.53` (port 53 unless given), a DNS on your own
+  network for example. Settings says for each whether its lookups are encrypted: DNS over TLS is, plain DNS isn't, so
+  the network can see and change them. The listed services stay DNS over HTTPS.
+- Plain DNS asks each time with a random query id from a new random port and takes only an answer to that exact
+  question, as DNS resolvers do against forged answers; an answer too long for UDP is asked again over TCP. A DNS
+  over TLS server must show a certificate for its name, or for its IP address when given by address.
+- When the TV's network changes, connections to the chosen DNS that were kept open are closed too.
+- In Sofa 1.3.0, a settings backup with a DNS over TLS or plain DNS address leaves that DNS out and says how many
+  settings it left out.
+
 ## 1.3.0 (2026-11-08)
 
 **Site filters**

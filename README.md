@@ -73,8 +73,8 @@ Three more things are off until you turn them on:
 - **Parental PIN** asks for a PIN before anyone opens Settings or turns a blocker off. It protects Sofa, not the
   TV: it can't stop someone from using another app. Forget it and the only way back is clearing Sofa's data in
   the TV's settings, which erases your bookmarks and settings too.
-- **Custom DNS** sends the TV's "where is this site?" lookups over an encrypted connection, to a service you
-  pick from a list ranked from most to least private.
+- **Custom DNS** sends the TV's "where is this site?" lookups over an encrypted connection to a service you pick
+  from a list ranked from most to least private, or to any DNS you type in, encrypted or not.
 
 How each one works: [Ad blocking](docs/details.md#ad-blocking), [Site filters](docs/details.md#site-filters),
 [Parental PIN](docs/details.md#parental-pin), [Custom DNS](docs/details.md#custom-dns).

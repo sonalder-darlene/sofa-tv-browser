@@ -26,9 +26,10 @@ import java.net.URI
 import kotlin.concurrent.thread
 
 /**
- * "Custom DNS": Sofa's host names are looked up over DNS over HTTPS with the main DNS, then the fallback, then the
- * device's own DNS if neither can be reached (or nothing, with "Never use your TV's DNS"); a notice says so when it
- * happens. Off until the user picks a main DNS; then nothing changes for anyone else.
+ * "Custom DNS": Sofa's host names are looked up with the main DNS, then the fallback, then the device's own DNS if
+ * neither can be reached (or nothing, with "Never use your TV's DNS"); a notice says so when it happens. The listed
+ * services use DNS over HTTPS; an address typed in can also be DNS over TLS or plain DNS (CustomDns). Off until the
+ * user picks a main DNS; then nothing changes for anyone else.
  *
  * WebView and HttpURLConnection can't be given a resolver, but both take a proxy: a [LoopbackProxy] on 127.0.0.1 does
  * the lookups, WebView is pointed at it with ProxyController, and every HttpURLConnection in the app (Sofa Player,
@@ -36,7 +37,7 @@ import kotlin.concurrent.thread
  * own HTTP proxy keeps it, and Custom DNS stays unused there (that proxy does the lookups).
  *
  * While a DNS is chosen, a change of the TV's network (Wi-Fi back after sleep, another network) forgets the cached
- * answers and the servers marked as not answering, and checks the network's proxy again.
+ * answers, the servers marked as not answering and the connections kept open, and checks the network's proxy again.
  */
 object SecureDns {
 
@@ -44,7 +45,8 @@ object SecureDns {
     private val main = Handler(Looper.getMainLooper())
 
     private var proxy: LoopbackProxy? = null
-    private var servers: List<Server> = emptyList()
+    /** Read from the network callback's thread too. */
+    @Volatile private var servers: List<Server> = emptyList()
     @Volatile private var resolver: Resolver? = null
     private var webViewOverridden = false
     private var watching: ConnectivityManager.NetworkCallback? = null
@@ -109,7 +111,9 @@ object SecureDns {
                 // Also called once at registration, for the network already in use: nothing to forget then.
                 if (current != null && network != current) {
                     resolver?.clear()
-                    if (BuildConfig.DEBUG) Log.d(TAG, "network changed: answers and failed servers forgotten")
+                    // Connections kept open went out on the old network; a reused one could hang until it times out.
+                    servers.forEach { it.dropIdle() }
+                    if (BuildConfig.DEBUG) Log.d(TAG, "network changed: answers, failed servers and kept connections forgotten")
                 }
                 current = network
             }
@@ -143,7 +147,7 @@ object SecureDns {
     }
 
     /**
-     * Times one lookup of a well-known name through [choice] alone (a provider id or a DoH address), off the main
+     * Times one lookup of a well-known name through [choice] alone (a provider id or an address typed in), off the main
      * thread; [done] gets the milliseconds, or the failure, on the main thread.
      */
     fun test(choice: String, done: (Result<Long>) -> Unit) {
@@ -163,9 +167,8 @@ object SecureDns {
     /** The name the Test button looks up: reserved for examples (RFC 2606) and answered by every resolver. */
     private const val TEST_HOST = "example.com"
 
-    /** A provider's DoH servers, asked in order; [id] is the provider id or the custom address. */
-    private class Server(val id: String, endpoints: List<DohEndpoint>) {
-        private val clients = endpoints.map(::DohClient)
+    /** A provider's DoH servers, or the one server of an address typed in, asked in order; [id] is the choice itself. */
+    private class Server(val id: String, private val clients: List<DnsClient>) {
         fun query(host: String, type: Int): DnsMessage.Answer {
             var failure: IOException? = null
             for (c in clients) {
@@ -173,13 +176,14 @@ object SecureDns {
             }
             throw failure ?: IOException("No server")
         }
+        fun dropIdle() = clients.forEach { it.dropIdle() }
         fun close() = clients.forEach { it.close() }
     }
 
     private fun server(choice: String): Server? = when {
         choice.isEmpty() -> null
-        DnsProviders.isCustom(choice) -> runCatching { Server(choice, listOf(DohEndpoint(choice))) }.getOrNull()
-        else -> DnsProviders.byId(choice)?.let { Server(it.id, it.endpoints) }
+        else -> CustomDns.parse(choice)?.let { Server(choice, listOf(it.client())) }
+            ?: DnsProviders.byId(choice)?.let { p -> Server(p.id, p.endpoints.map(::DohClient)) }
     }
 
     /**
