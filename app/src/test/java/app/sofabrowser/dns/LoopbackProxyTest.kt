@@ -133,3 +133,87 @@ class LoopbackProxyTunnelTest {
         assertEquals(-1, rig.page.getInputStream().read())
     }
 }
+
+/** [LoopbackProxy.ClosingResponse]: a plain HTTP answer tells the page to close the connection after it. */
+class ClosingResponseTest {
+
+    /** [answer] written in pieces of [step] bytes, as a socket may hand it over. */
+    private fun through(answer: String, step: Int = Int.MAX_VALUE): String {
+        val sink = java.io.ByteArrayOutputStream()
+        val filter = LoopbackProxy.ClosingResponse(sink)
+        val bytes = answer.toByteArray(Charsets.ISO_8859_1)
+        var i = 0
+        while (i < bytes.size) {
+            val n = minOf(step, bytes.size - i)
+            filter.write(bytes, i, n)
+            i += n
+        }
+        return sink.toString(Charsets.ISO_8859_1.name())
+    }
+
+    @Test
+    fun aKeptOpenAnswerIsToldToClose() {
+        val answer = "HTTP/1.1 200 OK\r\nContent-Type: image/gif\r\nContent-Length: 5\r\nConnection: keep-alive, X-Hop\r\n" +
+            "Keep-Alive: timeout=60\r\nX-Hop: 1\r\nX-End: 2\r\n\r\nGIF89"
+        val expected = "HTTP/1.1 200 OK\r\nContent-Type: image/gif\r\nContent-Length: 5\r\nX-End: 2\r\n" +
+            "Connection: close\r\nProxy-Connection: close\r\n\r\nGIF89"
+        assertEquals(expected, through(answer))
+        assertEquals(expected, through(answer, step = 1))
+        assertEquals(expected, through(answer, step = 7))
+    }
+
+    @Test
+    fun theBodyPassesByteForByteEvenWhenItLooksLikeAHead() {
+        val body = "HTTP/1.1 200 OK\r\nConnection: keep-alive\r\n\r\nÿ\u0000"
+        val got = through("HTTP/1.0 404 Not Found\r\nContent-Length: ${body.length}\r\n\r\n$body", step = 3)
+        assertEquals("HTTP/1.0 404 Not Found\r\nContent-Length: ${body.length}\r\nConnection: close\r\n" +
+            "Proxy-Connection: close\r\n\r\n$body", got)
+    }
+
+    @Test
+    fun interimAnswersPassAndTheFinalOneIsToldToClose() {
+        val got = through("HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 103 Early Hints\r\nLink: </a.css>\r\n\r\n" +
+            "HTTP/1.1 204\r\nConnection: keep-alive\r\n\r\n")
+        assertEquals("HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 103 Early Hints\r\nLink: </a.css>\r\n\r\n" +
+            "HTTP/1.1 204\r\nConnection: close\r\nProxy-Connection: close\r\n\r\n", got)
+    }
+
+    @Test
+    fun aSwitchOfProtocolOrAnAnswerThatIsNotHttpPassesUnchanged() {
+        val upgrade = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n\u0081\u0002hi"
+        assertEquals(upgrade, through(upgrade, step = 2))
+        assertEquals("<html>hello", through("<html>hello", step = 1))
+    }
+
+    @Test
+    fun aFoldedLineGoesWithItsHeader() {
+        val got = through("HTTP/1.1 200 OK\r\nKeep-Alive: timeout=5,\r\n max=100\r\nX-A: 1,\r\n\t2\r\n\r\n")
+        assertEquals("HTTP/1.1 200 OK\r\nX-A: 1,\r\n\t2\r\nConnection: close\r\nProxy-Connection: close\r\n\r\n", got)
+    }
+
+    @Test(expected = java.io.IOException::class)
+    fun aHeadThatNeverEndsIsRefused() {
+        through("HTTP/1.1 200 OK\r\n" + "X: y\r\n".repeat(20_000))
+    }
+
+    @Test(timeout = 10_000)
+    fun aPlainRequestsTunnelPassesTheAnswerToldToClose() {
+        val loopback = InetAddress.getByAddress(byteArrayOf(127, 0, 0, 1))
+        ServerSocket(0, 1, loopback).use { proxySide ->
+            ServerSocket(0, 1, loopback).use { origin ->
+                val page = Socket().apply { connect(InetSocketAddress(loopback, proxySide.localPort)) }
+                val client = proxySide.accept()
+                val upstream = Socket().apply { connect(InetSocketAddress(loopback, origin.localPort)) }
+                val site = origin.accept()
+                thread { LoopbackProxy.pipe(client.getInputStream(), client, upstream, 60_000, 50, oneRequest = true) }
+                // A site that keeps its side open after answering.
+                site.getOutputStream().write("HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: keep-alive\r\n\r\nok".toByteArray())
+                val want = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\nProxy-Connection: close\r\n\r\nok"
+                val got = ByteArray(want.length)
+                java.io.DataInputStream(page.getInputStream()).readFully(got)
+                assertEquals(want, got.decodeToString())
+                listOf(page, client, upstream, site).forEach { runCatching { it.close() } }
+            }
+        }
+    }
+}

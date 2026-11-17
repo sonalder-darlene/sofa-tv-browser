@@ -28,6 +28,9 @@
   (port 853 unless one is given) or an IP address such as `192.0.2.53` (port 53 unless given), a DNS on your own
   network for example. Settings says for each whether its lookups are encrypted: DNS over TLS is, plain DNS isn't, so
   the network can see and change them. The listed services stay DNS over HTTPS.
+- **Plain `http://` pages with a custom DNS:** each request now gets its own connection, as intended. A site that
+  kept its connections open used to receive the page's next requests through the same one, in the form meant for
+  Sofa's DNS relay rather than for the site.
 - Plain DNS asks each time with a random query id from a new random port and takes only an answer to that exact
   question, as DNS resolvers do against forged answers; an answer too long for UDP is asked again over TCP. A DNS
   over TLS server must show a certificate for its name, or for its IP address when given by address.

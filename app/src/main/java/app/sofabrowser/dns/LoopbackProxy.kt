@@ -65,7 +65,7 @@ class LoopbackProxy(@Volatile var resolve: (String) -> List<InetAddress>) {
             } else {
                 upstream.getOutputStream().apply { write(request.forwardHead); flush() }
             }
-            pipe(input, client, upstream)
+            pipe(input, client, upstream, oneRequest = !request.connect)
         } catch (_: IOException) {
         } finally {
             upstream?.let(::closeQuietly)
@@ -114,6 +114,78 @@ class LoopbackProxy(@Volatile var resolve: (String) -> List<InetAddress>) {
 
     /** A request the proxy can serve: a CONNECT tunnel, or a plain HTTP request rewritten for the origin server. */
     internal class Request(val connect: Boolean, val host: String, val port: Int, val forwardHead: ByteArray)
+
+    /**
+     * Passes a site's answer to a plain HTTP request on to the page with `Connection: close` and
+     * `Proxy-Connection: close` in its head, and without the hop-by-hop headers the site sent (`Connection`,
+     * `Keep-Alive` and those `Connection` names). The proxy rewrites only the first request on a connection
+     * ([parse]) and ties the connection to that site, so the page must not send another one on it: a site that
+     * ignores the request's `Connection: close` and keeps its side open would otherwise get the page's next
+     * requests as the page wrote them for the proxy, with the proxy headers, or even another site's.
+     *
+     * Interim answers (1xx) pass unchanged and the next head is read. After `101 Switching Protocols`, or when
+     * the answer doesn't start with `HTTP/`, every byte passes unchanged.
+     */
+    internal class ClosingResponse(private val out: OutputStream) : OutputStream() {
+        /** The head read so far; null once the bytes pass unchanged. */
+        private var head: StringBuilder? = StringBuilder()
+
+        override fun write(b: Int) = write(byteArrayOf(b.toByte()), 0, 1)
+
+        override fun write(b: ByteArray, off: Int, len: Int) {
+            var i = off
+            val end = off + len
+            while (i < end) {
+                val sb = head ?: return out.write(b, i, end - i)
+                sb.append((b[i++].toInt() and 0xff).toChar())
+                if (sb.length <= STATUS_START.length && !STATUS_START.startsWith(sb.toString())) {
+                    head = null // not an HTTP/1 answer: leave it as it is
+                    out.write(sb.toString().toByteArray(Charsets.ISO_8859_1))
+                } else if (sb.endsWith("\r\n\r\n") || sb.endsWith("\n\n")) {
+                    val text = sb.toString()
+                    val code = text.substringBefore('\n').trimEnd('\r').split(' ').getOrNull(1)?.toIntOrNull()
+                    when {
+                        code == null || code == 101 -> { head = null; out.write(text.toByteArray(Charsets.ISO_8859_1)) }
+                        code in 100..199 -> { sb.setLength(0); out.write(text.toByteArray(Charsets.ISO_8859_1)) }
+                        else -> { head = null; out.write(closing(text)) }
+                    }
+                } else if (sb.length >= MAX_HEAD) {
+                    throw IOException("Response head too long")
+                }
+            }
+        }
+
+        override fun flush() = out.flush()
+        override fun close() = out.close()
+
+        private companion object {
+            const val STATUS_START = "HTTP/"
+
+            fun closing(head: String): ByteArray {
+                val lines = head.split("\r\n", "\n").dropLastWhile { it.isEmpty() }
+                val named = lines.drop(1)
+                    .filter { it.substringBefore(':').trim().equals("connection", ignoreCase = true) }
+                    .flatMap { it.substringAfter(':').split(',') }
+                    .map { it.trim().lowercase() }
+                    .toSet()
+                val sb = StringBuilder(lines.first()).append("\r\n")
+                var dropping = false
+                for (line in lines.drop(1)) {
+                    if (line.startsWith(' ') || line.startsWith('\t')) { // a folded line goes with its header
+                        if (!dropping) sb.append(line).append("\r\n")
+                        continue
+                    }
+                    val name = line.substringBefore(':').trim().lowercase()
+                    dropping = name in RESPONSE_DROPPED || name in named
+                    if (!dropping) sb.append(line).append("\r\n")
+                }
+                sb.append("Connection: close\r\nProxy-Connection: close\r\n\r\n")
+                return sb.toString().toByteArray(Charsets.ISO_8859_1)
+            }
+
+            val RESPONSE_DROPPED = setOf("connection", "keep-alive", "proxy-connection")
+        }
+    }
 
     companion object {
         private const val MAX_THREADS = 512
@@ -182,9 +254,13 @@ class LoopbackProxy(@Volatile var resolve: (String) -> List<InetAddress>) {
          * a peer that went silent (a NAT that dropped the connection, a server that keeps its half open) would
          * otherwise hold two threads until TCP keep-alive gives up, hours later. A copy waiting for the client to
          * take its bytes isn't idle: that is a page that stopped reading, such as a paused video, and it decides when
-         * to read again. [clientIn] is the client's stream after the request head.
+         * to read again. [clientIn] is the client's stream after the request head. With [oneRequest] (plain HTTP)
+         * the site's answer goes through [ClosingResponse].
          */
-        internal fun pipe(clientIn: InputStream, client: Socket, upstream: Socket, idleMs: Long = IDLE_MS, tickMs: Int = TICK_MS) {
+        internal fun pipe(
+            clientIn: InputStream, client: Socket, upstream: Socket,
+            idleMs: Long = IDLE_MS, tickMs: Int = TICK_MS, oneRequest: Boolean = false,
+        ) {
             val tunnel = Tunnel(client, upstream, idleMs)
             client.soTimeout = tickMs
             upstream.soTimeout = tickMs
@@ -193,7 +269,8 @@ class LoopbackProxy(@Volatile var resolve: (String) -> List<InetAddress>) {
                     runCatching { upstream.shutdownOutput() }
                 } else tunnel.closeBoth()
             }, "sofa-proxy-up", 128 * 1024L).apply { isDaemon = true; start() }
-            if (tunnel.copy(upstream.getInputStream(), client.getOutputStream(), toClient = true)) {
+            val toClient = client.getOutputStream().let { if (oneRequest) ClosingResponse(it) else it }
+            if (tunnel.copy(upstream.getInputStream(), toClient, toClient = true)) {
                 runCatching { client.shutdownOutput() }
             } else tunnel.closeBoth()
             up.join()
