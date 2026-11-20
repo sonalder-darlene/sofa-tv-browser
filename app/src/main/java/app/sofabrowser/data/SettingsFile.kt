@@ -3,6 +3,7 @@ package app.sofabrowser.data
 import app.sofabrowser.Prefs
 import app.sofabrowser.adblock.FilterList
 import app.sofabrowser.browser.ProtectedMedia
+import app.sofabrowser.browser.SiteModes
 import app.sofabrowser.browser.WatchTarget
 import app.sofabrowser.dns.DnsProviders
 import app.sofabrowser.player.PlayerChoices
@@ -157,6 +158,18 @@ object SettingsFile {
 
     /** Site names a file lists (sites with ad blocking off, sites let through Site filters), checked and capped. */
     fun cleanNames(names: List<String>): List<String> = names.filter(::isName).distinct().take(MAX_SITES)
+
+    /**
+     * Sites with their own "Browse as" a file lists, as (site, mode): known modes only, each site as Sofa names it (its
+     * registrable domain), first one kept, capped.
+     */
+    fun cleanBrowseAs(pairs: List<Pair<String, String>>): List<Pair<String, String>> {
+        val seen = HashSet<String>()
+        return pairs.mapNotNull { (name, mode) ->
+            val site = name.takeIf(::isName)?.let(SiteModes::siteOf) ?: return@mapNotNull null
+            (site to mode).takeIf { SiteModes.valid(mode) && seen.add(site) }
+        }.take(MAX_SITES)
+    }
 
     /**
      * Quick access tiles or bookmarks a file lists: web addresses only, first copy of each, titles capped, folder names

@@ -20,7 +20,8 @@ object WebViews {
     private var chromeMajor: String? = null
 
     /**
-     * Applies [prefs] to [web]. Safe to call again after the user changes a setting.
+     * Applies [prefs] to [web], all but "Browse as", which depends on the page (Browser.presentAs). Safe to call again
+     * after the user changes a setting.
      */
     @SuppressLint("SetJavaScriptEnabled")
     fun configure(web: WebView, prefs: Prefs) {
@@ -42,7 +43,6 @@ object WebViews {
         s.setGeolocationEnabled(false)
         s.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
         if (Build.VERSION.SDK_INT >= 26) s.safeBrowsingEnabled = prefs.safeBrowsing
-        applyUserAgent(web, prefs.userAgent, prefs.customUserAgent)
 
         cookieManager(web).apply {
             setAcceptCookie(prefs.cookies)

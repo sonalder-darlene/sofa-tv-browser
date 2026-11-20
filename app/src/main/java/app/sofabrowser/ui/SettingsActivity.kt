@@ -28,6 +28,7 @@ import app.sofabrowser.R
 import app.sofabrowser.adblock.AdBlocker
 import app.sofabrowser.adblock.FilterList
 import app.sofabrowser.adblock.SiteAllowlist
+import app.sofabrowser.browser.BrowseAs
 import app.sofabrowser.browser.ExternalPlayer
 import app.sofabrowser.browser.ProtectedMedia
 import app.sofabrowser.browser.RefreshRateMatch
@@ -165,7 +166,12 @@ class SettingsActivity : Activity() {
                 revokeSelfPermissionsOnKill(listOf(Manifest.permission.RECORD_AUDIO))
             }
         }
-        nav(R.string.user_agent, resources.getStringArray(R.array.user_agents)[Prefs.UA_MODES.indexOf(prefs.userAgent).coerceAtLeast(0)]) { pickUserAgent() }
+        row(getString(R.string.user_agent), getString(R.string.user_agent_sub), valueText(uaLabel(prefs.userAgent))) { pickUserAgent() }
+        BrowseAs.sites(this).all().takeIf { it.isNotEmpty() }?.let { sites ->
+            row(getString(R.string.browse_as_sites), resources.getQuantityString(R.plurals.browse_as_sites_count, sites.size, sites.size), arrow()) {
+                pickBrowseAsSite(sites)
+            }
+        }
         nav(R.string.cursor_speed, resources.getStringArray(R.array.cursor_speeds)[prefs.cursorSpeed - 1]) { pickCursorSpeed() }
         row(getString(R.string.game_controller), getString(R.string.game_controller_sub), arrow()) { PadHelp.dialog(this) }
         switch(R.string.back_goes_back, R.string.back_goes_back_sub, prefs::backGoesBack)
@@ -399,6 +405,20 @@ class SettingsActivity : Activity() {
                     prefs.customUserAgent = it; prefs.userAgent = "custom"; build()
                 } else { prefs.userAgent = Prefs.UA_MODES[which]; build() }
             }.show()
+    }
+
+    private fun uaLabel(mode: String) = resources.getStringArray(R.array.user_agents)[Prefs.UA_MODES.indexOf(mode).coerceAtLeast(0)].removeSuffix("…")
+
+    /** Sites with their own "Browse as" (chosen from the page menu); choosing one makes it follow the setting again. */
+    private fun pickBrowseAsSite(sites: List<Pair<String, String>>) {
+        dialog().setTitle(R.string.browse_as_sites_pick)
+            .setItems(sites.map { (site, mode) -> getString(R.string.browse_as_site_item, site, uaLabel(mode)) }.toTypedArray()) { _, which ->
+                val site = sites[which].first
+                BrowseAs.sites(this).remove(site)
+                Toast.makeText(this, getString(R.string.browse_as_site_removed, site), Toast.LENGTH_SHORT).show()
+                build()
+            }
+            .setNegativeButton(R.string.cancel, null).show()
     }
 
     private fun historyLabel() =

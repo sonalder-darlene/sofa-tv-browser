@@ -19,6 +19,7 @@ import app.sofabrowser.adblock.AdBlocker
 import app.sofabrowser.adblock.Allowlist
 import app.sofabrowser.adblock.FilterList
 import app.sofabrowser.adblock.SiteAllowlist
+import app.sofabrowser.browser.BrowseAs
 import app.sofabrowser.browser.ExternalPlayer
 import app.sofabrowser.data.BackupCrypto
 import app.sofabrowser.data.BookmarkFile
@@ -38,8 +39,8 @@ import kotlin.concurrent.thread
 
 /**
  * Settings out to a file and back in, to move them to another TV or keep them through a reset. The file holds the
- * settings [SettingsFile] lists, the filter lists, the sites with ad blocking off or let through Site filters, Quick
- * access and bookmarks. Export protects it with a password ([BackupCrypto]) unless the user chooses not to.
+ * settings [SettingsFile] lists, the filter lists, the sites with ad blocking off, let through Site filters or with their
+ * own "Browse as", Quick access and bookmarks. Export protects it with a password ([BackupCrypto]) unless the user chooses not to.
  * Import replaces the settings with the file's and adds its lists, sites, tiles and bookmarks to what is here; it
  * never removes any. Both are inside Settings, behind the parental PIN when one is set. [imported] runs on the main
  * thread once a file was imported.
@@ -124,6 +125,9 @@ class SettingsTransfer(private val activity: Activity, private val imported: () 
             }))
             .put("ad_blocking_off", JSONArray(Allowlist.all(activity)))
             .put("allowed_sites", JSONArray(SiteAllowlist.all(activity)))
+            .put("browse_as_sites", JSONArray(BrowseAs.sites(activity).all().map { (site, mode) ->
+                JSONObject().put("site", site).put("browse_as", mode)
+            }))
             .put("quick_access", JSONArray(db.tiles().map { JSONObject().put("title", it.title).put("url", it.url) }))
             .put("bookmarks", JSONArray(db.bookmarksToExport().map { e ->
                 JSONObject().put("title", e.title).put("url", e.url).put("added", e.added)
@@ -167,6 +171,7 @@ class SettingsTransfer(private val activity: Activity, private val imported: () 
         val lists: List<ListChoice>,
         val adBlockingOff: List<String>,
         val allowedSites: List<String>,
+        val browseAs: List<Pair<String, String>>,
         val tiles: List<BookmarkFile.Entry>,
         val bookmarks: List<BookmarkFile.Entry>,
         val folders: List<BookmarkFile.Folder>,
@@ -203,6 +208,7 @@ class SettingsTransfer(private val activity: Activity, private val imported: () 
             lists = lists,
             adBlockingOff = SettingsFile.cleanNames(strings(o.optJSONArray("ad_blocking_off"))),
             allowedSites = SettingsFile.cleanNames(strings(o.optJSONArray("allowed_sites"))),
+            browseAs = SettingsFile.cleanBrowseAs(objects(o.optJSONArray("browse_as_sites")).map { it.optString("site") to it.optString("browse_as") }),
             tiles = SettingsFile.cleanEntries(entries(o.optJSONArray("quick_access")), SettingsFile.MAX_TILES),
             bookmarks = SettingsFile.cleanEntries(entries(o.optJSONArray("bookmarks")), BookmarkFile.MAX_ENTRIES),
             folders = SettingsFile.cleanFolders(objects(o.optJSONArray("folders")).map { f ->
@@ -269,6 +275,7 @@ class SettingsTransfer(private val activity: Activity, private val imported: () 
         val listsOn = applyLists(b.lists, lists)
         b.adBlockingOff.forEach { Allowlist.set(activity, it, allowed = true, private = false) }
         b.allowedSites.forEach { SiteAllowlist.allow(activity, it, private = false) }
+        BrowseAs.sites(activity).let { sites -> b.browseAs.forEach { (site, mode) -> sites.choose(site, mode, prefs.userAgent, private = false) } }
         val here = db.tiles().map { it.url }.toHashSet()
         val tiles = b.tiles.filter { here.add(it.url) }
         tiles.forEach { db.addTile(it.title.ifBlank { it.url }, it.url) }

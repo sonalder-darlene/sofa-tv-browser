@@ -5,11 +5,12 @@ import android.widget.EditText
 import app.sofabrowser.Prefs
 import app.sofabrowser.R
 import app.sofabrowser.adblock.Allowlist
+import app.sofabrowser.browser.BrowseAs
 import app.sofabrowser.browser.Browser
+import app.sofabrowser.browser.SiteModes
 import app.sofabrowser.browser.TabList
 import app.sofabrowser.browser.UrlInput
 import app.sofabrowser.browser.WatchTarget
-import app.sofabrowser.browser.WebViews
 import app.sofabrowser.data.Db
 import app.sofabrowser.ui.BrowserMenu
 import app.sofabrowser.ui.ListActivity
@@ -62,8 +63,9 @@ class PageMenu(private val s: Screen, private val watch: Watch) : BrowserMenu.Ac
             bookmarked = url.isNotEmpty() && db.isBookmarked(url),
             adBlockOn = prefs.adBlock && (host == null || !Allowlist.contains(activity, host)),
             blocked = browser.adBlocker.blockedCount,
-            desktop = prefs.userAgent != "mobile",
-            browseAs = activity.resources.getStringArray(R.array.user_agents).getOrElse(Prefs.UA_MODES.indexOf(prefs.userAgent)) { "" },
+            desktop = browser.browseAs(url) != "mobile",
+            browseAs = activity.resources.getStringArray(R.array.user_agents).getOrElse(Prefs.UA_MODES.indexOf(browser.browseAs(url))) { "" }.removeSuffix("…"),
+            browseAsHere = browser.ownBrowseAs(url),
             pointer = s.cursor.cursorEnabled,
             zoomPercent = (100 * 1.25.pow(s.tabs.current.zoomStep)).roundToInt(),
             privateMode = browser.privateMode,
@@ -178,29 +180,69 @@ class PageMenu(private val s: Screen, private val watch: Watch) : BrowserMenu.Ac
         refresh()
     }
 
+    /** "Browse as" for the page in front: the mode, then (on a web page) whether for this site or all sites. */
     private fun pickUserAgent() {
         val labels = activity.resources.getStringArray(R.array.user_agents)
-        val current = Prefs.UA_MODES.indexOf(prefs.userAgent).coerceAtLeast(0)
+        val url = s.web?.url
+        val current = Prefs.UA_MODES.indexOf(s.browser.browseAs(url)).coerceAtLeast(0)
         s.dialog().setTitle(R.string.user_agent)
             .setSingleChoiceItems(labels, current) { d, which ->
                 d.dismiss()
                 val mode = Prefs.UA_MODES[which]
-                if (mode == "custom") askCustomUserAgent() else setUserAgent(mode)
+                if (mode == "custom") askCustomUserAgent(url) else pickScope(url, mode)
             }.show()
     }
 
-    private fun askCustomUserAgent() {
+    /** The custom text is one for every site that uses it, as in Settings. */
+    private fun askCustomUserAgent(url: String?) {
         val field = EditText(activity).apply { setText(prefs.customUserAgent); isSingleLine = true }
         s.dialog().setTitle(R.string.custom_user_agent).setView(padded(activity, field))
             .setPositiveButton(R.string.ok) { _, _ ->
-                prefs.customUserAgent = field.text.toString().trim()
-                setUserAgent("custom")
+                val text = field.text.toString().trim()
+                val changed = text != prefs.customUserAgent
+                prefs.customUserAgent = text
+                pickScope(url, "custom", changed)
             }.setNegativeButton(R.string.cancel, null).show()
     }
 
-    private fun setUserAgent(mode: String) {
+    /**
+     * Asks "This site" (first, so OK takes it) or "All sites" for [mode], when the page is a web page and the choice
+     * changes something; [changed]: the custom text changed, which counts as a change for every site using it.
+     */
+    private fun pickScope(url: String?, mode: String, changed: Boolean = false) {
+        val host = Browser.hostOf(url)?.takeIf { Browser.isWebUrl(url) }
+        if (host == null) { setAllSites(null, mode); return }
+        if (mode == s.browser.browseAs(url) && !changed) { dismiss(); return }
+        val site = SiteModes.siteOf(host) ?: host
+        val label = activity.resources.getStringArray(R.array.user_agents).getOrElse(Prefs.UA_MODES.indexOf(mode)) { mode }.removeSuffix("…")
+        s.dialog().setTitle(activity.getString(R.string.browse_as_scope_title, label))
+            .setItems(arrayOf(activity.getString(R.string.browse_as_this_site, site), activity.getString(R.string.browse_as_all_sites))) { _, which ->
+                if (which == 0) setThisSite(host, mode) else setAllSites(host, mode)
+            }.show()
+    }
+
+    /** This site only: stored, or in private browsing kept until it ends. */
+    private fun setThisSite(host: String, mode: String) {
+        val private = s.browser.privateMode
+        BrowseAs.sites(activity).choose(host, mode, prefs.userAgent, private)
+        if (private) s.toast(R.string.browse_as_site_private)
+        applied()
+    }
+
+    /** The setting, for every site without a choice of its own; the site in front ([host]) drops its own too. */
+    private fun setAllSites(host: String?, mode: String) {
         prefs.userAgent = mode
-        s.web?.let { WebViews.applyUserAgent(it, mode, prefs.customUserAgent); s.browser.reload() }
+        host?.let { BrowseAs.sites(activity).follow(it) }
+        applied()
+    }
+
+    /**
+     * The page in front loads again as chosen. Every other tab presents its own site's choice from its next load on; a
+     * page loading meanwhile starts over (WebView reloads a loading page whose user agent changes).
+     */
+    private fun applied() {
+        s.tabs.list.forEach { it.browser.browseAsChanged() }
+        s.browser.reload()
         dismiss()
     }
 }

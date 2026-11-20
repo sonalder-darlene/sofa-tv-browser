@@ -46,8 +46,10 @@ class BrowserMenu(context: Context, private val actions: Actions, val layout: Ar
         /** Requests, pop-ups and redirects blocked on this page. */
         val blocked: Int,
         val desktop: Boolean,
-        /** What "Browse as" is set to, as Settings names it, for a screen reader. */
+        /** What the page is browsed as, as Settings names the mode. */
         val browseAs: String,
+        /** The page's site has its own "Browse as" (not the setting's). */
+        val browseAsHere: Boolean = false,
         val pointer: Boolean,
         val zoomPercent: Int,
         val privateMode: Boolean,
@@ -183,9 +185,11 @@ class BrowserMenu(context: Context, private val actions: Actions, val layout: Ar
             b.visibility = if (s.privateMode) android.view.View.GONE else android.view.View.VISIBLE
             b.set(R.drawable.ic_autoplay, context.getString(if (s.autoWatchHere) R.string.auto_watch_on else R.string.auto_watch_off))
         }
+        // The mode shows in the label, as the other buttons show theirs; a site's own choice says so.
+        val browseAs = if (s.browseAsHere) context.getString(R.string.browse_as_here, s.browseAs) else s.browseAs
         buttons[Action.USER_AGENT]?.set(if (s.desktop) R.drawable.ic_desktop_windows else R.drawable.ic_smartphone,
-            context.getString(R.string.user_agent))
-        buttons[Action.USER_AGENT]?.let { A11y.state(it, context.getString(R.string.user_agent), s.browseAs) }
+            context.getString(R.string.browse_as_value, browseAs))
+        buttons[Action.USER_AGENT]?.let { A11y.state(it, context.getString(R.string.user_agent), browseAs) }
         buttons[Action.POINTER]?.set(if (s.pointer) R.drawable.ic_mouse else R.drawable.ic_keyboard,
             context.getString(if (s.pointer) R.string.pointer_on else R.string.pointer_off))
         zoomLabel?.text = context.getString(R.string.percent, s.zoomPercent)

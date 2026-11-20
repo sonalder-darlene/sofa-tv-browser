@@ -17,8 +17,8 @@ Everything Sofa does, what it sends where, and how its blocking and video work. 
   and whether they are on, the PIN and a video's position say their value as it changes, and with TalkBack on,
   pages open without the pointer, so the arrows move between links.
 - **A menu on the Back key**: address, Watch, back and forward, find in page, bookmarks, history, zoom, ad
-  blocking per site, and "Browse as" desktop, mobile or TV. Settings → Menu buttons puts its buttons in your order
-  and hides the ones you don't use.
+  blocking per site, and "Browse as" desktop, mobile or TV, for every site or for this one. Settings → Menu buttons
+  puts its buttons in your order and hides the ones you don't use.
 - **A home screen** with your own tiles, your most visited sites, and your bookmarks and their folders. Settings →
   Start page reorders and hides its rows and buttons, and shows up to 48 bookmarks; Settings → Start page
   background gives it a colour, a gradient or your own picture (up to 4K). Settings → Open at start has Sofa start

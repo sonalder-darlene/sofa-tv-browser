@@ -14,6 +14,7 @@ import android.os.SystemClock
 import android.view.Display
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.util.Log
 import android.view.View
 import android.webkit.PermissionRequest
 import android.webkit.RenderProcessGoneDetail
@@ -142,6 +143,10 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
         // Same trick as BrowsHere: a desktop-ish ~1130-1500 CSS px viewport that stays readable from the sofa.
         view.setInitialScale((85 * if (density >= 1) minOf(density, 2f) else density).toInt())
         WebViews.configure(view, prefs)
+        // A new WebView starts with the setting; the first address switches it to its site's choice.
+        presented = null
+        web = view
+        presentAs(null)
         applyGpc(view)
         // Fresh random names per view for everything injected into pages (see PageKey).
         val key = PageKey()
@@ -179,7 +184,6 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
         view.webViewClient = client
         view.webChromeClient = chrome
         view.setDownloadListener { url, ua, disposition, mime, length -> host.onDownload(url, ua, disposition, mime, length) }
-        web = view
         return view
     }
 
@@ -196,7 +200,68 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
 
     fun applySettings() {
         web?.let { WebViews.configure(it, prefs); applyGpc(it) }
+        browseAsChanged()
     }
+
+    /** The setting, the custom text or a site's own choice may have changed: presented again, for the next load. */
+    fun browseAsChanged() {
+        presented = null
+        presentAs(web?.url)
+    }
+
+    // "Browse as", per site (BrowseAs): a WebView has one user agent for the page and all its frames, so the tab presents
+    // the main frame's site's choice, switched before each navigation to a site with another one.
+
+    /** What this tab's WebView presents itself as: a [Prefs.UA_MODES] mode, with the text for "custom"; null until set. */
+    private var presented: String? = null
+
+    /** What the WebView presents now, for a page dropped and brought back ([presentedFor]). */
+    val presentedAs: String? get() = presented
+
+    /** The mode [url]'s site is browsed as in this tab; the setting's for an address without a site. */
+    fun browseAs(url: String?): String =
+        BrowseAs.sites(context).mode(hostOf(url).takeIf { isWebUrl(url) }, privateMode, prefs.userAgent)
+
+    /** Whether [url]'s site has a choice of its own, as this tab sees it. */
+    fun ownBrowseAs(url: String?): Boolean = isWebUrl(url) && BrowseAs.sites(context).own(hostOf(url), privateMode) != null
+
+    private fun presentKey(mode: String) = if (mode == "custom") "custom:" + prefs.customUserAgent else mode
+
+    /** What [presentAs] would make the WebView present for [url]. */
+    fun presentedFor(url: String?): String? = if (!isWebUrl(url) && presented != null) presented else presentKey(browseAs(url))
+
+    /**
+     * Makes the WebView present [url]'s site's choice; true when that changed it. An address without a site keeps what is
+     * presented, except on a new WebView, which starts with the setting. [leaving]: the page is about to be left, so a
+     * load under way stops first; WebView reloads a loading page whose user agent changes, and that reload would reach
+     * the old site once more.
+     */
+    fun presentAs(url: String?, leaving: Boolean = false): Boolean {
+        val w = web ?: return false
+        if (!isWebUrl(url) && presented != null) return false
+        val mode = browseAs(url)
+        val key = presentKey(mode)
+        if (key == presented) return false
+        if (leaving) w.stopLoading()
+        WebViews.applyUserAgent(w, mode, prefs.customUserAgent)
+        if (app.sofabrowser.BuildConfig.DEBUG) Log.d("SofaBrowseAs", "present $mode for ${hostOf(url)} (was ${presented?.substringBefore(':')})")
+        presented = key
+        return true
+    }
+
+    /**
+     * Loads [url] in this tab: Sofa's own navigations (typed, bookmarks, tiles, tabs, windows the user let open) and the
+     * ones it starts again for "Browse as". Older WebViews can't add Sec-GPC to every request; these at least carry it.
+     */
+    fun load(url: String) {
+        val w = web ?: return
+        presentAs(url, leaving = true)
+        if (prefs.sendGpc && !WebViewFeature.isFeatureSupported(WebViewFeature.CUSTOM_REQUEST_HEADERS)) w.loadUrl(url, mapOf("Sec-GPC" to "1"))
+        else w.loadUrl(url)
+    }
+
+    /** Navigations stopped and started again for "Browse as" since the last page started; see [switchBrowseAs]. */
+    private var restarts = 0
 
     @SuppressLint("RequiresFeature") // MULTI_PROFILE is checked via profilesSupported
     private fun applyGpc(view: WebView) {
@@ -215,6 +280,12 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
             pageHost = AdBlocker.hostOf(url)
             pageUrl = url
             guard.pageStarted()
+            restarts = 0
+            // A form sent to another site, or the page's own history.back(), never passes shouldOverrideUrlLoading: such
+            // a page loads as the page before it was presented, and the next navigation switches.
+            if (app.sofabrowser.BuildConfig.DEBUG && isWebUrl(url) && presentedFor(url) != presented) {
+                Log.d("SofaBrowseAs", "not switched: $url started as ${presented?.substringBefore(':')}, its site wants ${browseAs(url)}")
+            }
             frames.clear()
             host.onPlaying(false)
             host.onPageStarted(url)
@@ -286,12 +357,12 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
             return when (url.scheme?.lowercase()) {
                 "http", "https" -> (request.isForMainFrame && blockNavigation(view, request)).also { blocked ->
                     if (request.isForMainFrame && !blocked) mainFrameTarget = url.toString()
-                }
+                } || request.isForMainFrame && switchBrowseAs(view, request)
                 "about", "data", "blob", "javascript", null -> false
                 "intent" -> {
                     // Never launch other apps from web content; follow the page's own web fallback if it has one.
                     val fallback = runCatching { Intent.parseUri(url.toString(), Intent.URI_INTENT_SCHEME).getStringExtra("browser_fallback_url") }.getOrNull()
-                    if (fallback != null && (fallback.startsWith("https://") || fallback.startsWith("http://"))) view.loadUrl(fallback)
+                    if (fallback != null && (fallback.startsWith("https://") || fallback.startsWith("http://"))) view.post { if (web === view) load(fallback) }
                     else host.onBlockedLink(url.toString())
                     true
                 }
@@ -461,7 +532,7 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
         } else {
             // The window came from a press, so its redirects are the user's too.
             guard.userNavigation()
-            view.loadUrl(url)
+            load(url)
         }
     }
 
@@ -483,6 +554,22 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
     }
 
     private var chainHost: String? = null
+
+    /**
+     * A main-frame navigation the page started (a link, a script, a server redirect) to a site with another "Browse as".
+     * WebView can't switch the user agent of a navigation under way: switched here, it reloads the page being left
+     * instead. So the navigation stops (true) and starts again from Sofa with the site's choice, as a plain GET without
+     * a Referer. Its redirects stay the page's (no userNavigation), as the pop-up rules judged them. At most
+     * [MAX_RESTARTS] times before a page starts, so two sites redirecting to each other can't go on forever.
+     */
+    private fun switchBrowseAs(view: WebView, request: WebResourceRequest): Boolean {
+        val url = request.url.toString()
+        if (presentedFor(url) == presented || restarts >= MAX_RESTARTS) return false
+        restarts++
+        if (app.sofabrowser.BuildConfig.DEBUG) Log.d("SofaBrowseAs", "start again: ${if (request.isRedirect) "redirect" else "navigation"} to $url")
+        view.post { if (web === view) load(url) }
+        return true
+    }
 
     /**
      * What the last press landed on, from WebView's own hit test (no page script involved): a link's address (for a
@@ -535,9 +622,12 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
     }
 
     // History moves and reloads are the user's own navigations too.
-    fun goBack() { guard.userNavigation(); web?.goBack() }
-    fun goForward() { guard.userNavigation(); web?.goForward() }
+    fun goBack() { guard.userNavigation(); presentAs(historyUrl(-1), leaving = true); web?.goBack() }
+    fun goForward() { guard.userNavigation(); presentAs(historyUrl(1), leaving = true); web?.goForward() }
     fun reload() { guard.userNavigation(); web?.reload() }
+
+    /** The address [steps] away in the tab's back and forward list, or null. */
+    private fun historyUrl(steps: Int): String? = backList()?.let { (urls, at) -> urls.getOrNull(at + steps) }
 
     /** Reloads a page whose site the user just allowed from the block screen: unlike a plain reload, a visit. */
     fun reloadAllowed() { allowedReload = web?.url; reload() }
@@ -556,6 +646,7 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
         val (urls, at) = backList() ?: return false
         val steps = BlockedHistory.back(urls, at, ::blockedSite) ?: return false
         guard.userNavigation()
+        presentAs(urls.getOrNull(at + steps), leaving = true)
         web?.goBackOrForward(steps)
         return true
     }
@@ -613,6 +704,8 @@ class Browser(private val context: Context, private val prefs: Prefs, private va
 
     companion object {
         private const val PRIVATE_PROFILE = "private"
+        /** Navigations started again for "Browse as" before a page starts (switchBrowseAs). */
+        private const val MAX_RESTARTS = 5
         /** What a blocked site's page is replaced with, under the block screen: empty, dark, and titled with nothing. */
         private val BLOCKED_PAGE = "<!doctype html><meta name=color-scheme content=dark><title></title><body style=background:#121212>".toByteArray()
         private val PRESS_KEYS = setOf(KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER,

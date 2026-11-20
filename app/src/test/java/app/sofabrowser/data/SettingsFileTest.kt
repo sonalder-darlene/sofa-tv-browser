@@ -159,4 +159,18 @@ class SettingsFileTest {
     @Test fun namesAreChecked() {
         assertEquals(listOf("a.example", "b.example"), SettingsFile.cleanNames(listOf("a.example", "", "b.example", "a.example", "c d")))
     }
+
+    @Test fun takesBrowseAsForSitesWithKnownModesOnly() {
+        assertEquals(
+            listOf("example.com" to "webview", "b.example" to "mobile"),
+            SettingsFile.cleanBrowseAs(listOf(
+                "www.example.com" to "webview",
+                "example.com" to "desktop", // the same site again: the first one counts
+                "b.example" to "mobile",
+                "c.example" to "netscape",
+                "" to "desktop",
+                "c d" to "desktop",
+            )),
+        )
+    }
 }

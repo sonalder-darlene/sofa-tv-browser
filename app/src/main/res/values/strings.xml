@@ -109,6 +109,21 @@
     <string name="find_count">%1$d of %2$d</string>
     <string name="user_agent">Browse as</string>
     <string name="custom_user_agent">Custom user agent</string>
+    <string name="user_agent_sub">For every site without a choice of its own. Choose for one site from the page menu.</string>
+    <string name="browse_as_value">Browse as: %s</string>
+    <string name="browse_as_here">%s (this site)</string>
+    <string name="browse_as_scope_title">Browse as %s</string>
+    <string name="browse_as_this_site">This site (%s)</string>
+    <string name="browse_as_all_sites">All sites</string>
+    <string name="browse_as_site_private">For this site until private browsing ends</string>
+    <string name="browse_as_sites">Sites with their own Browse as</string>
+    <plurals name="browse_as_sites_count">
+        <item quantity="one">%d site. Choose one to remove its choice.</item>
+        <item quantity="other">%d sites. Choose one to remove its choice.</item>
+    </plurals>
+    <string name="browse_as_sites_pick">Choose a site to browse it as every other site</string>
+    <string name="browse_as_site_item">%1$s: %2$s</string>
+    <string name="browse_as_site_removed">%s follows Browse as again</string>
     <string name="scroll_mode">Scroll mode</string>
     <string name="scroll_mode_hint">Scroll mode · ↑↓←→ scroll · OK or Back to exit</string>
     <string name="pointer">Pointer</string>

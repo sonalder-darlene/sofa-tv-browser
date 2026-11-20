@@ -56,6 +56,7 @@ class LabeledIconButton(context: Context, icon: Int, label: String, onClick: () 
         text.text = label
         contentDescription = label
         tint(hasFocus())
+        if (hasFocus()) text.post(::keepOnScreen)
     }
 
     fun setEnabledLook(enabled: Boolean) {
@@ -67,14 +68,34 @@ class LabeledIconButton(context: Context, icon: Int, label: String, onClick: () 
     private fun focused(has: Boolean) {
         if (has) onFocused?.invoke()
         text.visibility = if (has) VISIBLE else INVISIBLE
+        if (has) text.post(::keepOnScreen)
         tint(has)
         Ui.animateScale(circle, if (has) 1.12f else 1f, has)
+    }
+
+    /** A button at the row's edge shifts its label inwards, so a long one (a state, a site's choice) shows whole. */
+    private fun keepOnScreen() {
+        text.translationX = 0f
+        val shown = text.paint.measureText(text.text.toString()).coerceAtMost(text.width.toFloat())
+        val at = IntArray(2).also(text::getLocationOnScreen)
+        val left = at[0] + (text.width - shown) / 2
+        // What the row shows of itself (it, or a scrolling parent, cuts off whatever lies beyond), else the screen.
+        val area = android.graphics.Rect(0, 0, resources.displayMetrics.widthPixels, 0)
+        (parent as? android.view.View)?.getGlobalVisibleRect(area)
+        val edge = EDGE.px.toFloat()
+        text.translationX = when {
+            left + shown > area.right - edge -> area.right - edge - left - shown
+            left < area.left + edge -> area.left + edge - left
+            else -> 0f
+        }
     }
 
     private fun tint(focused: Boolean) = image.setColorFilter(if (focused) Ui.p.onFocus else Ui.p.text)
 
     companion object {
         const val WIDTH = 104
-        private const val LABEL_WIDTH = 320
+        private const val LABEL_WIDTH = 520
+        /** The least space between a label and the edge of its row. */
+        private const val EDGE = 8
     }
 }

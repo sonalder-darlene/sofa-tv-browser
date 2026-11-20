@@ -40,6 +40,22 @@
 - **A new listed service: Digitale Gesellschaft** (Switzerland), unfiltered, in the Private group after
   UncensoredDNS. A non-profit for digital rights runs it, and it stores no lookups.
 
+**Browse as**
+
+- **Browse as for one site.** Choosing a mode under "Browse as" in the page menu now asks "This site" or "All
+  sites", with This site first. A site's own choice covers its whole page, frames from other sites in it included,
+  and what Sofa fetches for it: Sofa Player, "Play in…" and downloads. Every other site follows the Browse as setting,
+  which "All sites" changes. The menu button says "(this site)" when the page has a choice of its own; Settings →
+  Sites with their own Browse as lists them, and choosing one there makes it follow the setting again.
+- A site is the name it is registered under, so `www.example.co.uk` and `example.co.uk` share one choice. Each tab
+  presents its own page's choice.
+- When a page leads to a site with another choice, by a link, a script or a redirect, Sofa stops that load and
+  starts it again as the new site wants, without telling the site which page it came from. A form sent to such a
+  site, and a page that goes back by itself, load as the page before; the next page is right again.
+- In private browsing, a choice for one site lasts until private browsing ends and is never stored.
+- Settings backup keeps the sites' choices. Sofa 1.3.0 reads such a backup and leaves them out.
+- A menu button at the edge of its row moves its label inwards, so a long one shows whole.
+
 ## 1.3.0 (2026-11-08)
 
 **Site filters**

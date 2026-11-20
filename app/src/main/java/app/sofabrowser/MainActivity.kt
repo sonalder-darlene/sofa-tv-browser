@@ -24,11 +24,11 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
-import androidx.webkit.WebViewFeature
 import app.sofabrowser.adblock.Allowlist
 import app.sofabrowser.adblock.FilterList
 import app.sofabrowser.adblock.SiteAllowlist
 import app.sofabrowser.adblock.Sites
+import app.sofabrowser.browser.BrowseAs
 import app.sofabrowser.browser.Browser
 import app.sofabrowser.browser.CursorLayout
 import app.sofabrowser.browser.FullscreenLayer
@@ -250,12 +250,7 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
 
     private fun load(url: String) {
         browser.userNavigation()
-        // Older WebViews can't add Sec-GPC to every request; at least send it with navigations we start.
-        if (prefs.sendGpc && !WebViewFeature.isFeatureSupported(WebViewFeature.CUSTOM_REQUEST_HEADERS)) {
-            web?.loadUrl(url, mapOf("Sec-GPC" to "1"))
-        } else {
-            web?.loadUrl(url)
-        }
+        browser.load(url)
     }
 
     /** Shows the tab in sight's page, loading it again when it was unloaded, or the start page when it has none. */
@@ -268,7 +263,9 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
         browser.forgetHeld()
         showBrowser(wakeSound = false)
         browser.userNavigation()
-        if (!tab.bringBack(web ?: return)) load(url)
+        // Its history comes back only as it was presented then: with "Browse as" changed meanwhile, it loads anew.
+        browser.presentAs(url)
+        if (!tab.bringBack(web ?: return, browser.presentedAs)) load(url)
     }
 
     // Tabs
@@ -910,10 +907,11 @@ class MainActivity : Activity(), HomeView.Listener, Browser.Host, CursorLayout.L
 
     // Helpers
 
-    /** What private browsing let through (sites in Site filters, ads on a site) lasts only as long as it. */
+    /** What private browsing let through (sites in Site filters, ads on a site) or chose ("Browse as" for a site) lasts as long as it. */
     private fun forgetPrivateAllows() {
         SiteAllowlist.forgetPrivate()
         Allowlist.forgetPrivate()
+        BrowseAs.forgetPrivate()
     }
 
     override fun toast(res: Int) = Toast.makeText(this, res, Toast.LENGTH_SHORT).show()

@@ -31,6 +31,8 @@ class Tab(private: Boolean, newBrowser: (Tab, Boolean) -> Browser) {
     private var keptAddress: String? = null
     private var keptTitle: String? = null
     private var keptHistory: Bundle? = null
+    /** What the dropped page was presented as ("Browse as"), so it comes back only the same way. */
+    private var keptAs: String? = null
 
     /** The page's WebView exists. */
     val live get() = browser.web != null
@@ -54,13 +56,17 @@ class Tab(private: Boolean, newBrowser: (Tab, Boolean) -> Browser) {
         keptAddress = w.url?.takeIf { it.isNotEmpty() } ?: keptAddress
         keptTitle = browser.title
         keptHistory = if (history) Bundle().takeIf { w.saveState(it) != null } else null
+        keptAs = browser.presentedAs
         browser.destroy()
         loading = false
     }
 
-    /** Loads the kept page into [view], a WebView just made for this tab: false when its history couldn't come back. */
-    fun bringBack(view: WebView): Boolean {
-        val history = keptHistory
+    /**
+     * Loads the kept page into [view], a WebView just made for this tab and presented as [presented] ("Browse as"): false
+     * when its history couldn't come back, or was kept while presented otherwise (its pages would load as they were).
+     */
+    fun bringBack(view: WebView, presented: String?): Boolean {
+        val history = keptHistory.takeIf { keptAs == presented }
         forget()
         return history != null && view.restoreState(history) != null
     }
@@ -70,6 +76,7 @@ class Tab(private: Boolean, newBrowser: (Tab, Boolean) -> Browser) {
         keptAddress = null
         keptTitle = null
         keptHistory = null
+        keptAs = null
     }
 
     fun close() {
