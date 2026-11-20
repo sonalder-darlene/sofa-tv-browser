@@ -11,7 +11,7 @@ class DnsProvidersTest {
     fun providersAreRankedFromMostToLeastPrivate() {
         // The ranking is deliberate: tiers in this order, and providers in this order inside each tier.
         val expected = linkedMapOf(
-            Tier.PRIVATE to listOf("Quad9", "UncensoredDNS", "HaGeZi DNS", "dnsforge.de"),
+            Tier.PRIVATE to listOf("Quad9", "UncensoredDNS", "Digitale Gesellschaft", "HaGeZi DNS", "dnsforge.de"),
             Tier.TRADE_OFFS to listOf("Cloudflare", "DNS.SB", "AdGuard DNS", "CleanBrowsing"),
             Tier.LIMITED to listOf("Bancuh", "Tiarap", "Control D"),
             Tier.UTILITY to listOf("Google Public DNS", "DNS4EU", "OpenDNS", "DNS for Family"),

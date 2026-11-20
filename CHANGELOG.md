@@ -37,6 +37,8 @@
 - When the TV's network changes, connections to the chosen DNS that were kept open are closed too.
 - In Sofa 1.3.0, a settings backup with a DNS over TLS or plain DNS address leaves that DNS out and says how many
   settings it left out.
+- **A new listed service: Digitale Gesellschaft** (Switzerland), unfiltered, in the Private group after
+  UncensoredDNS. A non-profit for digital rights runs it, and it stores no lookups.
 
 ## 1.3.0 (2026-11-08)
 

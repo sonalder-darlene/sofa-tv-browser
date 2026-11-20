@@ -41,6 +41,8 @@ object DnsProviders {
         DnsProvider("uncensoreddns", "UncensoredDNS", R.string.dns_unfiltered, R.string.dns_about_uncensoreddns, Tier.PRIVATE, listOf(
             doh("https://anycast.uncensoreddns.org/dns-query", "91.239.100.100", "2001:67c:28a4::"),
             doh("https://unicast.uncensoreddns.org/dns-query", "89.233.43.71", "2a01:3a0:53:53::"))),
+        DnsProvider("digitalegesellschaft", "Digitale Gesellschaft", R.string.dns_unfiltered, R.string.dns_about_digitalegesellschaft, Tier.PRIVATE, listOf(
+            doh("https://dns.digitale-gesellschaft.ch/dns-query", "185.95.218.42", "185.95.218.43", "2a05:fc84::42", "2a05:fc84::43"))),
         DnsProvider("hagezi", "HaGeZi DNS", R.string.dns_blocks_ads_malware, R.string.dns_about_hagezi, Tier.PRIVATE, listOf(
             doh("https://root.hagezi.org/dns-query", "188.34.161.210", "2a01:4f8:c17:1c66::1"),
             doh("https://wurzn.hagezi.org/dns-query", "159.69.155.94", "2a01:4f8:1c1c:d363::1"),

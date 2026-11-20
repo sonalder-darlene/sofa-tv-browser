@@ -90,7 +90,7 @@ Each row says what it blocks, and services that offer a filtered and an unfilter
 
 | Group | Services |
 |---|---|
-| Private | Quad9, UncensoredDNS, HaGeZi DNS, dnsforge.de |
+| Private | Quad9, UncensoredDNS, Digitale Gesellschaft, HaGeZi DNS, dnsforge.de |
 | Private with trade-offs | Cloudflare 1.1.1.1, DNS.SB, AdGuard DNS, CleanBrowsing |
 | Limited privacy | Bancuh, Tiarap, Control D |
 | Utility-first | Google Public DNS, DNS4EU, OpenDNS, DNS for Family |

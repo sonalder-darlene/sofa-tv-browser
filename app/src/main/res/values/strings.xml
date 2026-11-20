@@ -387,6 +387,7 @@
     <string name="dns_blocks_family_cleanbrowsing">Blocks adult sites, proxies, VPNs and malware; forces SafeSearch</string>
     <string name="dns_about_quad9">Swiss non-profit; doesn\'t record IP addresses</string>
     <string name="dns_about_uncensoreddns">Run by one person in Denmark; logs nothing</string>
+    <string name="dns_about_digitalegesellschaft">Swiss digital-rights non-profit; stores no lookups</string>
     <string name="dns_about_hagezi">Run by one person in Germany; no query logs</string>
     <string name="dns_about_dnsforge">adminForge, Germany; no query logs</string>
     <string name="dns_about_cloudflare">Cloudflare, USA; logs deleted within 25 hours</string>
