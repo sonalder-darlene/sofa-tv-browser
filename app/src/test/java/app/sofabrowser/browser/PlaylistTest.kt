@@ -6,13 +6,13 @@ import org.junit.Test
 
 class PlaylistTest {
 
-    // Shortened from Dailymotion's real master (2026-10-25): demuxed audio, subtitles, H.264 and AV1 variants.
+    // Shaped like a real site's master: demuxed audio, subtitles, H.264 variants, hosts and paths made neutral.
     private val master = """
         #EXTM3U
-        #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="0_aac_q2",LANGUAGE="zho",NAME="中文",AUTOSELECT=YES,DEFAULT=YES,URI="https://vod3.cf.dmcdn.net/sec2(x)/video/fmp4/1/aac_q2_0/3/manifest.m3u8"
+        #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="0_aac_q2",LANGUAGE="spa",NAME="Español",AUTOSELECT=YES,DEFAULT=YES,URI="https://media.test/sec2(x)/video/fmp4/1/aac_q2_0/3/manifest.m3u8"
         #EXT-X-STREAM-INF:BANDWIDTH=6221600,CODECS="mp4a.40.2,avc1.640028",RESOLUTION=1920x816,NAME="1080",SUBTITLES="subtitles",AUDIO="0_aac_q2"
-        https://vod3.cf.dmcdn.net/sec2(x)/video/fmp4/1/h264_fhd/3/manifest.m3u8#cell=cf3
-        #EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subtitles",LANGUAGE="km",NAME="km",URI="https://www.dailymotion.com/cdn/subtitle/video/x/km.m3u8?sec=y"
+        https://media.test/sec2(x)/video/fmp4/1/h264_fhd/3/manifest.m3u8#cell=cf3
+        #EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subtitles",LANGUAGE="es",NAME="es",URI="https://www.example.com/cdn/subtitle/video/x/es.m3u8?sec=y"
     """.trimIndent()
 
     @Test
@@ -52,13 +52,13 @@ class PlaylistTest {
         assertEquals("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\n\n#EXT-X-MAP:URI=\"\"",
             Playlist.absolute("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nfile:///sdcard/a.m3u8\n#EXT-X-MAP:URI=\"content://x/y\"", "https://cdn.test/m.m3u8"))
         // Already absolute: unchanged.
-        assertEquals(master, Playlist.absolute(master, "https://cdndirector.dailymotion.com/cdn/manifest/video/x.m3u8"))
+        assertEquals(master, Playlist.absolute(master, "https://manifest.test/cdn/manifest/video/x.m3u8"))
     }
 
     // The copy for another player drops variants the TV can't decode in hardware (here: AV1), while others remain.
     private val withAv1 = """
         #EXTM3U
-        #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="中文",URI="https://cdn.test/aac/manifest.m3u8"
+        #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="Español",URI="https://cdn.test/aac/manifest.m3u8"
         #EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="fr",URI="https://cdn.test/subs/fr.m3u8"
         #EXT-X-STREAM-INF:BANDWIDTH=6221600,CODECS="mp4a.40.2,avc1.640028",RESOLUTION=1920x816,AUDIO="a",SUBTITLES="subs"
         https://cdn.test/h264_fhd/manifest.m3u8
@@ -73,7 +73,7 @@ class PlaylistTest {
     fun undecodableVariantsAreLeftOut() {
         assertEquals("""
             #EXTM3U
-            #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="中文",URI="https://cdn.test/aac/manifest.m3u8"
+            #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="Español",URI="https://cdn.test/aac/manifest.m3u8"
             #EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="fr",URI="https://cdn.test/subs/fr.m3u8"
             #EXT-X-STREAM-INF:BANDWIDTH=6221600,CODECS="mp4a.40.2,avc1.640028",RESOLUTION=1920x816,AUDIO="a",SUBTITLES="subs"
             https://cdn.test/h264_fhd/manifest.m3u8
@@ -114,8 +114,8 @@ class PlaylistTest {
         val body = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"https://keys.test/k\"\n#EXT-X-MAP:URI=\"https://cdn.test/init.mp4\"\n" +
             "#EXTINF:4,\n  https://cdn.test/0.m4s  \n\n#EXT-X-MEDIA:TYPE=AUDIO,URI=\"\"\n#EXT-X-ENDLIST"
         assertEquals(listOf("https://keys.test/k", "https://cdn.test/init.mp4", "https://cdn.test/0.m4s"), Playlist.addresses(body))
-        assertEquals(listOf("https://vod3.cf.dmcdn.net/sec2(x)/video/fmp4/1/aac_q2_0/3/manifest.m3u8",
-            "https://vod3.cf.dmcdn.net/sec2(x)/video/fmp4/1/h264_fhd/3/manifest.m3u8#cell=cf3",
-            "https://www.dailymotion.com/cdn/subtitle/video/x/km.m3u8?sec=y"), Playlist.addresses(master))
+        assertEquals(listOf("https://media.test/sec2(x)/video/fmp4/1/aac_q2_0/3/manifest.m3u8",
+            "https://media.test/sec2(x)/video/fmp4/1/h264_fhd/3/manifest.m3u8#cell=cf3",
+            "https://www.example.com/cdn/subtitle/video/x/es.m3u8?sec=y"), Playlist.addresses(master))
     }
 }
