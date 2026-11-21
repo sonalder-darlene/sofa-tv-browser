@@ -301,4 +301,67 @@ class BookmarkFileTest {
         assertEquals(BookmarkFile.MAX_ENTRIES, c.entries.size)
         assertEquals(5, c.skipped)
     }
+
+    /** Trimmed from files Firefox 160 and Chromium 158 wrote themselves (example data). */
+    private val firefoxWritten = """
+        <!DOCTYPE NETSCAPE-Bookmark-file-1>
+        <TITLE>Bookmarks</TITLE>
+        <H1>Bookmarks Menu</H1>
+
+        <DL><p>
+            <DT><H3 ADD_DATE="1795280814" LAST_MODIFIED="1795280814">News &amp; weather</H3>
+            <DL><p>
+                <DT><A HREF="https://example.org/news?a=1&amp;b=2" ADD_DATE="1795280814" LAST_MODIFIED="1795280814">News &quot;quoted&quot; &lt;tag&gt;</A>
+                <HR>        <DT><H3 ADD_DATE="1795280814" LAST_MODIFIED="1795280814">Deep</H3>
+                <DL><p>
+                    <DT><A HREF="https://example.net/deep" ADD_DATE="1795280814" LAST_MODIFIED="1795280814">Ünïcödé ✓ 日本</A>
+                    <DT><H3 ADD_DATE="1795280814" LAST_MODIFIED="1795280814">Empty folder</H3>
+                    <DL><p>
+                    </DL><p>
+                </DL><p>
+            </DL><p>
+            <DT><H3 ADD_DATE="1795280739" LAST_MODIFIED="1795280833" UNFILED_BOOKMARKS_FOLDER="true">Other Bookmarks</H3>
+            <DL><p>
+                <DT><H3 ADD_DATE="1795280833" LAST_MODIFIED="1795280833">Other folder</H3>
+                <DL><p>
+                    <DT><A HREF="https://example.com/other/inner" ADD_DATE="1795280833" LAST_MODIFIED="1795280833"></A>
+                </DL><p>
+            </DL><p>
+        </DL>
+    """.trimIndent()
+
+    private val chromiumWritten = """
+        <!DOCTYPE NETSCAPE-Bookmark-file-1>
+        <TITLE>Bookmarks</TITLE>
+        <H1>Bookmarks</H1>
+        <DL><p>
+            <DT><H3 ADD_DATE="1795280864" LAST_MODIFIED="1795280878" PERSONAL_TOOLBAR_FOLDER="true">Bookmarks bar</H3>
+            <DL><p>
+                <DT><H3 ADD_DATE="1795280878" LAST_MODIFIED="1795280878">News &amp; weather</H3>
+                <DL><p>
+                    <DT><A HREF="https://example.org/news?a=1&b=2" ADD_DATE="1795280878">News &quot;quoted&quot; &lt;tag&gt;</A>
+                </DL><p>
+                <DT><A HREF="javascript:alert(1)" ADD_DATE="1795280878">A bookmarklet</A>
+            </DL><p>
+            <DT><A HREF="https://example.com/other" ADD_DATE="1795280878">Other one</A>
+        </DL><p>
+    """.trimIndent()
+
+    @Test fun filesTheBrowsersWroteThemselves() {
+        // Firefox puts the next line after a separator on the separator's own line.
+        val firefox = BookmarkFile.read(firefoxWritten, now)
+        assertEquals(listOf(
+            Triple("News \"quoted\" <tag>", "https://example.org/news?a=1&b=2", listOf("News & weather")),
+            Triple("Ünïcödé ✓ 日本", "https://example.net/deep", listOf("News & weather", "Deep")),
+            Triple("https://example.com/other/inner", "https://example.com/other/inner", listOf("Other Bookmarks", "Other folder")),
+        ), firefox.entries.map { Triple(it.title, it.url, it.folder) })
+        assertEquals(1_795_280_814_000L, firefox.entries.first().added)
+        // Chromium leaves "&" in an address as it is, and writes "Other bookmarks" at the top without a folder.
+        val chromium = BookmarkFile.read(chromiumWritten, now)
+        assertEquals(listOf(
+            Triple("News \"quoted\" <tag>", "https://example.org/news?a=1&b=2", listOf("News & weather")),
+            Triple("Other one", "https://example.com/other", emptyList()),
+        ), chromium.entries.map { Triple(it.title, it.url, it.folder) })
+        assertEquals(1, chromium.skipped)
+    }
 }
