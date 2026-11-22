@@ -67,6 +67,10 @@
 - Sofa has a second way to tell that a screen reader is on, for when Android's list of running services comes back
   empty.
 
+**Smaller things**
+
+- The old-WebView warning now starts below version 146.
+
 ## 1.3.0 (2026-11-08)
 
 **Site filters**

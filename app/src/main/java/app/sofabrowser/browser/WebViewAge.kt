@@ -4,10 +4,10 @@ package app.sofabrowser.browser
 object WebViewAge {
 
     /**
-     * Versions below this get the warning: about a year of Chrome releases behind the stable one (157 on
-     * 2026-11-07). Raise it at each release.
+     * Versions below this get the warning: about a year of Chrome releases behind the stable one (159 on
+     * 2026-11-22). Raise it at each release.
      */
-    const val MINIMUM = 144
+    const val MINIMUM = 146
 
     /** How long a dismissed warning stays quiet when the version doesn't change. */
     private const val REMIND_AFTER_MS = 90L * 24 * 3600 * 1000
