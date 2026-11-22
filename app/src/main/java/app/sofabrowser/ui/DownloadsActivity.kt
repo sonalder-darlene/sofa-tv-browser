@@ -209,9 +209,8 @@ class DownloadsActivity : Activity() {
 
         private fun confirmDelete() {
             val d = current() ?: return
-            Ui.dialog(context).setMessage(getString(R.string.delete_file_confirm, d.name))
-                .setPositiveButton(R.string.delete) { _, _ -> DownloadEngine.delete(id) }
-                .setNegativeButton(R.string.cancel, null).show()
+            Ui.dialog(context).setPositiveButton(R.string.delete) { _, _ -> DownloadEngine.delete(id) }
+                .setNegativeButton(R.string.cancel, null).question(getString(R.string.delete_file_confirm, d.name)).show()
         }
 
         private fun iconFor(d: Download): Int {

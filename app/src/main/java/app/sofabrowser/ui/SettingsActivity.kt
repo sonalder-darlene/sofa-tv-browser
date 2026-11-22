@@ -353,9 +353,8 @@ class SettingsActivity : Activity() {
             val turnOn = !prop.get()
             fun apply() { prop.set(turnOn); toggle.on = turnOn; onChange?.invoke(turnOn) }
             if (!turnOn && confirmOff != null) {
-                dialog().setMessage(confirmOff)
-                    .setPositiveButton(R.string.turn_off) { _, _ -> apply() }
-                    .setNegativeButton(R.string.keep_on, null).show()
+                dialog().setPositiveButton(R.string.turn_off) { _, _ -> apply() }
+                    .setNegativeButton(R.string.keep_on, null).question(getString(confirmOff)).show()
             } else apply()
         }
         return toggle
@@ -1053,8 +1052,7 @@ class SettingsActivity : Activity() {
     }
 
     private fun clearNow() {
-        dialog().setMessage(R.string.clear_now_confirm)
-            .setPositiveButton(R.string.clear) { _, _ ->
+        dialog().setPositiveButton(R.string.clear) { _, _ ->
                 WebViews.clearBrowsingData(this, null)
                 Db.get(this).clearHistory()
                 Favicons.get(this).clear()
@@ -1065,7 +1063,7 @@ class SettingsActivity : Activity() {
                 // The saved tab list too; tabs open now stay open, like the page in sight.
                 prefs.tabs = ""
                 Toast.makeText(this, R.string.cleared, Toast.LENGTH_SHORT).show()
-            }.setNegativeButton(R.string.cancel, null).show()
+            }.setNegativeButton(R.string.cancel, null).question(getString(R.string.clear_now_confirm)).show()
     }
 
     private fun about() {

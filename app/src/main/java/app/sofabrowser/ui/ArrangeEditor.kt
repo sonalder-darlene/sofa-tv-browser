@@ -206,14 +206,13 @@ class ArrangeEditor(
     }
 
     private fun resetRow() = Ui.button(context, context.getString(texts.reset)) {
-        Ui.dialog(context).setMessage(texts.resetConfirm)
-            .setPositiveButton(R.string.menu_reset_do) { _, _ ->
+        Ui.dialog(context).setPositiveButton(R.string.menu_reset_do) { _, _ ->
                 resetAll()
                 sections.forEach { it.reload() }
                 extraValues.forEach { (extra, view) -> view.text = extra.value() }
                 refresh()
                 Toast.makeText(context, texts.resetDone, Toast.LENGTH_SHORT).show()
-            }.setNegativeButton(R.string.cancel, null).show()
+            }.setNegativeButton(R.string.cancel, null).question(context.getString(texts.resetConfirm)).show()
     }.apply {
         setOnFocusChangeListener { v, has ->
             (v as TextView).setTextColor(if (has) Ui.p.onFocus else Ui.p.textMid)

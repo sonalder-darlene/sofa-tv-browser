@@ -1,8 +1,10 @@
 package app.sofabrowser.ui
 
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.ComponentName
 import android.content.Context
 import android.os.Build
+import android.provider.Settings
 import android.view.View
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityManager
@@ -19,10 +21,21 @@ object A11y {
     const val SWITCH = "android.widget.Switch"
     const val SEEK_BAR = "android.widget.SeekBar"
 
-    /** A screen reader is on: TalkBack, or another service that speaks. */
+    /**
+     * A screen reader is on: TalkBack, or another service that speaks. Not a service that only maps keys. The list of
+     * enabled services came back empty to Sofa with TalkBack on (Android 14 TV emulator), so the installed services
+     * that speak are also checked against the setting that names the enabled ones.
+     */
     fun screenReaderOn(context: Context): Boolean {
         val am = context.getSystemService(AccessibilityManager::class.java) ?: return false
-        return am.isEnabled && am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_SPOKEN).isNotEmpty()
+        if (!am.isEnabled) return false
+        if (am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_SPOKEN).isNotEmpty()) return true
+        val enabled = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+            .orEmpty().split(':').mapNotNull { ComponentName.unflattenFromString(it) }.toSet()
+        return am.installedAccessibilityServiceList.any { info ->
+            info.feedbackType and AccessibilityServiceInfo.FEEDBACK_SPOKEN != 0 &&
+                info.resolveInfo?.serviceInfo?.let { ComponentName(it.packageName, it.name) } in enabled
+        }
     }
 
     /** [v] is only decoration, or says what a neighbour already says: a screen reader leaves it out. */

@@ -34,8 +34,8 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
-import android.widget.Toast
 import app.sofabrowser.R
+import app.sofabrowser.browser.NoticeTime
 import app.sofabrowser.browser.UrlInput
 import app.sofabrowser.data.Db
 import app.sofabrowser.data.Favicons
@@ -63,6 +63,9 @@ class ListActivity : Activity() {
     private lateinit var heading: TextView
     private lateinit var headerButtons: LinearLayout
     private lateinit var empty: TextView
+    private lateinit var notice: TextView
+    // Hidden by colour only: the words stay for a screen reader that reads the line a little late.
+    private val hideNotice = Runnable { notice.setTextColor(Color.TRANSPARENT); notice.background = null }
     private val adapter = Rows()
 
     /**
@@ -135,6 +138,15 @@ class ListActivity : Activity() {
         frame.addView(parking, FrameLayout.LayoutParams(1, 1))
         empty = Ui.text(this, 32, Ui.p.textWeak).apply { gravity = Gravity.CENTER }
         frame.addView(empty, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        // What a deletion or a move did, for a few seconds. Instead of a toast: TalkBack on a TV says no toast, but it
+        // says this line (a live region) when its text changes. It stays laid out, clear between messages.
+        notice = Ui.text(this, 26, Color.TRANSPARENT).apply {
+            setPadding(40.px, 24.px, 40.px, 24.px)
+            gravity = Gravity.CENTER
+            A11y.announced(this)
+        }
+        frame.addView(notice, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = 48.px })
         root.addView(frame, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         setContentView(root)
 
@@ -397,6 +409,23 @@ class ListActivity : Activity() {
         adapter.notifyDataSetChanged()
         showEmpty()
         focusRow(next, top)
+        notice(getString(if (history) R.string.history_entry_removed else R.string.bookmark_removed))
+    }
+
+    /**
+     * Shows [text] at the bottom for a few seconds, more for a longer text ([NoticeTime]). A moment late: Android
+     * merges changes made within ~100 ms into one event on their common parent, and TalkBack ignores that event
+     * when the parent isn't the live region, so the line must not change in the same moment as the list.
+     */
+    private fun notice(text: String) {
+        notice.removeCallbacks(hideNotice)
+        notice.postDelayed({
+            notice.background = Ui.rounded(0xE6000000.toInt(), 16)
+            notice.setTextColor(Color.WHITE)
+            notice.text = ""
+            notice.text = text
+            notice.postDelayed(hideNotice, NoticeTime.ms(text))
+        }, NOTICE_DELAY_MS)
     }
 
     private fun newFolder() {
@@ -471,7 +500,7 @@ class ListActivity : Activity() {
 
     private fun tooDeep() {
         val max = FolderTree.MAX_DEPTH
-        Toast.makeText(this, resources.getQuantityString(R.plurals.folder_too_deep, max, max), Toast.LENGTH_LONG).show()
+        notice(resources.getQuantityString(R.plurals.folder_too_deep, max, max))
     }
 
     /** Deletes [f] with what is in it, asking first when it holds anything; [here] when it is the folder on screen. */
@@ -484,7 +513,7 @@ class ListActivity : Activity() {
         val top = if (here) null else rowTopAt(at)
         val go = {
             db.deleteFolder(f.id)
-            Toast.makeText(this, R.string.folder_deleted, Toast.LENGTH_SHORT).show()
+            notice(getString(R.string.folder_deleted))
             if (here) {
                 // Out to the folder it was in; a Back that would have gone there already has nothing left to do.
                 if (trail.lastOrNull()?.folder == f.parent) trail.removeAt(trail.size - 1)
@@ -494,10 +523,9 @@ class ListActivity : Activity() {
         }
         if (folders == 0 && bookmarks == 0) return go()
         val d = Ui.dialog(this)
-            .setMessage(getString(R.string.folder_delete_confirm, f.title, FolderText.deleted(this, folders, bookmarks)))
             .setPositiveButton(R.string.delete) { _, _ -> go() }
             .setNegativeButton(R.string.cancel, null)
-            .create()
+            .question(getString(R.string.folder_delete_confirm, f.title, FolderText.deleted(this, folders, bookmarks)))
         // Nothing is lost by a press of OK on the dialog as it opens.
         d.setOnShowListener { d.getButton(AlertDialog.BUTTON_NEGATIVE).requestFocus() }
         d.show()
@@ -595,9 +623,8 @@ class ListActivity : Activity() {
             is FolderRow -> db.moveFolder(item.folder.id, to)
             else -> return
         }
-        Toast.makeText(this, getString(R.string.folder_moved_to, db.folderTree()[to]?.title ?: getString(R.string.bookmarks)),
-            Toast.LENGTH_SHORT).show()
         load(at = at, top = top)
+        notice(getString(R.string.folder_moved_to, db.folderTree()[to]?.title ?: getString(R.string.bookmarks)))
     }
 
     private fun dayLabel(t: Long): String = when (Dates.daysBetween(t, System.currentTimeMillis())) {
@@ -843,12 +870,12 @@ class ListActivity : Activity() {
             else -> R.string.confirm_clear_bookmarks
         }
         Ui.dialog(this)
-            .setMessage(message)
             .setPositiveButton(R.string.delete_all) { _, _ ->
                 if (history) db.clearHistory() else db.clearBookmarks()
                 load()
             }
             .setNegativeButton(R.string.cancel, null)
+            .question(getString(message))
             .show()
     }
 
@@ -874,6 +901,8 @@ class ListActivity : Activity() {
         const val EXTRA_FOLDER = "folder"
         const val MODE_HISTORY = "history"
         const val MODE_BOOKMARKS = "bookmarks"
+        /** After the list's own changes have gone out ([notice]). */
+        private const val NOTICE_DELAY_MS = 300L
         private const val BODY = "body"
         private const val UP = "up"
         private const val ROW_HEIGHT = 136

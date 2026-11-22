@@ -26,6 +26,11 @@
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
+        <!-- Screen readers: from Android 11 the enabled TalkBack is left out of the accessibility service list
+             unless Sofa may see such services, so it couldn't tell a screen reader was on. -->
+        <intent>
+            <action android:name="android.accessibilityservice.AccessibilityService" />
+        </intent>
         <!-- "Open videos in": lists the apps that open web video links. One generic query; no player is named. -->
         <intent>
             <action android:name="android.intent.action.VIEW" />

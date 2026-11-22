@@ -56,6 +56,17 @@
 - Settings backup keeps the sites' choices. Sofa 1.3.0 reads such a backup and leaves them out.
 - A menu button at the edge of its row moves its label inwards, so a long one shows whole.
 
+**TalkBack**
+
+- **Questions are read out.** A question with no title (deleting a folder and what is in it, Delete all, clearing
+  browsing data, deleting a download, resetting the menu or start page, turning a confirmed switch off) is now said
+  when it opens; TalkBack on a TV said only the app's name and Cancel.
+- **Deleting or moving says what happened.** On the Bookmarks and History screens, "Bookmark removed", "Removed
+  from History", "Folder deleted" and "Moved to …" show for a few seconds in a line at the bottom, which TalkBack
+  reads after the row that took the place; they were toasts, which TalkBack on a TV doesn't read.
+- Sofa has a second way to tell that a screen reader is on, for when Android's list of running services comes back
+  empty.
+
 ## 1.3.0 (2026-11-08)
 
 **Site filters**

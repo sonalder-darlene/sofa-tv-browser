@@ -173,5 +173,13 @@ object Ui {
     fun dialog(context: Context) = AlertDialog.Builder(context, p.dialogTheme)
 }
 
+/**
+ * Creates a dialog that asks [message] and has no title. TalkBack on a TV says the window's title and the focused
+ * button, never a dialog's message (it said the app's name and "Cancel"), so the window's title, which nothing shows
+ * on screen, carries the question too. Set the buttons first; the dialog comes back created, not shown.
+ */
+fun AlertDialog.Builder.question(message: CharSequence): AlertDialog =
+    setMessage(message).create().apply { window?.setTitle(message) }
+
 /** Design pixels (1920x1080 grid) to real pixels. */
 val Int.px: Int get() = (this * Ui.scale).roundToInt()

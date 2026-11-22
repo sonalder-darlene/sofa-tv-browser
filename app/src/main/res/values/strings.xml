@@ -79,6 +79,7 @@
     <string name="bookmarked">Bookmarked</string>
     <string name="bookmark_added">Bookmark added</string>
     <string name="bookmark_removed">Bookmark removed</string>
+    <string name="history_entry_removed">Removed from History</string>
     <string name="pin_to_home">Add to home</string>
     <string name="pinned">Added to Quick access</string>
     <string name="adblock_site">Ad block</string>
