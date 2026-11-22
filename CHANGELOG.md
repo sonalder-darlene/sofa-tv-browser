@@ -70,6 +70,7 @@
 **Smaller things**
 
 - The old-WebView warning now starts below version 146.
+- The bundled lists are refreshed: about 76,000 StevenBlack and 73,000 HaGeZi pop-up domains.
 
 ## 1.3.0 (2026-11-08)
 
