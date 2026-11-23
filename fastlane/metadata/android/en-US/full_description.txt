@@ -5,7 +5,7 @@ Remote-control browsing
 • OK clicks, holding OK while moving drags, and hover works, so hover menus open.
 • Hold OK on a link or image to open it in a new tab or another app, copy, share or download it, or set a picture as the start page background.
 • Pushing the pointer against a screen edge scrolls, and there is a scroll mode and a D-pad mode.
-• The Back key opens a menu: address, tabs, Watch, navigation, find in page, bookmarks, history, ad blocking per site, "Browse as" (desktop, mobile, iPad, TV or your own), zoom and settings. Its buttons can be reordered and hidden.
+• The Back key opens a menu: address, tabs, Watch, navigation, find in page, bookmarks, history, ad blocking per site, "Browse as" (desktop, mobile, iPad, TV or your own, also per site), zoom and settings. Its buttons can be reordered and hidden.
 • Game pads (Xbox, PlayStation, 8BitDo and others) work like in a console browser.
 • TalkBack, the TV's screen reader, reads Sofa's menus, settings and dialogs.
 
@@ -13,7 +13,7 @@ Tabs and your start page
 • Up to 10 tabs at the top of the menu. Only the tab you look at runs, and one left alone for 10 minutes is unloaded until you pick it. Private browsing has its own tabs.
 • The start page has your quick-access tiles, your most visited sites (worked out on the TV) and up to 48 bookmarks. Reorder and hide its rows and buttons, and give it a colour, a gradient or your own picture.
 • Sofa can open on the start page, on a web page you choose, or where you left off.
-• Import and export bookmarks as the file every desktop browser uses, and back up your settings, lists and bookmarks to one password-protected file.
+• Keep bookmarks in folders, import and export them as the file desktop browsers use, and back up your settings, lists and bookmarks to one password-protected file.
 
 Video
 • Watch: one press of Play finds the page's main video, even in an embedded player, and plays it fullscreen.
@@ -31,7 +31,7 @@ Blocking and safety
 • Pop-ups are blocked even from ad networks no list knows yet. "Allow once" opens one you wanted.
 • Site filters (off until you choose) block whole sites by category, such as adult, gambling, unsafe sites or drugs, or with a list of your own.
 • A parental PIN (off until you set one) guards Settings and the blockers.
-• Custom DNS (off until you choose) looks sites up over DNS over HTTPS, with services ranked from most to least private.
+• Custom DNS (off until you choose): services ranked from most to least private, or your own over HTTPS, TLS or plain DNS.
 
 Privacy
 • Third-party cookies are blocked, and Sofa blends in as desktop Chrome, without Do Not Track.
